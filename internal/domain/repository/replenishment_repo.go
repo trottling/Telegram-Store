@@ -18,6 +18,10 @@ type ReplenishmentRepository interface {
 	ListByUserID(ctx context.Context, userID int64, offset, limit int) ([]models.Replenishment, error)
 	CountByUserID(ctx context.Context, userID int64) (int64, error)
 
+	// SumPaidByUserMerchant — сумма оплаченных пополнений юзера от одного
+	// мерчанта (используется для статистики "всего начислено с рефералки").
+	SumPaidByUserMerchant(ctx context.Context, userID int64, merchant models.Merchant) (float64, error)
+
 	// ListAllAdmin/CountAllAdmin — межпользовательский вид для админ-панели.
 	ListAllAdmin(ctx context.Context, userID *int64, offset, limit int) ([]models.ReplenishmentAdminItem, error)
 	CountAllAdmin(ctx context.Context, userID *int64) (int64, error)

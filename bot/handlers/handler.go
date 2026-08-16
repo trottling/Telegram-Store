@@ -21,6 +21,8 @@ type Handlers struct {
 	kb                   *keyboards.Keyboards
 	log                  *logrus.Logger
 	adminPanelConfig     *config.AdminPanelConfig
+	// botUsername — для реф-ссылок (t.me/<botUsername>?start=<id>), см. bot.New.
+	botUsername string
 }
 
 func New(
@@ -35,6 +37,7 @@ func New(
 	kb *keyboards.Keyboards,
 	log *logrus.Logger,
 	adminPanelConfig *config.AdminPanelConfig,
+	botUsername string,
 ) *Handlers {
 	return &Handlers{
 		userService:          userService,
@@ -48,5 +51,6 @@ func New(
 		kb:                   kb,
 		log:                  log,
 		adminPanelConfig:     adminPanelConfig,
+		botUsername:          botUsername,
 	}
 }

@@ -76,6 +76,19 @@ func (r *ReplenishmentRepo) CountByUserID(ctx context.Context, userID int64) (in
 	return count, err
 }
 
+// SumPaidByUserMerchant — сумма оплаченных пополнений (COALESCE — 0, если строк нет).
+func (r *ReplenishmentRepo) SumPaidByUserMerchant(ctx context.Context, userID int64, merchant models.Merchant) (float64, error) {
+	var sum float64
+	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Replenishment{}).
+		Where("user_id = ? AND merchant = ? AND status = ?", userID, merchant, models.ReplenishmentStatusPaid).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&sum).Error
+	if err != nil {
+		r.log.WithError(err).WithFields(logrus.Fields{"user_id": userID, "merchant": merchant}).Error("replenishment_repo: sum paid by user merchant failed")
+	}
+	return sum, err
+}
+
 // replenishmentAdminQuery — общая база для ListAllAdmin/CountAllAdmin.
 // users.deleted_at фильтруем вручную — авто-скоуп soft-delete не покрывает джойны.
 func (r *ReplenishmentRepo) replenishmentAdminQuery(ctx context.Context, userID *int64) *gorm.DB {

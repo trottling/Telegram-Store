@@ -30,6 +30,7 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 		CrystalPay:      req.CrystalPay,
 		YooKassa:        req.YooKassa,
 		Tinkoff:         req.Tinkoff,
+		Referral:        req.Referral,
 	})
 	if err != nil {
 		h.writeError(c, err)

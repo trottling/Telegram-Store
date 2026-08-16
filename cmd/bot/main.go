@@ -51,9 +51,9 @@ func main() {
 
 	userService := service.NewUserSrv(userRepo, cacheService, log)
 	productService := service.NewProductSrv(productRepo, cacheService, log)
-	purchaseService := service.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, transactor, cacheService, log)
 	categoryService := service.NewCategorySrv(categoryRepo, productRepo, cacheService, log)
 	settingsService := service.NewSettingsSrv(settingsRepo, cacheService, log)
+	purchaseService := service.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, replenishmentRepo, transactor, settingsService, cacheService, log)
 
 	// Один провайдер на мерчанта — MerchantReferral сюда не входит, начисления
 	// с рефералов через CreateInvoice не идут (см. domain/models.Replenishment).

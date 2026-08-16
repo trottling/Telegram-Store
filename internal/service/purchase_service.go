@@ -10,19 +10,22 @@ import (
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
 // maxBuyQuantity ограничивает покупку за один вызов.
 const maxBuyQuantity = 20
 
 type PurchaseSrv struct {
-	userRepo     repository.UserRepository
-	productRepo  repository.ProductRepository
-	purchaseRepo repository.PurchaseRepository
-	categoryRepo repository.CategoryRepository
-	transactor   repository.Transactor
-	cache        multiCache
-	log          *logrus.Logger
+	userRepo          repository.UserRepository
+	productRepo       repository.ProductRepository
+	purchaseRepo      repository.PurchaseRepository
+	categoryRepo      repository.CategoryRepository
+	replenishmentRepo repository.ReplenishmentRepository
+	transactor        repository.Transactor
+	settingsService   domainservice.SettingsService
+	cache             multiCache
+	log               *logrus.Logger
 }
 
 func NewPurchaseSrv(
@@ -30,56 +33,61 @@ func NewPurchaseSrv(
 	productRepo repository.ProductRepository,
 	purchaseRepo repository.PurchaseRepository,
 	categoryRepo repository.CategoryRepository,
+	replenishmentRepo repository.ReplenishmentRepository,
 	transactor repository.Transactor,
+	settingsService domainservice.SettingsService,
 	cache multiCache,
 	log *logrus.Logger,
 ) *PurchaseSrv {
 	return &PurchaseSrv{
-		userRepo:     userRepo,
-		productRepo:  productRepo,
-		purchaseRepo: purchaseRepo,
-		categoryRepo: categoryRepo,
-		transactor:   transactor,
-		cache:        cache,
-		log:          log,
+		userRepo:          userRepo,
+		productRepo:       productRepo,
+		purchaseRepo:      purchaseRepo,
+		categoryRepo:      categoryRepo,
+		replenishmentRepo: replenishmentRepo,
+		transactor:        transactor,
+		settingsService:   settingsService,
+		cache:             cache,
+		log:               log,
 	}
 }
 
 // Buy покупает count единиц productID для telegramID в одной транзакции.
-func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, count int) ([]*models.Purchase, error) {
+func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, count int) ([]*models.Purchase, *models.ReferralCredit, error) {
 	logCtx := s.log.WithFields(logrus.Fields{"telegram_id": telegramID, "product_id": productID, "count": count})
 
 	if count <= 0 {
-		return nil, domainerrors.ErrInvalidQuantity
+		return nil, nil, domainerrors.ErrInvalidQuantity
 	}
 	if count > maxBuyQuantity {
-		return nil, domainerrors.ErrTooManyProducts
+		return nil, nil, domainerrors.ErrTooManyProducts
 	}
 
 	user, err := s.userRepo.GetByID(ctx, telegramID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	product, err := s.productRepo.GetByID(ctx, productID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !product.IsActive {
 		logCtx.Warn("purchase_service: buy rejected, product inactive")
-		return nil, domainerrors.ErrProductInactive
+		return nil, nil, domainerrors.ErrProductInactive
 	}
 
 	totalPrice := product.Price * float64(count)
 	if user.Balance < totalPrice {
 		logCtx.WithField("balance", user.Balance).Warn("purchase_service: buy rejected, not enough balance")
-		return nil, domainerrors.ErrNotEnoughBalance
+		return nil, nil, domainerrors.ErrNotEnoughBalance
 	}
 
 	// Один batchID на все строки этого вызова — история группирует по нему.
 	batchID := uuid.NewString()
 
 	purchases := make([]*models.Purchase, 0, count)
+	var credit *models.ReferralCredit
 	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
 		for range count {
 			item, itemErr := s.productRepo.GetAvailableItem(ctx, productID)
@@ -109,7 +117,12 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 			purchases = append(purchases, p)
 		}
 
-		return s.userRepo.UpdateBalance(ctx, telegramID, -totalPrice)
+		if updErr := s.userRepo.UpdateBalance(ctx, telegramID, -totalPrice); updErr != nil {
+			return updErr
+		}
+
+		credit = s.creditReferral(ctx, user.ReferrerID, totalPrice)
+		return nil
 	})
 	if err != nil {
 		if errors.Is(err, domainerrors.ErrProductOutOfStock) {
@@ -117,7 +130,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		} else {
 			logCtx.WithError(err).Error("purchase_service: buy transaction failed")
 		}
-		return nil, err
+		return nil, nil, err
 	}
 
 	_ = s.cache.InvalidateUser(ctx, telegramID)
@@ -127,8 +140,54 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	if product.CategoryID != nil {
 		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
 	}
+	if credit != nil {
+		_ = s.cache.InvalidateUser(ctx, credit.ReferrerID)
+	}
 	logCtx.WithField("total_price", totalPrice).Info("purchase_service: purchase completed")
-	return purchases, nil
+	return purchases, credit, nil
+}
+
+// creditReferral — best-effort: реферальная система выключена, у реферера
+// отключены начисления, либо процент/сумма нулевые — молча ничего не делает
+// (это не должно ронять саму покупку). Пишет и Replenishment (Merchant=referral),
+// чтобы начисление было видно в "Мои пополнения" реферера.
+func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, purchaseAmount float64) *models.ReferralCredit {
+	if referrerID == nil {
+		return nil
+	}
+
+	settings, err := s.settingsService.Get(ctx)
+	if err != nil || !settings.Referral.Enabled || settings.Referral.Percent <= 0 {
+		return nil
+	}
+
+	referrer, err := s.userRepo.GetByID(ctx, *referrerID)
+	if err != nil || !referrer.ReferralsEnabled {
+		return nil
+	}
+
+	credit := purchaseAmount * float64(settings.Referral.Percent) / 100
+	if credit <= 0 {
+		return nil
+	}
+
+	if err = s.userRepo.UpdateBalance(ctx, referrer.TelegramID, credit); err != nil {
+		s.log.WithError(err).WithField("referrer_id", referrer.TelegramID).Error("purchase_service: failed to credit referral")
+		return nil
+	}
+
+	now := time.Now()
+	if err = s.replenishmentRepo.Create(ctx, &models.Replenishment{
+		UserID:      referrer.TelegramID,
+		Merchant:    models.MerchantReferral,
+		Amount:      credit,
+		Status:      models.ReplenishmentStatusPaid,
+		CompletedAt: &now,
+	}); err != nil {
+		s.log.WithError(err).WithField("referrer_id", referrer.TelegramID).Error("purchase_service: failed to record referral replenishment")
+	}
+
+	return &models.ReferralCredit{ReferrerID: referrer.TelegramID, Amount: credit}
 }
 
 func (s *PurchaseSrv) GetUserPurchases(ctx context.Context, telegramID int64, offset, limit int) ([]models.PurchaseBatchSummary, error) {

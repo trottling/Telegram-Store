@@ -51,6 +51,8 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 		api.POST("/users/:telegram_id/balance", h.AdjustBalance)
 		api.POST("/users/:telegram_id/promote", h.PromoteUser)
 		api.POST("/users/:telegram_id/demote", h.DemoteUser)
+		api.POST("/users/:telegram_id/referrals/enable", h.EnableUserReferrals)
+		api.POST("/users/:telegram_id/referrals/disable", h.DisableUserReferrals)
 
 		api.GET("/purchases", h.ListPurchases)
 		api.GET("/purchases/:id", h.GetPurchase)

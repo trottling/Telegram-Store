@@ -20,6 +20,10 @@ type ReplenishmentService interface {
 	ListUserReplenishments(ctx context.Context, telegramID int64, offset, limit int) ([]models.Replenishment, error)
 	CountUserReplenishments(ctx context.Context, telegramID int64) (int64, error)
 
+	// SumUserMerchantAmount — сколько оплачено юзеру от одного мерчанта
+	// (используется для "всего начислено" в реферальной статистике, Merchant=referral).
+	SumUserMerchantAmount(ctx context.Context, telegramID int64, merchant models.Merchant) (float64, error)
+
 	// ListAllAdmin/CountAllAdmin — межпользовательский вид для админ-панели, userID nil = без фильтра.
 	ListAllAdmin(ctx context.Context, userID *int64, offset, limit int) ([]models.ReplenishmentAdminItem, error)
 	CountAllAdmin(ctx context.Context, userID *int64) (int64, error)

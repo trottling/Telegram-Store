@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/sirupsen/logrus"
@@ -47,14 +48,24 @@ func New(
 
 	middlewares := middleware.New(userService, purchaseService, productService, replenishmentService, stateStore, log)
 
-	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, replenishmentService, adminAuthService, stateStore, kb, log, adminPanelConfig)
-
 	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
 	if err != nil {
 		return nil, err
 	}
 
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, handler.StartHandler)
+	// Username бота нужен для реф-ссылок (t.me/<username>?start=<id>) — берём
+	// один раз при старте, не на каждый показ ReferralMsg.
+	me, err := b.GetMe(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("get bot username: %w", err)
+	}
+
+	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, replenishmentService, adminAuthService, stateStore, kb, log, adminPanelConfig, me.Username)
+
+	// MatchTypeCommandStartOnly — команда матчится по entity, не по подстроке
+	// текста, так что "/start" и "/start <id>" (deep-link реф-ссылки) оба
+	// проходят; паттерн без слэша — команда в entity хранится без него.
+	b.RegisterHandler(bot.HandlerTypeMessageText, "start", bot.MatchTypeCommandStartOnly, handler.StartHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/admin", bot.MatchTypeExact, handler.AdminHandler)
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.HelpBtn, bot.MatchTypeExact, handler.HelpHandler)
@@ -65,6 +76,7 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.RefillBalanceBtn, bot.MatchTypeExact, handler.RefillBalanceHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ProfileRefreshBtn, bot.MatchTypeExact, handler.ProfileRefreshHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ReplenishmentsBtn, bot.MatchTypeExact, handler.ReplenishmentsHandler)
+	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ReferralBtn, bot.MatchTypeExact, handler.ReferralHandler)
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ProductCallbackPrefix, bot.MatchTypePrefix, handler.ProductHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.BuyCallbackPrefix, bot.MatchTypePrefix, handler.BuyHandler)
@@ -79,6 +91,7 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.StartProfileCallback, bot.MatchTypeExact, handler.ProfileCallbackHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.RefillMerchantCallbackPrefix, bot.MatchTypePrefix, handler.RefillMerchantHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReplenishmentsPageCallbackPrefix, bot.MatchTypePrefix, handler.ReplenishmentsPageHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReferralCloseCallback, bot.MatchTypeExact, handler.ReferralCloseHandler)
 
 	return &TelegramBot{
 		log:                  log,

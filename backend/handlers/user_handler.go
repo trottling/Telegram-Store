@@ -112,3 +112,25 @@ func (h *Handlers) DemoteUser(c *gin.Context) {
 	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id}).Info("handlers: admin revoked")
 	c.Status(http.StatusNoContent)
 }
+
+func (h *Handlers) EnableUserReferrals(c *gin.Context) {
+	h.setUserReferrals(c, true)
+}
+
+func (h *Handlers) DisableUserReferrals(c *gin.Context) {
+	h.setUserReferrals(c, false)
+}
+
+func (h *Handlers) setUserReferrals(c *gin.Context, enabled bool) {
+	admin, _ := middleware.AdminFromContext(c)
+	id, ok := parseIDParam(c, "telegram_id")
+	if !ok {
+		return
+	}
+	if err := h.adminService.SetReferralsEnabled(c.Request.Context(), admin.TelegramID, id, enabled); err != nil {
+		h.writeError(c, err)
+		return
+	}
+	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id, "enabled": enabled}).Info("handlers: user referrals toggled")
+	c.Status(http.StatusNoContent)
+}

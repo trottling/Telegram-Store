@@ -18,6 +18,9 @@ type AdminService interface {
 	// RevokeAdmin: ErrNotAdmin — цель не админ, ErrCannotRevokeRootAdmin — цель root.
 	RevokeAdmin(ctx context.Context, adminID, targetTelegramID int64) error
 
+	// SetReferralsEnabled — вкл/выкл начисления targetTelegramID как рефереру.
+	SetReferralsEnabled(ctx context.Context, adminID, targetTelegramID int64, enabled bool) error
+
 	// CRUD товаров — categoryID может быть nil (без категории)
 	CreateProduct(ctx context.Context, adminID int64, categoryID *int64, name, description string, price float64) (*models.Product, error)
 	UpdateProduct(ctx context.Context, adminID int64, productID int64, categoryID *int64, name, description string, price float64, isActive bool) (*models.Product, error)

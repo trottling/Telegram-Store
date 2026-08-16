@@ -48,11 +48,11 @@ func main() {
 	userService := service.NewUserSrv(userRepo, cacheService, log)
 	productService := service.NewProductSrv(productRepo, cacheService, log)
 	categoryService := service.NewCategorySrv(categoryRepo, productRepo, cacheService, log)
-	// purchaseService тут только для чтения (админ-листинг) — Buy() не вызывается.
-	purchaseService := service.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, transactor, cacheService, log)
 	adminService := service.NewAdminSrv(userRepo, productRepo, categoryRepo, purchaseRepo, adminLogRepo, settingsRepo, cacheService, cacheService, log)
 	statsService := service.NewStatsSrv(statsRepo, log)
 	settingsService := service.NewSettingsSrv(settingsRepo, cacheService, log)
+	// purchaseService тут только для чтения (админ-листинг) — Buy() не вызывается.
+	purchaseService := service.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, replenishmentRepo, transactor, settingsService, cacheService, log)
 	// providers=nil — backend счета не создаёт (только принимает вебхуки и
 	// отдаёт листинг), CreateInvoice отсюда не вызывается.
 	replenishmentService := service.NewReplenishmentSrv(replenishmentRepo, userRepo, nil, cacheService, log)

@@ -32,6 +32,13 @@ type TinkoffSettings struct {
 	MaxAmount   float64 `json:"max_amount"`
 }
 
+// ReferralSettings — Percent начисляется рефереру с каждой покупки его
+// реферала; Enabled=false выключает программу целиком, независимо от Percent.
+type ReferralSettings struct {
+	Enabled bool `json:"enabled"`
+	Percent int  `json:"percent"`
+}
+
 // Settings — общие настройки бота, редактируются через веб-панель.
 type Settings struct {
 	ID              int64  `gorm:"primaryKey" json:"id"`
@@ -40,4 +47,5 @@ type Settings struct {
 	CrystalPay CrystalPaySettings `gorm:"embedded;embeddedPrefix:crystalpay_" json:"crystalpay"`
 	YooKassa   YooKassaSettings   `gorm:"embedded;embeddedPrefix:yookassa_" json:"yookassa"`
 	Tinkoff    TinkoffSettings    `gorm:"embedded;embeddedPrefix:tinkoff_" json:"tinkoff"`
+	Referral   ReferralSettings   `gorm:"embedded;embeddedPrefix:referral_" json:"referral"`
 }

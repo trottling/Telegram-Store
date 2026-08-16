@@ -15,6 +15,9 @@ type UserRepository interface {
 	List(ctx context.Context, offset, limit int) ([]models.User, error)
 	Count(ctx context.Context) (int64, error)
 
+	// CountReferrals — сколько пользователей пригласил referrerID (User.ReferrerID = referrerID).
+	CountReferrals(ctx context.Context, referrerID int64) (int64, error)
+
 	// EnsureRootAdminExists выдаёт rootAdminID роль root_admin, создавая
 	// пользователя при необходимости. Идемпотентно, вызывается из cmd/migrate.
 	EnsureRootAdminExists(ctx context.Context, rootAdminID int64) error

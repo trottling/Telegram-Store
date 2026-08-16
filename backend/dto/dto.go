@@ -52,6 +52,7 @@ type UpdateSettingsRequest struct {
 	CrystalPay      domainmodels.CrystalPaySettings `json:"crystalpay"`
 	YooKassa        domainmodels.YooKassaSettings   `json:"yookassa"`
 	Tinkoff         domainmodels.TinkoffSettings    `json:"tinkoff"`
+	Referral        domainmodels.ReferralSettings   `json:"referral"`
 }
 
 // ExchangeCodeRequest — тело POST /api/auth/exchange, одноразовый код от бота.

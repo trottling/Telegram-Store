@@ -27,6 +27,14 @@ type User struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
 
+	// ReferrerID — кто пригласил (Telegram ID), nil если пришёл не по
+	// реф-ссылке или ссылка вела на уже существующего пользователя
+	// (см. UserSrv.GetOrCreate — выставляется только при создании строки).
+	ReferrerID *int64 `gorm:"index" json:"referrer_id,omitempty"`
+	// ReferralsEnabled — админ может отключить этому юзеру начисления как
+	// рефереру (см. AdminSrv.SetReferralsEnabled), по умолчанию включено.
+	ReferralsEnabled bool `gorm:"default:true;not null" json:"referrals_enabled"`
+
 	Purchases []Purchase `gorm:"foreignKey:UserID" json:"purchases,omitempty"`
 }
 
@@ -40,4 +48,11 @@ func (u *User) IsAdmin() bool {
 
 func (u *User) IsRootAdmin() bool {
 	return u.Role == RoleRootAdmin
+}
+
+// ReferralCredit — что начислено рефереру за покупку его реферала, для
+// уведомления в боте (см. PurchaseService.Buy).
+type ReferralCredit struct {
+	ReferrerID int64
+	Amount     float64
 }

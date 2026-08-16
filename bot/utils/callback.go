@@ -22,10 +22,11 @@ const (
 const CatalogRootCallback = "catalog_root"
 
 const (
-	MainMenuCallback     = "main_menu"
-	StartProfileCallback = "start_profile"
-	BuyCancelCallback    = "buycancel"
-	BuyConfirmCallback   = "buyconfirm"
+	MainMenuCallback      = "main_menu"
+	StartProfileCallback  = "start_profile"
+	BuyCancelCallback     = "buycancel"
+	BuyConfirmCallback    = "buyconfirm"
+	ReferralCloseCallback = "referral_close"
 )
 
 func BuildProductCallback(productId int64) string {

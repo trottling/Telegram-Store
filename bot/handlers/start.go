@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -10,10 +12,12 @@ import (
 )
 
 // StartHandler — единственное место, где создаётся запись пользователя.
+// Payload реф-ссылки (t.me/<bot>?start=<id> -> текст "/start <id>") учитывается
+// только на ветке создания — см. UserSrv.GetOrCreate.
 func (h *Handlers) StartHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
 
-	if _, err := h.userService.GetOrCreate(ctx, chatID, update.Message.Chat.Username); err != nil {
+	if _, err := h.userService.GetOrCreate(ctx, chatID, update.Message.Chat.Username, parseStartPayload(update.Message.Text)); err != nil {
 		h.log.Errorf("StartHandler: failed to get or create user %d: %v", chatID, err)
 		return
 	}
@@ -26,6 +30,21 @@ func (h *Handlers) StartHandler(ctx context.Context, b *bot.Bot, update *models.
 	}); err != nil {
 		h.log.Errorf("StartHandler: failed to send message: %v", err)
 	}
+}
+
+// parseStartPayload вытаскивает referrerID из "/start <id>" — MatchTypeCommandStartOnly
+// матчит и "/start", и "/start 123" (Telegram кладёт payload deep-link'а как
+// обычный текст после команды). nil, если payload пуст или не число.
+func parseStartPayload(text string) *int64 {
+	payload := strings.TrimSpace(strings.TrimPrefix(text, "/start"))
+	if payload == "" {
+		return nil
+	}
+	id, err := strconv.ParseInt(payload, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &id
 }
 
 // StartMenuHandler отвечает на кнопку «На главную» — только новым сообщением, редактировать нечего.

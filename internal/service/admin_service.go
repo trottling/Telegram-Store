@@ -190,6 +190,32 @@ func (s *AdminSrv) RevokeAdmin(ctx context.Context, adminID, targetTelegramID in
 	return nil
 }
 
+// SetReferralsEnabled вкл/выкл начисления targetTelegramID как рефереру —
+// не трогает его собственный ReferrerID, только доступность его самого как
+// приглашающего (см. PurchaseSrv.creditReferral).
+func (s *AdminSrv) SetReferralsEnabled(ctx context.Context, adminID, targetTelegramID int64, enabled bool) error {
+	target, err := s.userRepo.GetByID(ctx, targetTelegramID)
+	if err != nil {
+		return err
+	}
+	if target.ReferralsEnabled == enabled {
+		return nil
+	}
+
+	target.ReferralsEnabled = enabled
+	if err = s.userRepo.Update(ctx, target); err != nil {
+		return err
+	}
+
+	action := "referral_disable"
+	if enabled {
+		action = "referral_enable"
+	}
+	s.logAction(ctx, adminID, action, &targetTelegramID, nil)
+	_ = s.cache.InvalidateUser(ctx, targetTelegramID)
+	return nil
+}
+
 func (s *AdminSrv) CreateProduct(ctx context.Context, adminID int64, categoryID *int64, name, description string, price float64) (*models.Product, error) {
 	if name == "" || price <= 0 {
 		return nil, domainerrors.ErrInvalidProductInput
@@ -385,6 +411,9 @@ func (s *AdminSrv) DeleteCategory(ctx context.Context, adminID int64, categoryID
 // UpdateSettings перезаписывает единственную строку настроек бота целиком.
 func (s *AdminSrv) UpdateSettings(ctx context.Context, adminID int64, settings *models.Settings) (*models.Settings, error) {
 	if settings.SupportUsername == "" {
+		return nil, domainerrors.ErrInvalidSettingsInput
+	}
+	if settings.Referral.Percent < 0 || settings.Referral.Percent > 100 {
 		return nil, domainerrors.ErrInvalidSettingsInput
 	}
 

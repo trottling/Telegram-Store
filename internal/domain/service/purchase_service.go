@@ -8,8 +8,10 @@ import (
 
 // PurchaseService принимает Telegram ID покупателя, не внутренний ключ.
 type PurchaseService interface {
-	// Buy — count строк Purchase за одну транзакцию (одна Purchase на единицу товара).
-	Buy(ctx context.Context, telegramID, productID int64, count int) ([]*models.Purchase, error)
+	// Buy — count строк Purchase за одну транзакцию (одна Purchase на единицу
+	// товара). credit != nil, если покупателя пригласили и рефералке начислили
+	// процент — вызывающий (бот) сам шлёт уведомление рефереру.
+	Buy(ctx context.Context, telegramID, productID int64, count int) (purchases []*models.Purchase, credit *models.ReferralCredit, err error)
 	// GetUserPurchases/CountUserPurchaseBatches — по батчам, не по сырым строкам.
 	GetUserPurchases(ctx context.Context, telegramID int64, offset, limit int) ([]models.PurchaseBatchSummary, error)
 	CountUserPurchaseBatches(ctx context.Context, telegramID int64) (int64, error)

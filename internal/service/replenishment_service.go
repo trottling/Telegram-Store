@@ -116,6 +116,10 @@ func (s *ReplenishmentSrv) CountUserReplenishments(ctx context.Context, telegram
 	return s.replenishmentRepo.CountByUserID(ctx, telegramID)
 }
 
+func (s *ReplenishmentSrv) SumUserMerchantAmount(ctx context.Context, telegramID int64, merchant models.Merchant) (float64, error) {
+	return s.replenishmentRepo.SumPaidByUserMerchant(ctx, telegramID, merchant)
+}
+
 func (s *ReplenishmentSrv) ListAllAdmin(ctx context.Context, userID *int64, offset, limit int) ([]models.ReplenishmentAdminItem, error) {
 	return s.replenishmentRepo.ListAllAdmin(ctx, userID, offset, limit)
 }

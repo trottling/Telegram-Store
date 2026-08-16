@@ -146,7 +146,7 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 		h.log.Errorf("BuyConfirmHandler: failed to strip keyboard from message %d in chat %d: %v", messageID, chatID, err)
 	}
 
-	purchases, err := h.purchaseService.Buy(ctx, chatID, st.ProductID, st.Quantity)
+	purchases, credit, err := h.purchaseService.Buy(ctx, chatID, st.ProductID, st.Quantity)
 	if err != nil {
 		h.log.Errorf("BuyConfirmHandler: failed to buy product %d x%d for user %d: %v", st.ProductID, st.Quantity, chatID, err)
 		if _, sendErr := b.SendMessage(ctx, &bot.SendMessageParams{
@@ -175,5 +175,15 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {
 		h.log.Errorf("BuyConfirmHandler: failed to send message to %d: %v", chatID, err)
+	}
+
+	if credit != nil {
+		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    credit.ReferrerID,
+			Text:      fmt.Sprintf(texts.ReferralCreditMsg, credit.Amount),
+			ParseMode: models.ParseModeMarkdownV1,
+		}); err != nil {
+			h.log.Errorf("BuyConfirmHandler: failed to notify referrer %d: %v", credit.ReferrerID, err)
+		}
 	}
 }
