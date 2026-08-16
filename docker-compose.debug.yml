@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: migrate
-    container_name: tg-shop-migrate
+    container_name: telegram-store-migrate
     env_file:
       - path: .env
         required: true
@@ -20,7 +20,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: bot
-    container_name: tg-shop-bot
+    container_name: telegram-store-bot
     env_file:
       - path: .env
         required: true
@@ -40,7 +40,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: backend
-    container_name: tg-shop-backend
+    container_name: telegram-store-backend
     env_file:
       - path: .env
         required: true
@@ -63,7 +63,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
-    container_name: tg-shop-admin-frontend
+    container_name: telegram-store-admin-frontend
     ports:
       - "3000:80"
     restart: unless-stopped
@@ -74,7 +74,7 @@ services:
 
   db:
     image: postgres:latest
-    container_name: tg-shop-db
+    container_name: telegram-store-db
     ports:
       - "5432:5432"
     environment:
@@ -93,7 +93,7 @@ services:
 
   redis:
     image: redis:latest
-    container_name: tg-shop-redis
+    container_name: telegram-store-redis
     ports:
       - "6379:6379"
     command: [ "redis-server", "--appendonly", "yes" ]
