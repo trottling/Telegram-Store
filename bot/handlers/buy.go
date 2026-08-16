@@ -170,7 +170,7 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.ProductBoughtMsg, len(purchases), strings.Join(contents, "\n")),
+		Text:        fmt.Sprintf(texts.ProductBoughtMsg, len(purchases), purchases[0].Product.Description, strings.Join(contents, "\n")),
 		ParseMode:   models.ParseModeMarkdownV1,
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {
