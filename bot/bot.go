@@ -24,6 +24,7 @@ type TelegramBot struct {
 	productService  service.ProductService
 	purchaseService service.PurchaseService
 	categoryService service.CategoryService
+	settingsService service.SettingsService
 	paymentService  payment.PaymentProvider
 }
 
@@ -32,6 +33,7 @@ func New(
 	productService service.ProductService,
 	purchaseService service.PurchaseService,
 	categoryService service.CategoryService,
+	settingsService service.SettingsService,
 	paymentService payment.PaymentProvider,
 	adminAuthService service.AdminAuthService,
 	stateStore domainfsm.Store,
@@ -46,7 +48,7 @@ func New(
 
 	middlewares := middleware.New(userService, purchaseService, productService, paymentService, stateStore, log)
 
-	handler := handlers.New(userService, purchaseService, productService, categoryService, paymentService, adminAuthService, stateStore, kb, log, adminPanelConfig)
+	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, paymentService, adminAuthService, stateStore, kb, log, adminPanelConfig)
 
 	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
 	if err != nil {
@@ -83,6 +85,7 @@ func New(
 		productService:  productService,
 		purchaseService: purchaseService,
 		categoryService: categoryService,
+		settingsService: settingsService,
 		paymentService:  paymentService,
 	}, nil
 }

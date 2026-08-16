@@ -15,6 +15,7 @@ type Handlers struct {
 	purchaseService  service.PurchaseService
 	productService   service.ProductService
 	categoryService  service.CategoryService
+	settingsService  service.SettingsService
 	paymentService   payment.PaymentProvider
 	adminAuthService service.AdminAuthService
 	stateStore       domainfsm.Store
@@ -28,6 +29,7 @@ func New(
 	purchaseService service.PurchaseService,
 	productService service.ProductService,
 	categoryService service.CategoryService,
+	settingsService service.SettingsService,
 	paymentService payment.PaymentProvider,
 	adminAuthService service.AdminAuthService,
 	stateStore domainfsm.Store,
@@ -40,6 +42,7 @@ func New(
 		purchaseService:  purchaseService,
 		productService:   productService,
 		categoryService:  categoryService,
+		settingsService:  settingsService,
 		paymentService:   paymentService,
 		adminAuthService: adminAuthService,
 		stateStore:       stateStore,

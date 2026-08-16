@@ -169,6 +169,24 @@ func (c *Cache) InvalidateCategoryChildren(ctx context.Context, parentID *int64)
 	return c.delete(ctx, categoryChildrenKey(parentID))
 }
 
+// настройки бота
+
+func (c *Cache) GetSettings(ctx context.Context) (*models.Settings, error) {
+	var settings models.Settings
+	if err := c.getJSON(ctx, settingsKey(), &settings); err != nil {
+		return nil, err
+	}
+	return &settings, nil
+}
+
+func (c *Cache) SetSettings(ctx context.Context, settings *models.Settings) error {
+	return c.setJSON(ctx, settingsKey(), settings, settingsTTL)
+}
+
+func (c *Cache) InvalidateSettings(ctx context.Context) error {
+	return c.delete(ctx, settingsKey())
+}
+
 // состояние FSM
 
 func (c *Cache) GetFSMState(ctx context.Context, telegramID int64) (*domainfsm.State, error) {

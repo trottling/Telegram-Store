@@ -21,6 +21,10 @@ func categoryChildrenKey(parentID *int64) string {
 	return fmt.Sprintf("category:children:%d", *parentID)
 }
 
+// настройки бота
+
+func settingsKey() string { return "settings" }
+
 // состояние FSM
 
 func stateKey(telegramID int64) string { return fmt.Sprintf("fsm:%d", telegramID) }

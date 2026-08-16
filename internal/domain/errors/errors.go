@@ -12,6 +12,10 @@ var (
 	// дерево каталога
 	ErrCategoryNotFound = errors.New("category not found")
 
+	// настройки бота
+	ErrSettingsNotFound     = errors.New("settings not found")
+	ErrInvalidSettingsInput = errors.New("invalid settings input")
+
 	// сценарий покупки
 	ErrProductNotFound   = errors.New("product not found")
 	ErrProductInactive   = errors.New("product is not active")

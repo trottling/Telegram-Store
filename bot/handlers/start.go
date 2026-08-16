@@ -56,13 +56,19 @@ func (h *Handlers) MainMenuHandler(ctx context.Context, b *bot.Bot, update *mode
 	}
 }
 
-// HelpHandler показывает экран помощи.
+// HelpHandler показывает экран помощи с Username поддержки из настроек.
 func (h *Handlers) HelpHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
 
-	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+	settings, err := h.settingsService.Get(ctx)
+	if err != nil {
+		h.log.Errorf("HelpHandler: failed to get settings: %v", err)
+		return
+	}
+
+	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        texts.HelpMsg,
+		Text:        fmt.Sprintf(texts.HelpMsg, settings.SupportUsername),
 		ParseMode:   models.ParseModeMarkdownV1,
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {

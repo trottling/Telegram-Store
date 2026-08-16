@@ -70,9 +70,11 @@ internal/repository/postgres/ GORM-backed implementations, using the Generics AP
                                *gorm.DB chainable builder (Model/Select/Joins/Where/Group/Scan) instead, since
                                gorm.G[T] assumes one row = one T; the one recursive-CTE query (category tree
                                visibility) is the sole .Raw(...).Scan(...) case, since neither of the above can
-                               express recursion. migrate.go holds AutoMigrate + two one-time schema cleanups
-                               left over from earlier iterations (BackfillUserRoles, DropLegacyAdminTokenColumn),
-                               both no-ops once already run — see cmd/migrate
+                               express recursion. migrate.go's AutoMigrate is cmd/migrate's single entry point: DDL,
+                               two unexported one-time schema cleanups left over from earlier iterations
+                               (backfillUserRoles, dropLegacyAdminTokenColumn — both no-ops once already run), then
+                               bootstrapping the root admin (UserRepo.EnsureRootAdminExists) and the default
+                               Settings row (SettingsRepo.EnsureExists) — everything cmd/migrate needs, in one call
 internal/service/              implementations of internal/domain/service — cache-aside on every read (check
                                cache, miss -> repo, populate cache), explicit invalidation on every write; admin
                                listing methods (*Admin/*All suffix) deliberately skip the cache and always read
@@ -132,12 +134,13 @@ backend/router.go, server.go   route table + http.Server lifecycle (Start/Shutdo
 
 internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Logger sub-configs)
 internal/logger/               logrus logger construction from config.LoggerConfig
-cmd/migrate/main.go            one-shot: config -> logger -> postgres -> pgdb.AutoMigrate -> pgdb.BackfillUserRoles
-                               (legacy is_banned/is_admin -> User.Role) -> pgdb.DropLegacyAdminTokenColumn (dead
-                               column from an earlier auth design) -> UserRepo.EnsureRootAdminExists -> exit. Its
-                               own doc comment explains why this is a separate binary/container from cmd/bot and
-                               cmd/backend: two independent, concurrently-started long-running services can't both
-                               own "run AutoMigrate on startup" without racing
+cmd/migrate/main.go            one-shot: config -> logger -> postgres -> pgdb.AutoMigrate(ctx, db, log,
+                               rootAdminID) -> exit — that single call does the DDL, legacy-column cleanups, and
+                               root-admin/Settings bootstrap (see internal/repository/postgres above); main.go
+                               itself has no migration logic of its own. Its own doc comment explains why this is a
+                               separate binary/container from cmd/bot and cmd/backend: two independent,
+                               concurrently-started long-running services can't both own "run AutoMigrate on
+                               startup" without racing
 cmd/bot/main.go                entrypoint: config -> logger -> redis client -> postgres (schema already migrated
                                by cmd/migrate) -> repos -> services -> bot.New -> bot.Start (blocks) -> on
                                ctx.Done(): redis close

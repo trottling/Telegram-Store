@@ -43,19 +43,21 @@ func main() {
 	categoryRepo := pgdb.NewCategoryRepo(db, log)
 	adminLogRepo := pgdb.NewAdminLogRepo(db, log)
 	statsRepo := pgdb.NewStatsRepo(db, log)
+	settingsRepo := pgdb.NewSettingsRepo(db, log)
 
 	userService := service.NewUserSrv(userRepo, cacheService, log)
 	productService := service.NewProductSrv(productRepo, cacheService, log)
 	categoryService := service.NewCategorySrv(categoryRepo, productRepo, cacheService, log)
 	// purchaseService тут только для чтения (админ-листинг) — Buy() не вызывается.
 	purchaseService := service.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, transactor, cacheService, log)
-	adminService := service.NewAdminSrv(userRepo, productRepo, categoryRepo, purchaseRepo, adminLogRepo, cacheService, log)
+	adminService := service.NewAdminSrv(userRepo, productRepo, categoryRepo, purchaseRepo, adminLogRepo, settingsRepo, cacheService, cacheService, log)
 	statsService := service.NewStatsSrv(statsRepo, log)
+	settingsService := service.NewSettingsSrv(settingsRepo, cacheService, log)
 
 	// Коды выдаёт бот (/admin), этот процесс их только обменивает/проверяет.
 	adminAuthService := service.NewAdminAuthSrv(userRepo, cacheService, cfg.AdminPanel.JWTSecret, log)
 
-	webServer := backend.New(userService, productService, categoryService, purchaseService, adminService, statsService, adminAuthService, cfg.AdminPanel, log)
+	webServer := backend.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, adminAuthService, cfg.AdminPanel, log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/sirupsen/logrus"
+	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
@@ -12,13 +13,15 @@ import (
 )
 
 type AdminSrv struct {
-	userRepo     repository.UserRepository
-	productRepo  repository.ProductRepository
-	categoryRepo repository.CategoryRepository
-	purchaseRepo repository.PurchaseRepository
-	adminLogRepo repository.AdminLogRepository
-	cache        multiCache
-	log          *logrus.Logger
+	userRepo      repository.UserRepository
+	productRepo   repository.ProductRepository
+	categoryRepo  repository.CategoryRepository
+	purchaseRepo  repository.PurchaseRepository
+	adminLogRepo  repository.AdminLogRepository
+	settingsRepo  repository.SettingsRepository
+	cache         multiCache
+	settingsCache domaincache.SettingsCache
+	log           *logrus.Logger
 }
 
 func NewAdminSrv(
@@ -27,17 +30,21 @@ func NewAdminSrv(
 	categoryRepo repository.CategoryRepository,
 	purchaseRepo repository.PurchaseRepository,
 	adminLogRepo repository.AdminLogRepository,
+	settingsRepo repository.SettingsRepository,
 	cache multiCache,
+	settingsCache domaincache.SettingsCache,
 	log *logrus.Logger,
 ) *AdminSrv {
 	return &AdminSrv{
-		userRepo:     userRepo,
-		productRepo:  productRepo,
-		categoryRepo: categoryRepo,
-		purchaseRepo: purchaseRepo,
-		adminLogRepo: adminLogRepo,
-		cache:        cache,
-		log:          log,
+		userRepo:      userRepo,
+		productRepo:   productRepo,
+		categoryRepo:  categoryRepo,
+		purchaseRepo:  purchaseRepo,
+		adminLogRepo:  adminLogRepo,
+		settingsRepo:  settingsRepo,
+		cache:         cache,
+		settingsCache: settingsCache,
+		log:           log,
 	}
 }
 
@@ -373,6 +380,22 @@ func (s *AdminSrv) DeleteCategory(ctx context.Context, adminID int64, categoryID
 	s.logAction(ctx, adminID, "category_delete", &categoryID, nil)
 	_ = s.cache.InvalidateCategoryChildren(ctx, category.ParentID)
 	return nil
+}
+
+// UpdateSettings перезаписывает единственную строку настроек бота.
+func (s *AdminSrv) UpdateSettings(ctx context.Context, adminID int64, supportUsername string) (*models.Settings, error) {
+	if supportUsername == "" {
+		return nil, domainerrors.ErrInvalidSettingsInput
+	}
+
+	settings := &models.Settings{ID: models.SettingsID, SupportUsername: supportUsername}
+	if err := s.settingsRepo.Update(ctx, settings); err != nil {
+		return nil, err
+	}
+
+	s.logAction(ctx, adminID, "settings_update", &settings.ID, nil)
+	_ = s.settingsCache.InvalidateSettings(ctx)
+	return settings, nil
 }
 
 func (s *AdminSrv) GetLogs(ctx context.Context, adminID int64, offset, limit int) ([]models.AdminLog, error) {

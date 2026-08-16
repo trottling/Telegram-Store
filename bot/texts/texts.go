@@ -22,7 +22,7 @@ var (
 
 	StartMsg          = "🤙 Привет, *%s*!"
 	ProfileMsg        = "👤 *@%s*\nℹ️ `%d`\n\n💰 Баланс: *%.2f* ₽\n📝 Покупок: *%d*\n💵 Потрачено: *%.2f* ₽"
-	HelpMsg           = "☎️ Саппорт *@trottling*"
+	HelpMsg           = "☎️ Саппорт *%s*"
 	PurchasesMsg      = "🛒 Последние покупки:"
 	ProductMsg        = "📦 *%s*\n💰 %.2f ₽\n%s Доступно: *%d*\n\n%s\n\n💰 Доступный баланс: %.2f ₽"
 	CatalogMsg        = "*📦 Каталог товаров*"

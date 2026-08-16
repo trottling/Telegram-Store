@@ -44,17 +44,19 @@ func main() {
 	productRepo := pgdb.NewProductRepo(db, log)
 	purchaseRepo := pgdb.NewPurchaseRepo(db, log)
 	categoryRepo := pgdb.NewCategoryRepo(db, log)
+	settingsRepo := pgdb.NewSettingsRepo(db, log)
 
 	userService := service.NewUserSrv(userRepo, cacheService, log)
 	productService := service.NewProductSrv(productRepo, cacheService, log)
 	purchaseService := service.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, transactor, cacheService, log)
 	categoryService := service.NewCategorySrv(categoryRepo, productRepo, cacheService, log)
+	settingsService := service.NewSettingsSrv(settingsRepo, cacheService, log)
 
 	// Бот сам AdminService не вызывает — только выдаёт код для /admin.
 	adminAuthService := service.NewAdminAuthSrv(userRepo, cacheService, cfg.AdminPanel.JWTSecret, log)
 	paymentService := payment.NewStubProvider()
 
-	b, err := bot.New(userService, productService, purchaseService, categoryService, paymentService, adminAuthService, cacheService, cfg.Telegram, cfg.AdminPanel, log)
+	b, err := bot.New(userService, productService, purchaseService, categoryService, settingsService, paymentService, adminAuthService, cacheService, cfg.Telegram, cfg.AdminPanel, log)
 	if err != nil {
 		log.Fatalf("bot: failed to init bot: %v", err)
 	}

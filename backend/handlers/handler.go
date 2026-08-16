@@ -15,6 +15,7 @@ type Handlers struct {
 	purchaseService  service.PurchaseService
 	adminService     service.AdminService
 	statsService     service.StatsService
+	settingsService  service.SettingsService
 	adminAuthService service.AdminAuthService
 
 	log *logrus.Logger
@@ -27,6 +28,7 @@ func New(
 	purchaseService service.PurchaseService,
 	adminService service.AdminService,
 	statsService service.StatsService,
+	settingsService service.SettingsService,
 	adminAuthService service.AdminAuthService,
 	log *logrus.Logger,
 ) *Handlers {
@@ -37,6 +39,7 @@ func New(
 		purchaseService:  purchaseService,
 		adminService:     adminService,
 		statsService:     statsService,
+		settingsService:  settingsService,
 		adminAuthService: adminAuthService,
 		log:              log,
 	}

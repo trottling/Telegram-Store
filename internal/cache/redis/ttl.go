@@ -9,4 +9,5 @@ const (
 	productCountTTL     = 30 * time.Second
 	categoryChildrenTTL = time.Minute
 	stateTTL            = 5 * time.Minute
+	settingsTTL         = 10 * time.Hour
 )

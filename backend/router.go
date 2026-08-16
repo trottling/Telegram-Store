@@ -53,6 +53,9 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 		api.GET("/stats/dashboard", h.Dashboard)
 
 		api.GET("/admin-logs", h.ListAdminLogs)
+
+		api.GET("/settings", h.GetSettings)
+		api.PUT("/settings", h.UpdateSettings)
 	}
 
 	return r

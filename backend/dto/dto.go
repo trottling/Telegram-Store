@@ -45,6 +45,10 @@ type UpdateBalanceRequest struct {
 	Amount float64 `json:"amount"` // может быть отрицательной — списание
 }
 
+type UpdateSettingsRequest struct {
+	SupportUsername string `json:"support_username"`
+}
+
 // ExchangeCodeRequest — тело POST /api/auth/exchange, одноразовый код от бота.
 type ExchangeCodeRequest struct {
 	Code string `json:"code"`
