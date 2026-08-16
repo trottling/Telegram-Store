@@ -11,7 +11,9 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/keyboards"
 	"github.com/trottling/Telegram-Store/bot/texts"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	domain "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // maxQuickPickQuantity дублирует handlers.maxQuickPickQuantity.
@@ -63,7 +65,7 @@ func (m *Middlewares) FSM(next bot.HandlerFunc) bot.HandlerFunc {
 		case domainfsm.StepAwaitingBuyQuantity:
 			m.handleBuyQuantity(ctx, b, chatID, text, st)
 		case domainfsm.StepAwaitingRefillAmount:
-			m.handleRefillAmount(ctx, b, chatID, text)
+			m.handleRefillAmount(ctx, b, chatID, text, st)
 		default:
 			_ = m.stateStore.ClearFSMState(ctx, chatID)
 			next(ctx, b, update)
@@ -144,9 +146,9 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 	}
 }
 
-// handleRefillAmount парсит сумму и запрашивает счёт у paymentService
-// (сейчас это заглушка, всегда падает в ветку «недоступно»).
-func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID int64, text string) {
+// handleRefillAmount парсит сумму и создаёт счёт через replenishmentService
+// у мерчанта, выбранного на предыдущем шаге (st.Merchant).
+func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID int64, text string, st *domainfsm.State) {
 	normalized := strings.ReplaceAll(strings.TrimSpace(text), ",", ".")
 	amount, err := strconv.ParseFloat(normalized, 64)
 	if err != nil || amount <= 0 {
@@ -155,14 +157,21 @@ func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID
 		return
 	}
 
-	_ = m.stateStore.ClearFSMState(ctx, chatID)
-
-	paymentURL, _, err := m.paymentService.CreateInvoice(ctx, chatID, amount, "Пополнение баланса")
+	merchant := domain.Merchant(st.Merchant)
+	paymentURL, err := m.replenishmentService.CreateInvoice(ctx, chatID, merchant, amount)
 	if err != nil {
+		if errors.Is(err, domainerrors.ErrAmountOutOfRange) {
+			// Сумма вне min/max — состояние не сбрасываем, дадим ввести другую.
+			m.send(ctx, b, chatID, texts.InvalidAmountMsg, nil)
+			return
+		}
 		m.log.WithError(err).WithField("telegram_id", chatID).Info("fsm: refill invoice unavailable")
+		_ = m.stateStore.ClearFSMState(ctx, chatID)
 		m.send(ctx, b, chatID, texts.RefillMsg, nil)
 		return
 	}
+
+	_ = m.stateStore.ClearFSMState(ctx, chatID)
 
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: texts.PayBtn, URL: paymentURL}}},

@@ -1,13 +1,19 @@
 package texts
 
 var (
-	CatalogBtn       = "📦 Каталог"
-	ProfileBtn       = "👤 Профиль"
-	HelpBtn          = "☎️ Помощь"
-	PurchasesBtn     = "📜 Мои покупки"
-	RefillBalanceBtn = "💰 Пополнить баланс"
-	StartMenuBtn     = "↩️ На главную"
-	AdminPanelBtn    = "♿️ Админ панель"
+	CatalogBtn        = "📦 Каталог"
+	ProfileBtn        = "👤 Профиль"
+	HelpBtn           = "☎️ Помощь"
+	PurchasesBtn      = "📜 Мои покупки"
+	ReplenishmentsBtn = "💳 Мои пополнения"
+	RefillBalanceBtn  = "💰 Пополнить баланс"
+	StartMenuBtn      = "↩️ На главную"
+	AdminPanelBtn     = "♿️ Админ панель"
+
+	CrystalPayBtn = "💎 CrystalPay"
+	YooKassaBtn   = "🟣 ЮKassa"
+	TinkoffBtn    = "🟡 Тинькофф"
+	ReferralName  = "🤝 Реферальная программа"
 
 	PurchaseInlineBtn = "%.2f₽ | %d x %s"
 	BuyBtn            = "🛒 Купить"
@@ -31,7 +37,18 @@ var (
 	ProductBoughtMsg  = "✅ Покупка совершена! Куплено: *%d* шт.\n\nℹ️ %s\n\n*📦 Товар(ы):*\n%s"
 	PurchaseDetailMsg = "📦 *%s*\n💰 %.2f ₽ (%d шт.)\n🗓%s\nℹ️ %s\n\n*🛒 Товар(ы):*\n%s"
 	PurchasesEmptyMsg = "📜 У вас пока нет покупок"
-	RefillMsg         = "💰 Пополнение баланса в разработке"
+	RefillMsg         = "💰 Пополнение баланса сейчас недоступно"
+
+	ReplenishmentsMsg      = "💳 Последние пополнения:"
+	ReplenishmentsEmptyMsg = "💳 У вас пока нет пополнений"
+	ReplenishmentLineMsg   = "%.2f ₽ | %s | %s | %s"
+
+	ReplenishmentStatusPending   = "⏳ В обработке"
+	ReplenishmentStatusPaid      = "✅ Оплачено"
+	ReplenishmentStatusFailed    = "❌ Не удалось"
+	ReplenishmentStatusCancelled = "🚫 Отменено"
+
+	RefillMerchantPickerMsg = "💰 Выберите способ пополнения:"
 
 	AdminMsg         = "🔐 Панель администратора:\n\n🔑 Код для входа: `%s`\n⏳ Действителен 30 секунд"
 	AdminMsgWithLink = "🔐 Панель администратора:\n\n🔑 Код для входа: `%s`\n⏳ Действителен 30 секунд\n\n🔗 Ссылка: %s"
@@ -45,7 +62,7 @@ var (
 	InsufficientStockMsg      = "❌ В наличии только *%d* шт. Введите другое количество."
 	ConfirmPurchaseMsg        = "🧾 Подтвердите покупку:\n\n📦 *%s*\n🔢 Количество: *%d*\n💰 Сумма: *%.2f ₽*"
 	InvalidQuantityMsg        = "⚠️ Введите целое число от 1 до 20."
-	AskRefillAmountMsg        = "💰 Введите сумму пополнения в ₽:"
+	AskRefillAmountMsg        = "💰 Введите сумму пополнения (%s):"
 	InvalidAmountMsg          = "⚠️ Введите положительное число."
 	RefillInvoiceMsg          = "💳 Оплатите *%.2f ₽* по кнопке ниже."
 	PayBtn                    = "💳 Оплатить"

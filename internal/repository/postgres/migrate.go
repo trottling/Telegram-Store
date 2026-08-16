@@ -20,6 +20,7 @@ func AutoMigrate(ctx context.Context, db *gorm.DB, log *logrus.Logger, rootAdmin
 		&models.Purchase{},
 		&models.AdminLog{},
 		&models.Settings{},
+		&models.Replenishment{},
 	); err != nil {
 		return err
 	}

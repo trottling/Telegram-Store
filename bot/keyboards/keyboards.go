@@ -30,7 +30,8 @@ func New(adminPanelConfig *config.AdminPanelConfig) *Keyboards {
 		ProfileKb: &models.ReplyKeyboardMarkup{
 			ResizeKeyboard: true,
 			Keyboard: [][]models.KeyboardButton{
-				{{Text: texts.PurchasesBtn}, {Text: texts.RefillBalanceBtn}},
+				{{Text: texts.PurchasesBtn}, {Text: texts.ReplenishmentsBtn}},
+				{{Text: texts.RefillBalanceBtn}},
 				{{Text: texts.ProfileRefreshBtn}, {Text: texts.StartMenuBtn}},
 			},
 		},
@@ -60,6 +61,26 @@ func BuildPurchasesKb(batches []domain.PurchaseBatchSummary, offset, limit int, 
 	}
 	if int64(offset+limit) < total {
 		navRow = append(navRow, models.InlineKeyboardButton{Text: texts.NextPageBtn, CallbackData: utils.BuildPurchasesPageCallback(offset + limit)})
+	}
+	if len(navRow) > 0 {
+		rows = append(rows, navRow)
+	}
+
+	return &models.InlineKeyboardMarkup{InlineKeyboard: rows}
+}
+
+// BuildReplenishmentsKb — только пагинация, без кнопки на строку (нечего
+// раскрывать по тапу — см. комментарий в renderReplenishments).
+func BuildReplenishmentsKb(offset, limit int, total int64) *models.InlineKeyboardMarkup {
+	rows := make([][]models.InlineKeyboardButton, 0)
+
+	var navRow []models.InlineKeyboardButton
+	if offset > 0 {
+		prevOffset := max(offset-limit, 0)
+		navRow = append(navRow, models.InlineKeyboardButton{Text: texts.PrevPageBtn, CallbackData: utils.BuildReplenishmentsPageCallback(prevOffset)})
+	}
+	if int64(offset+limit) < total {
+		navRow = append(navRow, models.InlineKeyboardButton{Text: texts.NextPageBtn, CallbackData: utils.BuildReplenishmentsPageCallback(offset + limit)})
 	}
 	if len(navRow) > 0 {
 		rows = append(rows, navRow)

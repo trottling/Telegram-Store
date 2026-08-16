@@ -2,6 +2,8 @@
 // переиспользуют типы из internal/domain/models напрямую.
 package dto
 
+import domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
+
 // Paginated — обёртка, в которой отвечают все list-эндпоинты.
 type Paginated[T any] struct {
 	Items  []T   `json:"items"`
@@ -46,7 +48,10 @@ type UpdateBalanceRequest struct {
 }
 
 type UpdateSettingsRequest struct {
-	SupportUsername string `json:"support_username"`
+	SupportUsername string                          `json:"support_username"`
+	CrystalPay      domainmodels.CrystalPaySettings `json:"crystalpay"`
+	YooKassa        domainmodels.YooKassaSettings   `json:"yookassa"`
+	Tinkoff         domainmodels.TinkoffSettings    `json:"tinkoff"`
 }
 
 // ExchangeCodeRequest — тело POST /api/auth/exchange, одноразовый код от бота.

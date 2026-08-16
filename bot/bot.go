@@ -13,19 +13,18 @@ import (
 	"github.com/trottling/Telegram-Store/internal/config"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
-	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
 
 type TelegramBot struct {
-	bot             *bot.Bot
-	config          *config.Config
-	log             *logrus.Logger
-	userService     service.UserService
-	productService  service.ProductService
-	purchaseService service.PurchaseService
-	categoryService service.CategoryService
-	settingsService service.SettingsService
-	paymentService  payment.PaymentProvider
+	bot                  *bot.Bot
+	config               *config.Config
+	log                  *logrus.Logger
+	userService          service.UserService
+	productService       service.ProductService
+	purchaseService      service.PurchaseService
+	categoryService      service.CategoryService
+	settingsService      service.SettingsService
+	replenishmentService service.ReplenishmentService
 }
 
 func New(
@@ -34,7 +33,7 @@ func New(
 	purchaseService service.PurchaseService,
 	categoryService service.CategoryService,
 	settingsService service.SettingsService,
-	paymentService payment.PaymentProvider,
+	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
 	stateStore domainfsm.Store,
 	telegramConfig *config.TelegramConfig,
@@ -46,9 +45,9 @@ func New(
 
 	kb := keyboards.New(adminPanelConfig)
 
-	middlewares := middleware.New(userService, purchaseService, productService, paymentService, stateStore, log)
+	middlewares := middleware.New(userService, purchaseService, productService, replenishmentService, stateStore, log)
 
-	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, paymentService, adminAuthService, stateStore, kb, log, adminPanelConfig)
+	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, replenishmentService, adminAuthService, stateStore, kb, log, adminPanelConfig)
 
 	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
 	if err != nil {
@@ -65,6 +64,7 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.PurchasesBtn, bot.MatchTypeExact, handler.PurchasesHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.RefillBalanceBtn, bot.MatchTypeExact, handler.RefillBalanceHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ProfileRefreshBtn, bot.MatchTypeExact, handler.ProfileRefreshHandler)
+	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ReplenishmentsBtn, bot.MatchTypeExact, handler.ReplenishmentsHandler)
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ProductCallbackPrefix, bot.MatchTypePrefix, handler.ProductHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.BuyCallbackPrefix, bot.MatchTypePrefix, handler.BuyHandler)
@@ -77,16 +77,18 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.CatalogRootCallback, bot.MatchTypeExact, handler.CatalogRootHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.MainMenuCallback, bot.MatchTypeExact, handler.MainMenuHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.StartProfileCallback, bot.MatchTypeExact, handler.ProfileCallbackHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.RefillMerchantCallbackPrefix, bot.MatchTypePrefix, handler.RefillMerchantHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReplenishmentsPageCallbackPrefix, bot.MatchTypePrefix, handler.ReplenishmentsPageHandler)
 
 	return &TelegramBot{
-		log:             log,
-		bot:             b,
-		userService:     userService,
-		productService:  productService,
-		purchaseService: purchaseService,
-		categoryService: categoryService,
-		settingsService: settingsService,
-		paymentService:  paymentService,
+		log:                  log,
+		bot:                  b,
+		userService:          userService,
+		productService:       productService,
+		purchaseService:      purchaseService,
+		categoryService:      categoryService,
+		settingsService:      settingsService,
+		replenishmentService: replenishmentService,
 	}, nil
 }
 

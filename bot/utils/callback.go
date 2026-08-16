@@ -8,12 +8,14 @@ import (
 
 // Префиксы callback_data для регистрации хендлеров.
 const (
-	ProductCallbackPrefix       = "product_"
-	BuyCallbackPrefix           = "buy_"
-	BuyQtyCallbackPrefix        = "buyqty_"
-	PurchaseCallbackPrefix      = "purchase_"
-	PurchasesPageCallbackPrefix = "purchasespage_"
-	CategoryCallbackPrefix      = "category_"
+	ProductCallbackPrefix            = "product_"
+	BuyCallbackPrefix                = "buy_"
+	BuyQtyCallbackPrefix             = "buyqty_"
+	PurchaseCallbackPrefix           = "purchase_"
+	PurchasesPageCallbackPrefix      = "purchasespage_"
+	CategoryCallbackPrefix           = "category_"
+	RefillMerchantCallbackPrefix     = "refillmerchant_"
+	ReplenishmentsPageCallbackPrefix = "replenishmentspage_"
 )
 
 // CatalogRootCallback — без id-суффикса, матчится точно, не через ParseCallbackQuery.
@@ -51,6 +53,23 @@ func BuildPurchaseBatchCallback(offset int, batchID string) string {
 
 func BuildPurchasesPageCallback(offset int) string {
 	return fmt.Sprintf("%s%d", PurchasesPageCallbackPrefix, offset)
+}
+
+func BuildReplenishmentsPageCallback(offset int) string {
+	return fmt.Sprintf("%s%d", ReplenishmentsPageCallbackPrefix, offset)
+}
+
+// BuildRefillMerchantCallback — merchant буквенный (crystalpay/yookassa/...), без underscore внутри.
+func BuildRefillMerchantCallback(merchant string) string {
+	return RefillMerchantCallbackPrefix + merchant
+}
+
+func ParseRefillMerchantCallback(query string) (string, error) {
+	merchant, ok := strings.CutPrefix(query, RefillMerchantCallbackPrefix)
+	if !ok || merchant == "" {
+		return "", fmt.Errorf("invalid callback format")
+	}
+	return merchant, nil
 }
 
 // ParseCallbackQuery извлекает числовой ID из хвоста "prefix_<id>".

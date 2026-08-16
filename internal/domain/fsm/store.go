@@ -21,10 +21,11 @@ const (
 // State — ожидаемый шаг для одного чата. MessageID — сообщение сценария,
 // чтобы текстовый ответ (без callback_query) редактировал то же сообщение.
 type State struct {
-	Step      step  `json:"step"`
-	ProductID int64 `json:"product_id,omitempty"`
-	Quantity  int   `json:"quantity,omitempty"`
-	MessageID int   `json:"message_id,omitempty"`
+	Step      step   `json:"step"`
+	ProductID int64  `json:"product_id,omitempty"`
+	Quantity  int    `json:"quantity,omitempty"`
+	MessageID int    `json:"message_id,omitempty"`
+	Merchant  string `json:"merchant,omitempty"` // выбранный мерчант для StepAwaitingRefillAmount
 }
 
 // Store — хранилище FSM. Методы называются с суффиксом FSMState, а не

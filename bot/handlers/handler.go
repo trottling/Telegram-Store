@@ -7,21 +7,20 @@ import (
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 
 	"github.com/trottling/Telegram-Store/internal/domain/service"
-	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
 
 type Handlers struct {
-	userService      service.UserService
-	purchaseService  service.PurchaseService
-	productService   service.ProductService
-	categoryService  service.CategoryService
-	settingsService  service.SettingsService
-	paymentService   payment.PaymentProvider
-	adminAuthService service.AdminAuthService
-	stateStore       domainfsm.Store
-	kb               *keyboards.Keyboards
-	log              *logrus.Logger
-	adminPanelConfig *config.AdminPanelConfig
+	userService          service.UserService
+	purchaseService      service.PurchaseService
+	productService       service.ProductService
+	categoryService      service.CategoryService
+	settingsService      service.SettingsService
+	replenishmentService service.ReplenishmentService
+	adminAuthService     service.AdminAuthService
+	stateStore           domainfsm.Store
+	kb                   *keyboards.Keyboards
+	log                  *logrus.Logger
+	adminPanelConfig     *config.AdminPanelConfig
 }
 
 func New(
@@ -30,7 +29,7 @@ func New(
 	productService service.ProductService,
 	categoryService service.CategoryService,
 	settingsService service.SettingsService,
-	paymentService payment.PaymentProvider,
+	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
 	stateStore domainfsm.Store,
 	kb *keyboards.Keyboards,
@@ -38,16 +37,16 @@ func New(
 	adminPanelConfig *config.AdminPanelConfig,
 ) *Handlers {
 	return &Handlers{
-		userService:      userService,
-		purchaseService:  purchaseService,
-		productService:   productService,
-		categoryService:  categoryService,
-		settingsService:  settingsService,
-		paymentService:   paymentService,
-		adminAuthService: adminAuthService,
-		stateStore:       stateStore,
-		kb:               kb,
-		log:              log,
-		adminPanelConfig: adminPanelConfig,
+		userService:          userService,
+		purchaseService:      purchaseService,
+		productService:       productService,
+		categoryService:      categoryService,
+		settingsService:      settingsService,
+		replenishmentService: replenishmentService,
+		adminAuthService:     adminAuthService,
+		stateStore:           stateStore,
+		kb:                   kb,
+		log:                  log,
+		adminPanelConfig:     adminPanelConfig,
 	}
 }

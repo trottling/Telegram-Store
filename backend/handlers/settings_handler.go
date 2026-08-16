@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/backend/dto"
 	"github.com/trottling/Telegram-Store/backend/middleware"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 func (h *Handlers) GetSettings(c *gin.Context) {
@@ -24,7 +25,12 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 	if !decodeJSON(c, &req) {
 		return
 	}
-	settings, err := h.adminService.UpdateSettings(c.Request.Context(), admin.TelegramID, req.SupportUsername)
+	settings, err := h.adminService.UpdateSettings(c.Request.Context(), admin.TelegramID, &domainmodels.Settings{
+		SupportUsername: req.SupportUsername,
+		CrystalPay:      req.CrystalPay,
+		YooKassa:        req.YooKassa,
+		Tinkoff:         req.Tinkoff,
+	})
 	if err != nil {
 		h.writeError(c, err)
 		return

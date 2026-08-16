@@ -382,13 +382,13 @@ func (s *AdminSrv) DeleteCategory(ctx context.Context, adminID int64, categoryID
 	return nil
 }
 
-// UpdateSettings перезаписывает единственную строку настроек бота.
-func (s *AdminSrv) UpdateSettings(ctx context.Context, adminID int64, supportUsername string) (*models.Settings, error) {
-	if supportUsername == "" {
+// UpdateSettings перезаписывает единственную строку настроек бота целиком.
+func (s *AdminSrv) UpdateSettings(ctx context.Context, adminID int64, settings *models.Settings) (*models.Settings, error) {
+	if settings.SupportUsername == "" {
 		return nil, domainerrors.ErrInvalidSettingsInput
 	}
 
-	settings := &models.Settings{ID: models.SettingsID, SupportUsername: supportUsername}
+	settings.ID = models.SettingsID
 	if err := s.settingsRepo.Update(ctx, settings); err != nil {
 		return nil, err
 	}

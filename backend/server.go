@@ -27,11 +27,12 @@ func New(
 	adminService service.AdminService,
 	statsService service.StatsService,
 	settingsService service.SettingsService,
+	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
 	cfg *config.AdminPanelConfig,
 	log *logrus.Logger,
 ) *Server {
-	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, adminAuthService, log)
+	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, replenishmentService, adminAuthService, log)
 	router := newRouter(h, adminAuthService, cfg.CORSOrigin, log)
 
 	return &Server{

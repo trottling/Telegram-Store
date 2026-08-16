@@ -10,8 +10,9 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
-// newRouter собирает таблицу маршрутов. /api/auth/exchange — единственный
-// роут вне группы /api, без Auth (там ещё нет сессии). Остальные — за Auth.
+// newRouter собирает таблицу маршрутов. Без Auth — /api/auth/exchange (там
+// ещё нет сессии) и /api/webhooks/* (вызывающая сторона — сервер мерчанта,
+// не залогиненный админ; каждый вебхук сам проверяет подпись). Остальные — за Auth.
 func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, corsOrigin string, log *logrus.Logger) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -19,6 +20,10 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 	r.Use(middleware.CORS(corsOrigin, log))
 
 	r.POST("/api/auth/exchange", h.Exchange)
+
+	r.POST("/api/webhooks/crystalpay", h.CrystalPayWebhook)
+	r.POST("/api/webhooks/yookassa", h.YooKassaWebhook)
+	r.POST("/api/webhooks/tinkoff", h.TinkoffWebhook)
 
 	api := r.Group("/api")
 	api.Use(middleware.Auth(adminAuthService))
@@ -56,6 +61,8 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 
 		api.GET("/settings", h.GetSettings)
 		api.PUT("/settings", h.UpdateSettings)
+
+		api.GET("/replenishments", h.ListReplenishments)
 	}
 
 	return r

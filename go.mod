@@ -8,7 +8,9 @@ require (
 	github.com/go-telegram/bot v1.23.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
+	github.com/nikita-vanyasin/tinkoff v1.4.0
 	github.com/redis/go-redis/v9 v9.22.0
+	github.com/rvinnie/yookassa-sdk-go v0.2.1
 	github.com/sirupsen/logrus v1.10.0
 	golang.org/x/sync v0.22.0
 	gorm.io/datatypes v1.2.7

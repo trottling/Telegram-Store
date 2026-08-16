@@ -10,6 +10,8 @@ import (
 	"github.com/trottling/Telegram-Store/bot"
 	rdb "github.com/trottling/Telegram-Store/internal/cache/redis"
 	"github.com/trottling/Telegram-Store/internal/config"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
+	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
 	"github.com/trottling/Telegram-Store/internal/logger"
 	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
 	"github.com/trottling/Telegram-Store/internal/service"
@@ -45,6 +47,7 @@ func main() {
 	purchaseRepo := pgdb.NewPurchaseRepo(db, log)
 	categoryRepo := pgdb.NewCategoryRepo(db, log)
 	settingsRepo := pgdb.NewSettingsRepo(db, log)
+	replenishmentRepo := pgdb.NewReplenishmentRepo(db, log)
 
 	userService := service.NewUserSrv(userRepo, cacheService, log)
 	productService := service.NewProductSrv(productRepo, cacheService, log)
@@ -52,11 +55,19 @@ func main() {
 	categoryService := service.NewCategorySrv(categoryRepo, productRepo, cacheService, log)
 	settingsService := service.NewSettingsSrv(settingsRepo, cacheService, log)
 
+	// Один провайдер на мерчанта — MerchantReferral сюда не входит, начисления
+	// с рефералов через CreateInvoice не идут (см. domain/models.Replenishment).
+	providers := map[domainmodels.Merchant]domainpayment.PaymentProvider{
+		domainmodels.MerchantCrystalPay: payment.NewCrystalPayProvider(settingsService, cfg.AdminPanel.URL),
+		domainmodels.MerchantYooKassa:   payment.NewYooKassaProvider(settingsService),
+		domainmodels.MerchantTinkoff:    payment.NewTinkoffProvider(settingsService, cfg.AdminPanel.URL),
+	}
+	replenishmentService := service.NewReplenishmentSrv(replenishmentRepo, userRepo, providers, cacheService, log)
+
 	// Бот сам AdminService не вызывает — только выдаёт код для /admin.
 	adminAuthService := service.NewAdminAuthSrv(userRepo, cacheService, cfg.AdminPanel.JWTSecret, log)
-	paymentService := payment.NewStubProvider()
 
-	b, err := bot.New(userService, productService, purchaseService, categoryService, settingsService, paymentService, adminAuthService, cacheService, cfg.Telegram, cfg.AdminPanel, log)
+	b, err := bot.New(userService, productService, purchaseService, categoryService, settingsService, replenishmentService, adminAuthService, cacheService, cfg.Telegram, cfg.AdminPanel, log)
 	if err != nil {
 		log.Fatalf("bot: failed to init bot: %v", err)
 	}

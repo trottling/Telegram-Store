@@ -16,6 +16,12 @@ var (
 	ErrSettingsNotFound     = errors.New("settings not found")
 	ErrInvalidSettingsInput = errors.New("invalid settings input")
 
+	// пополнения баланса
+	ErrReplenishmentNotFound = errors.New("replenishment not found")
+	ErrInvalidMerchant       = errors.New("unknown or unavailable merchant")
+	ErrMerchantDisabled      = errors.New("merchant is disabled")
+	ErrAmountOutOfRange      = errors.New("amount is out of the merchant's allowed range")
+
 	// сценарий покупки
 	ErrProductNotFound   = errors.New("product not found")
 	ErrProductInactive   = errors.New("product is not active")

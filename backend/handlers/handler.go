@@ -9,14 +9,15 @@ import (
 )
 
 type Handlers struct {
-	userService      service.UserService
-	productService   service.ProductService
-	categoryService  service.CategoryService
-	purchaseService  service.PurchaseService
-	adminService     service.AdminService
-	statsService     service.StatsService
-	settingsService  service.SettingsService
-	adminAuthService service.AdminAuthService
+	userService          service.UserService
+	productService       service.ProductService
+	categoryService      service.CategoryService
+	purchaseService      service.PurchaseService
+	adminService         service.AdminService
+	statsService         service.StatsService
+	settingsService      service.SettingsService
+	replenishmentService service.ReplenishmentService
+	adminAuthService     service.AdminAuthService
 
 	log *logrus.Logger
 }
@@ -29,18 +30,20 @@ func New(
 	adminService service.AdminService,
 	statsService service.StatsService,
 	settingsService service.SettingsService,
+	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
 	log *logrus.Logger,
 ) *Handlers {
 	return &Handlers{
-		userService:      userService,
-		productService:   productService,
-		categoryService:  categoryService,
-		purchaseService:  purchaseService,
-		adminService:     adminService,
-		statsService:     statsService,
-		settingsService:  settingsService,
-		adminAuthService: adminAuthService,
-		log:              log,
+		userService:          userService,
+		productService:       productService,
+		categoryService:      categoryService,
+		purchaseService:      purchaseService,
+		adminService:         adminService,
+		statsService:         statsService,
+		settingsService:      settingsService,
+		replenishmentService: replenishmentService,
+		adminAuthService:     adminAuthService,
+		log:                  log,
 	}
 }

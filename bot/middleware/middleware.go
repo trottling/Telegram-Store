@@ -9,33 +9,32 @@ import (
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 
 	"github.com/trottling/Telegram-Store/internal/domain/service"
-	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
 
 type Middlewares struct {
-	userService     service.UserService
-	purchaseService service.PurchaseService
-	productService  service.ProductService
-	paymentService  payment.PaymentProvider
-	stateStore      domainfsm.Store
-	log             *logrus.Logger
+	userService          service.UserService
+	purchaseService      service.PurchaseService
+	productService       service.ProductService
+	replenishmentService service.ReplenishmentService
+	stateStore           domainfsm.Store
+	log                  *logrus.Logger
 }
 
 func New(
 	userService service.UserService,
 	purchaseService service.PurchaseService,
 	productService service.ProductService,
-	paymentService payment.PaymentProvider,
+	replenishmentService service.ReplenishmentService,
 	stateStore domainfsm.Store,
 	log *logrus.Logger,
 ) *Middlewares {
 	return &Middlewares{
-		userService:     userService,
-		purchaseService: purchaseService,
-		productService:  productService,
-		paymentService:  paymentService,
-		stateStore:      stateStore,
-		log:             log,
+		userService:          userService,
+		purchaseService:      purchaseService,
+		productService:       productService,
+		replenishmentService: replenishmentService,
+		stateStore:           stateStore,
+		log:                  log,
 	}
 }
 

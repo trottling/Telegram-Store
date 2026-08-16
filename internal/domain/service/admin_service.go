@@ -29,8 +29,9 @@ type AdminService interface {
 	UpdateCategory(ctx context.Context, adminID int64, categoryID int64, name, description string, parentID *int64) (*models.Category, error)
 	DeleteCategory(ctx context.Context, adminID int64, categoryID int64) error
 
-	// UpdateSettings — единственная строка настроек бота (models.SettingsID).
-	UpdateSettings(ctx context.Context, adminID int64, supportUsername string) (*models.Settings, error)
+	// UpdateSettings перезаписывает единственную строку настроек бота
+	// (models.SettingsID) целиком — Username поддержки и конфиг каждого мерчанта.
+	UpdateSettings(ctx context.Context, adminID int64, settings *models.Settings) (*models.Settings, error)
 
 	GetLogs(ctx context.Context, adminID int64, offset, limit int) ([]models.AdminLog, error)
 

@@ -50,7 +50,8 @@ internal/domain/models/       GORM entities (User, Category, Product, ProductIte
                                itself lives in internal/repository/postgres, not here: driving a schema migration
                                against a specific database is an adapter concern, not a domain one
 internal/domain/repository/   repository interfaces + Transactor (unit-of-work over *gorm.DB.Transaction)
-internal/domain/service/      service interfaces (User/Product/Purchase/Category/Admin/AdminAuth/Stats)
+internal/domain/service/      service interfaces (User/Product/Purchase/Category/Admin/AdminAuth/Stats/Settings/
+                               Replenishment)
 internal/domain/service/payment/  PaymentProvider interface + PaymentStatus enum
 internal/domain/cache/        read-through cache ports, one interface per cached entity (UserCache/ProductCache/
                                CategoryCache in their own files) — no umbrella Cache interface; a consumer depends
@@ -80,29 +81,48 @@ internal/service/              implementations of internal/domain/service — ca
                                listing methods (*Admin/*All suffix) deliberately skip the cache and always read
                                through to Postgres, since they're tuned for freshness over throughput, not the
                                customer-facing catalog
-internal/service/payment/     PaymentProvider implementation(s) — currently only StubProvider (always errors)
+internal/service/payment/     PaymentProvider implementations: StubProvider (always errors, unused now that real
+                               providers exist), CrystalPayProvider (hand-rolled HTTP client, no official Go SDK),
+                               YooKassaProvider (github.com/rvinnie/yookassa-sdk-go), TinkoffProvider
+                               (github.com/nikita-vanyasin/tinkoff, PayTypeOneStep). All three read their own
+                               Settings sub-struct (credentials + Enabled + Min/MaxAmount) fresh on every call via
+                               SettingsService — admin edits apply without restarting the bot — and each does its
+                               own enabled/range check before calling out, returning ErrMerchantDisabled/
+                               ErrAmountOutOfRange. CheckStatus is implemented on all three but nothing currently
+                               polls it — confirmation is webhook-driven (see backend/handlers below)
 internal/cache/redis/         the ONE Redis-backed struct implementing domain/cache's per-entity interfaces,
                                domain/fsm.Store, and domain/adminsession.Store — one client, one struct, three
                                unrelated keyspaces: plain keys for the cache, fsm:<telegramID> for conversation
                                state, admin_login_code:<hash>/admin_session:<hash> for the web panel's login flow
 
 bot/                           Telegram-facing layer (package `bot`, binary entrypoint is cmd/bot)
-bot/handlers/                  start.go (/start creates the user row, main-menu/help), admin.go (/admin — issues
-                               the login code), profile.go, catalog.go (category-tree rendering + product cards,
-                               edits messages in place), buy.go (quantity -> confirm -> charge), purchases.go
-                               (history, paginated), refill.go (balance top-up UI, provider is a stub)
+bot/handlers/                  start.go (/start creates the user row, main-menu/help — help pulls SupportUsername
+                               from Settings), admin.go (/admin — issues the login code), profile.go, catalog.go
+                               (category-tree rendering + product cards, edits messages in place), buy.go
+                               (quantity -> confirm -> charge), purchases.go (history, paginated), refill.go
+                               (merchant picker -> amount prompt with min/max hint -> ReplenishmentService.
+                               CreateInvoice -> pay-link message; enabled merchants come from Settings, read fresh
+                               on every RefillBalanceHandler call), replenishments.go ("Мои пополнения" — paginated
+                               like purchases.go, but one plain-text line per row instead of a button per row,
+                               since there's no per-item content to drill into on tap)
 bot/middleware/                middleware.go (Logging: logs every update at Debug, first in the chain so nothing
                                skips it), answer_callback.go (acks every callback_query first, or the tapped
                                button stays "loading" until Telegram times it out), ban_check.go (the only
                                per-update user-exists/banned gate — see below), fsm.go (multi-step flows: buy
                                quantity+confirm, refill amount) — registered in that order: Logging ->
-                               AnswerCallback -> BanCheck -> FSM
+                               AnswerCallback -> BanCheck -> FSM. Refill's merchant pick (handlers/refill.go's
+                               RefillMerchantHandler, a plain inline callback) happens before FSM state exists;
+                               only the subsequent amount prompt is FSM-tracked (State.Merchant carries the pick
+                               through to fsm.go's handleRefillAmount)
 bot/keyboards/                 Keyboards struct (static reply/inline keyboards, built once via New(adminPanelURL)
                                — not package-level vars, since AdminKb needs the URL) plus per-request builder funcs
 bot/texts/                     all user-facing button/message strings — add new UI copy here, not inline in handlers
 bot/utils/                     callback.go (build/parse callback_data — numeric "prefix_<id>" and, for purchase
-                               batches, "purchase_<uuid>"), errors.go (domain sentinel error -> user-facing text,
-                               UserFacingError), stock.go (traffic-light emoji for remaining stock)
+                               batches, "purchase_<uuid>"; refillmerchant_<merchant> carries a bare string, not a
+                               number, so it gets its own Build/Parse pair instead of reusing ParseCallbackQuery),
+                               errors.go (domain sentinel error -> user-facing text, UserFacingError), stock.go
+                               (traffic-light emoji for remaining stock), merchant.go (Merchant/ReplenishmentStatus
+                               -> Russian display text, used by both the merchant picker and replenishments.go)
 
 internal/auth/web/            package admintoken (import resolves by package clause, not directory name) —
                                crypto/rand + sha256 generation/hashing for the web panel's one-time login codes
@@ -122,7 +142,13 @@ backend/handlers/              one file per resource; read-only admin listings (
                                no business logic to wrap. Every write (create/update/delete, ban, balance,
                                promote/demote) goes through AdminService/UserService too, so AdminLog auditing and
                                cache invalidation are never bypassed. GET /api/admin-logs (optional ?admin_id=
-                               filter) is the only way to see that audit trail
+                               filter) is the only way to see that audit trail. settings_handler.go's PUT rebuilds
+                               a whole models.Settings from the request and always goes through AdminService.
+                               UpdateSettings (audit-logged), never SettingsService directly. replenishment_handler.go
+                               is read-only (ListAllAdmin, ?user_id filter) — writes to Replenishment only ever
+                               happen via webhook_handler.go's three handlers (CrystalPay/YooKassa/Tinkoff), each
+                               verifying that merchant's own signature scheme before calling ReplenishmentService.
+                               Confirm/Fail; none of them go through AdminService (no admin acted, nothing to audit)
 backend/middleware/            auth.go (bearer session token -> AdminAuthService.ValidateSession, attaches
                                *models.User to request context), cors.go (comma-separated allowed-origin list via
                                ADMIN_PANEL_CORS_ORIGIN, no credentials — logs rejected origins at Warn for diagnosis)
@@ -130,7 +156,9 @@ backend/dto/                   request bodies + the Paginated[T] list envelope +
                                reuse internal/domain/models types directly (already have clean json tags)
 backend/errors/                domain sentinel error -> HTTP status + JSON body (DomainErrorToResponse), mirrors
                                bot/utils.UserFacingError
-backend/router.go, server.go   route table + http.Server lifecycle (Start/Shutdown)
+backend/router.go, server.go   route table + http.Server lifecycle (Start/Shutdown). /api/webhooks/{crystalpay,
+                               yookassa,tinkoff} sit next to /api/auth/exchange outside the /api Auth group — the
+                               caller is the merchant's server, not a logged-in admin, so there's no session to check
 
 internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Logger sub-configs)
 internal/logger/               logrus logger construction from config.LoggerConfig
@@ -162,7 +190,11 @@ All repositories and services are fully implemented (not stubs) and logging (`*l
 
 `User` is keyed by `TelegramID` directly — there's no separate internal auto-increment ID; every FK that points at a user (`Purchase.UserID`, `AdminLog.AdminID`/`TargetID`) stores the Telegram ID. `User.Role` is a single, mutually exclusive privilege level (`banned`/`user`/`admin`/`root_admin`, `models.Role`) — there's exactly one `root_admin` at a time (the `TELEGRAM_ROOT_ADMIN_ID` from config, bootstrapped into this column by `cmd/migrate`'s `UserRepository.EnsureRootAdminExists`). `User.IsBanned()`/`IsAdmin()`/`IsRootAdmin()` are the derived-boolean helper methods everything else checks against, not the raw `Role` field. Because `Role` is one field, banning an Admin/RootAdmin overwrites their admin rights rather than sitting next to them, and un-banning always restores plain `user`, never whatever role they held before (see `AdminSrv.BanUser`/`UnbanUser`).
 
-`Category` is a self-referencing tree (`ParentID *int64`, unbounded depth). `Product.CategoryID *int64` is nullable (uncategorized products are valid) and belongs to a `Category`. `ProductItem` is one pre-stocked unit (`IsSold` flag); `Purchase` fulfills exactly one `ProductItem` via `ItemID` (unique). Buying `count` units creates `count` `Purchase` rows sharing one `BatchID` (a UUID generated once per `Buy()` call) — purchase history groups and paginates by that, not by raw row. `AdminLog` records admin actions (ban, unban, balance_add, make_admin, revoke_admin, product_*, category_*) against a target user. Payments are abstracted behind `payment.PaymentProvider` (`CreateInvoice`/`CheckStatus`); only a stub exists.
+`Category` is a self-referencing tree (`ParentID *int64`, unbounded depth). `Product.CategoryID *int64` is nullable (uncategorized products are valid) and belongs to a `Category`. `ProductItem` is one pre-stocked unit (`IsSold` flag); `Purchase` fulfills exactly one `ProductItem` via `ItemID` (unique). Buying `count` units creates `count` `Purchase` rows sharing one `BatchID` (a UUID generated once per `Buy()` call) — purchase history groups and paginates by that, not by raw row. `AdminLog` records admin actions (ban, unban, balance_add, make_admin, revoke_admin, product_*, category_*, settings_update) against a target user.
+
+`Settings` is a singleton row (fixed `ID = models.SettingsID`, bootstrapped by `cmd/migrate`'s `SettingsRepo.EnsureExists`) holding `SupportUsername` plus one embedded sub-struct per merchant (`CrystalPaySettings`/`YooKassaSettings`/`TinkoffSettings` — GORM `embedded;embeddedPrefix:<merchant>_`), each with its own credential fields, `Enabled`, and `MinAmount`/`MaxAmount`. The three merchants' credentials are genuinely different shapes (CrystalPay: Login+Secret+Salt; YooKassa: ShopID+SecretKey; Tinkoff: TerminalKey+Password) so they're three distinct structs, not one generic `Token`/`Secret` pair forced across all of them.
+
+Payments are abstracted behind `payment.PaymentProvider` (`CreateInvoice`/`CheckStatus`, see `internal/service/payment/` above). `Replenishment` is one balance top-up attempt: `UserID`, `Merchant` (`crystalpay`/`yookassa`/`tinkoff`/`referral` — the last reserved for a not-yet-built referral percentage, deposits from which are meant to land in this same table later), `InvoiceID` (the merchant's own payment/invoice ID), `Amount`, `Status` (`pending`/`paid`/`failed`/`cancelled`). `ReplenishmentSrv.CreateInvoice` calls the matching `PaymentProvider` then inserts a `pending` row; `Confirm`/`Fail` (called only from `backend/handlers`' webhook handlers) transition it via `ReplenishmentRepository.UpdateStatus`, which is a conditional `UPDATE ... WHERE status = 'pending'` — the returned `changed` bool is how `Confirm` stays idempotent against a merchant retrying the same webhook (a no-op past the first successful call, so `UserRepository.UpdateBalance` never double-credits).
 
 ### Bot wiring
 
@@ -174,7 +206,7 @@ The buy flow is stateful, backed by `internal/cache/redis.Cache` (which doubles 
 
 ### Web admin panel
 
-CRUDL for categories/products, view+edit for users (ban/unban, balance, promote/demote admin), view for purchases (cross-user — everything on `PurchaseService`/`PurchaseRepository` elsewhere is scoped to one Telegram user, so `ListAllAdmin`/`CountAllAdmin`/`GetAdminByID` exist purely for this screen), an admin audit-log view, and a Statistics screen backed by `StatsService`/`StatsRepository` (plain SQL aggregates, no Prometheus/Grafana).
+CRUDL for categories/products, view+edit for users (ban/unban, balance, promote/demote admin), view for purchases (cross-user — everything on `PurchaseService`/`PurchaseRepository` elsewhere is scoped to one Telegram user, so `ListAllAdmin`/`CountAllAdmin`/`GetAdminByID` exist purely for this screen), a cross-user replenishments view (same `ListAllAdmin`/`CountAllAdmin` pattern on `ReplenishmentService`), an admin audit-log view, a Statistics screen backed by `StatsService`/`StatsRepository` (plain SQL aggregates, no Prometheus/Grafana), and settings (Support username plus per-merchant credentials/`Enabled`/min-max, via `GET`/`PUT /api/settings` — **frontend page not built yet**, only the backend API).
 
 Auth is code-then-session, entirely Redis-backed, nothing in Postgres: `Handlers.AdminHandler` (`/admin`) calls `AdminAuthService.IssueLoginCode`, which generates a 6-digit code (`admintoken.GenerateCode`), stores `sha256(code) -> telegramID` in Redis for 30 seconds (`domain/adminsession.Store`, implemented by the same `internal/cache/redis.Cache` struct as the read-through cache and FSM state, separate keyspace), and sends it back in the `/admin` reply. The login page's `POST /api/auth/exchange` (the *one* unauthenticated route — registered directly on the top-level gin engine, outside the `/api` route group, so it never passes through `Auth`) calls `AdminAuthService.ExchangeLoginCode`: consumes the code atomically (Redis `GETDEL`, so it's single-use even under concurrent attempts), re-checks `IsAdmin()` (a demote between issuance and exchange must not slip through), and issues a 24h HS256 JWT session token (`admintoken.GenerateSessionJWT`, keyed by `ADMIN_JWT_SECRET`) whose hash is *also* stored in Redis the same way the login code was.
 
