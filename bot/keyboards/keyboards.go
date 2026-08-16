@@ -49,7 +49,7 @@ func BuildPurchasesKb(batches []domain.PurchaseBatchSummary, offset, limit int, 
 	for _, batch := range batches {
 		rows = append(rows, []models.InlineKeyboardButton{{
 			Text:         fmt.Sprintf(texts.PurchaseInlineBtn, batch.TotalAmount, batch.Quantity, batch.ProductName),
-			CallbackData: utils.BuildPurchaseBatchCallback(batch.BatchID),
+			CallbackData: utils.BuildPurchaseBatchCallback(offset, batch.BatchID),
 		}})
 	}
 

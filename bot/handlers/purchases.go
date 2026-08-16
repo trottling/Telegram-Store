@@ -76,11 +76,14 @@ func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID int64
 	}
 }
 
-// PurchaseDetailHandler открывает весь батч покупки (все единицы одного Buy()), не одну штуку.
+// PurchaseDetailHandler открывает весь батч покупки (все единицы одного
+// Buy()), редактируя список покупок на месте — «назад» возвращает список той
+// же страницы (переиспользует PurchasesPageHandler через тот же callback).
 func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
+	messageID := update.CallbackQuery.Message.Message.ID
 
-	batchID, err := utils.ParseBatchCallbackQuery(update.CallbackQuery.Data)
+	offset, batchID, err := utils.ParseBatchCallbackQuery(update.CallbackQuery.Data)
 	if err != nil {
 		h.log.Errorf("PurchaseDetailHandler: failed to parse purchase batch callback: %v", err)
 		return
@@ -106,11 +109,19 @@ func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update
 		total += p.Amount
 	}
 
-	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    chatID,
-		Text:      fmt.Sprintf(texts.PurchaseDetailMsg, purchases[0].Product.Name, total, len(purchases), purchases[0].CreatedAt.Format("02.01.2006 15:04"), strings.Join(contents, "\n")),
-		ParseMode: models.ParseModeMarkdownV1,
+	kb := &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: texts.BackBtn, CallbackData: utils.BuildPurchasesPageCallback(offset)}},
+		},
+	}
+
+	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:      chatID,
+		MessageID:   messageID,
+		Text:        fmt.Sprintf(texts.PurchaseDetailMsg, purchases[0].Product.Name, total, len(purchases), purchases[0].CreatedAt.Format("02.01.2006 15:04"), strings.Join(contents, "\n")),
+		ParseMode:   models.ParseModeMarkdownV1,
+		ReplyMarkup: kb,
 	}); err != nil {
-		h.log.Errorf("PurchaseDetailHandler: failed to send message to %d: %v", chatID, err)
+		h.log.Errorf("PurchaseDetailHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
 	}
 }

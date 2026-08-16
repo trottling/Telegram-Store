@@ -43,8 +43,10 @@ func BuildBuyQtyCallback(qty int) string {
 	return fmt.Sprintf("%s%d", BuyQtyCallbackPrefix, qty)
 }
 
-func BuildPurchaseBatchCallback(batchID string) string {
-	return fmt.Sprintf("%s%s", PurchaseCallbackPrefix, batchID)
+// BuildPurchaseBatchCallback несёт и offset страницы списка — чтобы кнопка
+// «назад» на карточке батча знала, на какую страницу списка возвращаться.
+func BuildPurchaseBatchCallback(offset int, batchID string) string {
+	return fmt.Sprintf("%s%d_%s", PurchaseCallbackPrefix, offset, batchID)
 }
 
 func BuildPurchasesPageCallback(offset int) string {
@@ -60,12 +62,23 @@ func ParseCallbackQuery(query string) (int64, error) {
 	return strconv.ParseInt(parts[len(parts)-1], 10, 64)
 }
 
-// ParseBatchCallbackQuery извлекает UUID батча — в UUID дефисы, не
-// подчёркивания, так что хвост после split("_") остаётся целым.
-func ParseBatchCallbackQuery(query string) (string, error) {
-	parts := strings.Split(query, "_")
-	if len(parts) < 2 || parts[len(parts)-1] == "" {
-		return "", fmt.Errorf("invalid callback format")
+// ParseBatchCallbackQuery извлекает offset страницы и UUID батча из
+// "purchase_<offset>_<uuid>" — в UUID дефисы, не подчёркивания, так что
+// достаточно разрезать по первому "_" после offset.
+func ParseBatchCallbackQuery(query string) (offset int, batchID string, err error) {
+	rest, ok := strings.CutPrefix(query, PurchaseCallbackPrefix)
+	if !ok {
+		return 0, "", fmt.Errorf("invalid callback format")
 	}
-	return parts[len(parts)-1], nil
+
+	offsetStr, id, ok := strings.Cut(rest, "_")
+	if !ok || id == "" {
+		return 0, "", fmt.Errorf("invalid callback format")
+	}
+
+	offset, err = strconv.Atoi(offsetStr)
+	if err != nil {
+		return 0, "", fmt.Errorf("invalid callback format")
+	}
+	return offset, id, nil
 }
