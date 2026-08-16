@@ -16,8 +16,9 @@ type UserService interface {
 	RefreshProfile(ctx context.Context, telegramID int64) (*models.User, error)
 	IsBanned(ctx context.Context, telegramID int64) (bool, error)
 
-	// CountReferrals — сколько пользователей пригласил telegramID.
+	// CountReferrals/ListReferrals — кого пригласил telegramID (для админ-панели — таблица рефералов).
 	CountReferrals(ctx context.Context, telegramID int64) (int64, error)
+	ListReferrals(ctx context.Context, telegramID int64, offset, limit int) ([]models.User, error)
 
 	// ListAdmin/CountAdmin — все пользователи для админ-панели, мимо кэша.
 	ListAdmin(ctx context.Context, offset, limit int) ([]models.User, error)

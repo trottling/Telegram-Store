@@ -8,9 +8,9 @@ import {
     disableUserReferrals,
     enableUserReferrals,
     getUser,
-    getUserReferralCount,
     listPurchases,
     listReplenishments,
+    listUserReferrals,
     promoteUser,
     unbanUser,
 } from '../api/resources'
@@ -35,7 +35,6 @@ export function UserDetailPage() {
     const {admin: currentAdmin} = useAuth()
     const [user, setUser] = useState<AdminUser | null>(null)
     const [loading, setLoading] = useState(false)
-    const [referralCount, setReferralCount] = useState<number | null>(null)
 
     const [balanceModalOpen, setBalanceModalOpen] = useState(false)
     const [balanceDelta, setBalanceDelta] = useState<number>(0)
@@ -52,6 +51,12 @@ export function UserDetailPage() {
     const [replenishmentsPage, setReplenishmentsPage] = useState(1)
     const [replenishmentsLoading, setReplenishmentsLoading] = useState(false)
     const replenishmentsPageSize = 10
+
+    const [referrals, setReferrals] = useState<AdminUser[]>([])
+    const [referralsTotal, setReferralsTotal] = useState(0)
+    const [referralsPage, setReferralsPage] = useState(1)
+    const [referralsLoading, setReferralsLoading] = useState(false)
+    const referralsPageSize = 10
 
     const id = Number(telegramId)
 
@@ -73,8 +78,14 @@ export function UserDetailPage() {
     }, [id])
 
     useEffect(() => {
-        getUserReferralCount(id).then((res) => setReferralCount(res.count)).catch(() => undefined)
-    }, [id])
+        setReferralsLoading(true)
+        listUserReferrals(id, {offset: (referralsPage - 1) * referralsPageSize, limit: referralsPageSize})
+            .then((res) => {
+                setReferrals(res.items)
+                setReferralsTotal(res.total)
+            })
+            .finally(() => setReferralsLoading(false))
+    }, [id, referralsPage])
 
     useEffect(() => {
         setPurchasesLoading(true)
@@ -184,6 +195,19 @@ export function UserDetailPage() {
         {title: 'Дата', dataIndex: 'created_at', key: 'created_at', render: (v: string) => new Date(v).toLocaleString()},
     ]
 
+    const referralColumns = [
+        {title: 'Telegram ID', dataIndex: 'telegram_id', key: 'telegram_id', width: 140},
+        {title: 'Username', dataIndex: 'username', key: 'username', render: (v: string) => v || '—'},
+        {title: 'Баланс', dataIndex: 'balance', key: 'balance', render: (v: number) => v.toFixed(2)},
+        {
+            title: 'Статус',
+            dataIndex: 'role',
+            key: 'role',
+            render: (v: AdminUser['role']) => <Tag color={roleColor[v]}>{roleLabel[v]}</Tag>,
+        },
+        {title: 'Зарегистрирован', dataIndex: 'created_at', key: 'created_at', render: (v: string) => new Date(v).toLocaleString()},
+    ]
+
     return (
         <div>
             <BackButton to="/users"/>
@@ -208,7 +232,6 @@ export function UserDetailPage() {
                             {user.referrals_enabled ? 'включены' : 'отключены'}
                         </Tag>
                     </Descriptions.Item>
-                    <Descriptions.Item label="Приглашено рефералов">{referralCount ?? '—'}</Descriptions.Item>
                     <Descriptions.Item label="Зарегистрирован">{new Date(user.created_at).toLocaleString()}</Descriptions.Item>
                 </Descriptions>
             </Card>
@@ -313,6 +336,23 @@ export function UserDetailPage() {
                         pageSize: replenishmentsPageSize,
                         total: replenishmentsTotal,
                         onChange: setReplenishmentsPage,
+                        showSizeChanger: false,
+                    }}
+                />
+            </Card>
+
+            <Card title="Приглашённые рефералы" style={{marginTop: 16}}>
+                <Table
+                    rowKey="telegram_id"
+                    loading={referralsLoading}
+                    columns={referralColumns}
+                    dataSource={referrals}
+                    onRow={(row) => ({onClick: () => navigate(`/users/${row.telegram_id}`), style: {cursor: 'pointer'}})}
+                    pagination={{
+                        current: referralsPage,
+                        pageSize: referralsPageSize,
+                        total: referralsTotal,
+                        onChange: setReferralsPage,
                         showSizeChanger: false,
                     }}
                 />

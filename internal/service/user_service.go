@@ -96,6 +96,10 @@ func (s *UserSrv) CountReferrals(ctx context.Context, telegramID int64) (int64, 
 	return s.userRepo.CountReferrals(ctx, telegramID)
 }
 
+func (s *UserSrv) ListReferrals(ctx context.Context, telegramID int64, offset, limit int) ([]models.User, error) {
+	return s.userRepo.ListReferrals(ctx, telegramID, offset, limit)
+}
+
 func (s *UserSrv) IsBanned(ctx context.Context, telegramID int64) (bool, error) {
 	if user, err := s.cache.GetUser(ctx, telegramID); err == nil {
 		return user.IsBanned(), nil

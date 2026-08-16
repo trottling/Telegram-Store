@@ -1,6 +1,6 @@
 // По одной функции на эндпоинт backend'а, всё в одном файле.
 import {apiRequest} from './client'
-import type {AdminLog, AdminUser, Category, DashboardStats, Paginated, Product, ProductAdminSummary, PurchaseAdminItem, ReferralCountResponse, ReplenishmentAdminItem, Settings, TokenResponse,} from '../types/api'
+import type {AdminLog, AdminUser, Category, DashboardStats, Paginated, Product, ProductAdminSummary, PurchaseAdminItem, ReplenishmentAdminItem, Settings, TokenResponse,} from '../types/api'
 
 // аутентификация
 export const exchangeLoginCode = (code: string) =>
@@ -41,7 +41,8 @@ export const adjustBalance = (id: number, amount: number) =>
     apiRequest<void>(`/api/users/${id}/balance`, {method: 'POST', body: {amount}})
 export const promoteUser = (id: number) => apiRequest<void>(`/api/users/${id}/promote`, {method: 'POST'})
 export const demoteUser = (id: number) => apiRequest<void>(`/api/users/${id}/demote`, {method: 'POST'})
-export const getUserReferralCount = (id: number) => apiRequest<ReferralCountResponse>(`/api/users/${id}/referrals`)
+export const listUserReferrals = (id: number, params: { offset?: number; limit?: number }) =>
+    apiRequest<Paginated<AdminUser>>(`/api/users/${id}/referrals`, {query: params})
 export const enableUserReferrals = (id: number) => apiRequest<void>(`/api/users/${id}/referrals/enable`, {method: 'POST'})
 export const disableUserReferrals = (id: number) => apiRequest<void>(`/api/users/${id}/referrals/disable`, {method: 'POST'})
 

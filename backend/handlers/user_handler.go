@@ -113,18 +113,25 @@ func (h *Handlers) DemoteUser(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// GetUserReferrals — сколько пользователей пригласил telegram_id.
-func (h *Handlers) GetUserReferrals(c *gin.Context) {
+// ListUserReferrals — кого пригласил telegram_id, постранично.
+func (h *Handlers) ListUserReferrals(c *gin.Context) {
 	id, ok := parseIDParam(c, "telegram_id")
 	if !ok {
 		return
 	}
-	count, err := h.userService.CountReferrals(c.Request.Context(), id)
+	offset, limit := parsePagination(c)
+
+	referrals, err := h.userService.ListReferrals(c.Request.Context(), id, offset, limit)
 	if err != nil {
 		h.writeError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, dto.ReferralCountResponse{Count: count})
+	total, err := h.userService.CountReferrals(c.Request.Context(), id)
+	if err != nil {
+		h.writeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, dto.Paginated[models.User]{Items: referrals, Total: total, Offset: offset, Limit: limit})
 }
 
 func (h *Handlers) EnableUserReferrals(c *gin.Context) {

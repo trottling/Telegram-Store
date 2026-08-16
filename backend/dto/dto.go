@@ -65,11 +65,6 @@ type TokenResponse struct {
 	Token string `json:"token"`
 }
 
-// ReferralCountResponse — GET /api/users/:telegram_id/referrals.
-type ReferralCountResponse struct {
-	Count int64 `json:"count"`
-}
-
 type ErrorResponse struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`

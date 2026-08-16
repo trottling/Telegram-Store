@@ -119,10 +119,6 @@ export interface TokenResponse {
     token: string
 }
 
-export interface ReferralCountResponse {
-    count: number
-}
-
 export interface AdminLog {
     id: number
     admin_id: number

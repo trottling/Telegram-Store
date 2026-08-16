@@ -99,6 +99,19 @@ func (r *UserRepo) CountReferrals(ctx context.Context, referrerID int64) (int64,
 	return count, err
 }
 
+func (r *UserRepo) ListReferrals(ctx context.Context, referrerID int64, offset, limit int) ([]models.User, error) {
+	users, err := gorm.G[models.User](dbFromCtx(ctx, r.db)).
+		Where("referrer_id = ?", referrerID).
+		Offset(offset).
+		Limit(limit).
+		Order("telegram_id").
+		Find(ctx)
+	if err != nil {
+		r.log.WithError(err).WithField("referrer_id", referrerID).Error("user_repo: list referrals failed")
+	}
+	return users, err
+}
+
 // EnsureRootAdminExists выдаёт rootAdminID роль root_admin, создавая
 // пользователя при необходимости. Идемпотентно.
 func (r *UserRepo) EnsureRootAdminExists(ctx context.Context, rootAdminID int64) error {
