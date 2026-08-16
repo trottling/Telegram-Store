@@ -85,6 +85,15 @@ func parseOptionalStatusQuery(c *gin.Context, name string) *models.PurchaseStatu
 	return &status
 }
 
+func parseOptionalMerchantQuery(c *gin.Context, name string) *models.Merchant {
+	raw := c.Query(name)
+	if raw == "" {
+		return nil
+	}
+	merchant := models.Merchant(raw)
+	return &merchant
+}
+
 // parseOptionalTimeQuery — необязательная дата в формате RFC3339.
 func parseOptionalTimeQuery(c *gin.Context, name string) *time.Time {
 	raw := c.Query(name)

@@ -120,10 +120,10 @@ func (s *ReplenishmentSrv) SumUserMerchantAmount(ctx context.Context, telegramID
 	return s.replenishmentRepo.SumPaidByUserMerchant(ctx, telegramID, merchant)
 }
 
-func (s *ReplenishmentSrv) ListAllAdmin(ctx context.Context, userID *int64, offset, limit int) ([]models.ReplenishmentAdminItem, error) {
-	return s.replenishmentRepo.ListAllAdmin(ctx, userID, offset, limit)
+func (s *ReplenishmentSrv) ListAllAdmin(ctx context.Context, filter models.ReplenishmentAdminFilter, offset, limit int) ([]models.ReplenishmentAdminItem, error) {
+	return s.replenishmentRepo.ListAllAdmin(ctx, filter, offset, limit)
 }
 
-func (s *ReplenishmentSrv) CountAllAdmin(ctx context.Context, userID *int64) (int64, error) {
-	return s.replenishmentRepo.CountAllAdmin(ctx, userID)
+func (s *ReplenishmentSrv) CountAllAdmin(ctx context.Context, filter models.ReplenishmentAdminFilter) (int64, error) {
+	return s.replenishmentRepo.CountAllAdmin(ctx, filter)
 }

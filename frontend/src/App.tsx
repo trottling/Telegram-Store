@@ -14,8 +14,10 @@ const UsersPage = lazy(() => import('./pages/UsersPage').then((m) => ({default: 
 const UserDetailPage = lazy(() => import('./pages/UserDetailPage').then((m) => ({default: m.UserDetailPage})))
 const PurchasesPage = lazy(() => import('./pages/PurchasesPage').then((m) => ({default: m.PurchasesPage})))
 const PurchaseDetailPage = lazy(() => import('./pages/PurchaseDetailPage').then((m) => ({default: m.PurchaseDetailPage})))
+const ReplenishmentsPage = lazy(() => import('./pages/ReplenishmentsPage').then((m) => ({default: m.ReplenishmentsPage})))
 const StatsPage = lazy(() => import('./pages/StatsPage').then((m) => ({default: m.StatsPage})))
 const AdminLogsPage = lazy(() => import('./pages/AdminLogsPage').then((m) => ({default: m.AdminLogsPage})))
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({default: m.SettingsPage})))
 
 function Protected({children}: { children: React.ReactNode }) {
     return (
@@ -46,8 +48,10 @@ export default function App() {
                         <Route path="/users/:telegramId" element={<Protected><UserDetailPage/></Protected>}/>
                         <Route path="/purchases" element={<Protected><PurchasesPage/></Protected>}/>
                         <Route path="/purchases/:id" element={<Protected><PurchaseDetailPage/></Protected>}/>
+                        <Route path="/replenishments" element={<Protected><ReplenishmentsPage/></Protected>}/>
                         <Route path="/stats" element={<Protected><StatsPage/></Protected>}/>
                         <Route path="/admin-logs" element={<Protected><AdminLogsPage/></Protected>}/>
+                        <Route path="/settings" element={<Protected><SettingsPage/></Protected>}/>
                         <Route path="*" element={<Navigate to="/categories" replace/>}/>
                     </Routes>
                 </Suspense>

@@ -1,14 +1,27 @@
 import {useEffect, useState} from 'react'
 import {useNavigate, useParams} from 'react-router-dom'
 import {Button, Card, Descriptions, InputNumber, message, Modal, Popconfirm, Space, Table, Tag, Typography} from 'antd'
-import {adjustBalance, banUser, demoteUser, getUser, listPurchases, promoteUser, unbanUser} from '../api/resources'
+import {
+    adjustBalance,
+    banUser,
+    demoteUser,
+    disableUserReferrals,
+    enableUserReferrals,
+    getUser,
+    getUserReferralCount,
+    listPurchases,
+    listReplenishments,
+    promoteUser,
+    unbanUser,
+} from '../api/resources'
 import {ApiError} from '../api/client'
 import {useAuth} from '../auth/AuthContext'
 import {BackButton} from '../components/BackButton'
-import type {AdminUser, PurchaseAdminItem, PurchaseStatus} from '../types/api'
+import type {AdminUser, Merchant, PurchaseAdminItem, PurchaseStatus, ReplenishmentAdminItem} from '../types/api'
 import {roleColor, roleLabel} from '../types/role'
+import {merchantLabel, replenishmentStatusColor} from '../types/merchant'
 
-const {Title} = Typography
+const {Title, Link: TypographyLink} = Typography
 
 const statusColor: Record<PurchaseStatus, string> = {
     pending: 'gold',
@@ -22,6 +35,7 @@ export function UserDetailPage() {
     const {admin: currentAdmin} = useAuth()
     const [user, setUser] = useState<AdminUser | null>(null)
     const [loading, setLoading] = useState(false)
+    const [referralCount, setReferralCount] = useState<number | null>(null)
 
     const [balanceModalOpen, setBalanceModalOpen] = useState(false)
     const [balanceDelta, setBalanceDelta] = useState<number>(0)
@@ -32,6 +46,12 @@ export function UserDetailPage() {
     const [purchasesPage, setPurchasesPage] = useState(1)
     const [purchasesLoading, setPurchasesLoading] = useState(false)
     const purchasesPageSize = 10
+
+    const [replenishments, setReplenishments] = useState<ReplenishmentAdminItem[]>([])
+    const [replenishmentsTotal, setReplenishmentsTotal] = useState(0)
+    const [replenishmentsPage, setReplenishmentsPage] = useState(1)
+    const [replenishmentsLoading, setReplenishmentsLoading] = useState(false)
+    const replenishmentsPageSize = 10
 
     const id = Number(telegramId)
 
@@ -53,6 +73,10 @@ export function UserDetailPage() {
     }, [id])
 
     useEffect(() => {
+        getUserReferralCount(id).then((res) => setReferralCount(res.count)).catch(() => undefined)
+    }, [id])
+
+    useEffect(() => {
         setPurchasesLoading(true)
         listPurchases({user_id: id, offset: (purchasesPage - 1) * purchasesPageSize, limit: purchasesPageSize})
             .then((res) => {
@@ -61,6 +85,16 @@ export function UserDetailPage() {
             })
             .finally(() => setPurchasesLoading(false))
     }, [id, purchasesPage])
+
+    useEffect(() => {
+        setReplenishmentsLoading(true)
+        listReplenishments({user_id: id, offset: (replenishmentsPage - 1) * replenishmentsPageSize, limit: replenishmentsPageSize})
+            .then((res) => {
+                setReplenishments(res.items)
+                setReplenishmentsTotal(res.total)
+            })
+            .finally(() => setReplenishmentsLoading(false))
+    }, [id, replenishmentsPage])
 
     const withErrorHandling = (fn: () => Promise<void>) => async () => {
         try {
@@ -86,6 +120,14 @@ export function UserDetailPage() {
     const handleDemote = withErrorHandling(async () => {
         await demoteUser(id)
         message.success('Права администратора сняты')
+    })
+    const handleEnableReferrals = withErrorHandling(async () => {
+        await enableUserReferrals(id)
+        message.success('Реферальные начисления включены')
+    })
+    const handleDisableReferrals = withErrorHandling(async () => {
+        await disableUserReferrals(id)
+        message.success('Реферальные начисления отключены')
     })
 
     const handleBalanceSubmit = async () => {
@@ -129,6 +171,19 @@ export function UserDetailPage() {
         {title: 'Дата', dataIndex: 'created_at', key: 'created_at', render: (v: string) => new Date(v).toLocaleString()},
     ]
 
+    const replenishmentColumns = [
+        {title: 'ID', dataIndex: 'id', key: 'id', width: 80},
+        {title: 'Мерчант', dataIndex: 'merchant', key: 'merchant', render: (v: Merchant) => merchantLabel[v]},
+        {title: 'Сумма', dataIndex: 'amount', key: 'amount', render: (v: number) => v.toFixed(2)},
+        {
+            title: 'Статус',
+            dataIndex: 'status',
+            key: 'status',
+            render: (v: ReplenishmentAdminItem['status']) => <Tag color={replenishmentStatusColor[v]}>{v}</Tag>,
+        },
+        {title: 'Дата', dataIndex: 'created_at', key: 'created_at', render: (v: string) => new Date(v).toLocaleString()},
+    ]
+
     return (
         <div>
             <BackButton to="/users"/>
@@ -141,6 +196,19 @@ export function UserDetailPage() {
                     <Descriptions.Item label="Статус">
                         <Tag color={roleColor[user.role]}>{roleLabel[user.role]}</Tag>
                     </Descriptions.Item>
+                    <Descriptions.Item label="Приглашён">
+                        {user.referrer_id ? (
+                            <TypographyLink onClick={() => navigate(`/users/${user.referrer_id}`)}>{user.referrer_id}</TypographyLink>
+                        ) : (
+                            '—'
+                        )}
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Реферальные начисления">
+                        <Tag color={user.referrals_enabled ? 'green' : 'default'}>
+                            {user.referrals_enabled ? 'включены' : 'отключены'}
+                        </Tag>
+                    </Descriptions.Item>
+                    <Descriptions.Item label="Приглашено рефералов">{referralCount ?? '—'}</Descriptions.Item>
                     <Descriptions.Item label="Зарегистрирован">{new Date(user.created_at).toLocaleString()}</Descriptions.Item>
                 </Descriptions>
             </Card>
@@ -170,6 +238,26 @@ export function UserDetailPage() {
                     )}
 
                     <Button onClick={() => setBalanceModalOpen(true)}>Изменить баланс</Button>
+
+                    {user.referrals_enabled ? (
+                        <Popconfirm
+                            title="Отключить реферальные начисления этому пользователю?"
+                            okText="Отключить"
+                            cancelText="Отмена"
+                            onConfirm={handleDisableReferrals}
+                        >
+                            <Button danger>Отключить реферальные начисления</Button>
+                        </Popconfirm>
+                    ) : (
+                        <Popconfirm
+                            title="Включить реферальные начисления этому пользователю?"
+                            okText="Включить"
+                            cancelText="Отмена"
+                            onConfirm={handleEnableReferrals}
+                        >
+                            <Button>Включить реферальные начисления</Button>
+                        </Popconfirm>
+                    )}
 
                     {isAdmin ? (
                         <Popconfirm
@@ -209,6 +297,22 @@ export function UserDetailPage() {
                         pageSize: purchasesPageSize,
                         total: purchasesTotal,
                         onChange: setPurchasesPage,
+                        showSizeChanger: false,
+                    }}
+                />
+            </Card>
+
+            <Card title="Пополнения" style={{marginTop: 16}}>
+                <Table
+                    rowKey="id"
+                    loading={replenishmentsLoading}
+                    columns={replenishmentColumns}
+                    dataSource={replenishments}
+                    pagination={{
+                        current: replenishmentsPage,
+                        pageSize: replenishmentsPageSize,
+                        total: replenishmentsTotal,
+                        onChange: setReplenishmentsPage,
                         showSizeChanger: false,
                     }}
                 />

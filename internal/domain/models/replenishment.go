@@ -37,6 +37,12 @@ type Replenishment struct {
 	User User `gorm:"belongsTo:User;foreignKey:UserID" json:"-"`
 }
 
+// ReplenishmentAdminFilter — фильтр для ListAllAdmin/CountAllAdmin, оба поля опциональны.
+type ReplenishmentAdminFilter struct {
+	UserID   *int64
+	Merchant *Merchant
+}
+
 // ReplenishmentAdminItem — Replenishment с подмешанным Username, для админки.
 type ReplenishmentAdminItem struct {
 	ID          int64               `json:"id"`

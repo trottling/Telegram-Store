@@ -14,6 +14,8 @@ export interface AdminUser {
     username: string
     balance: number
     role: UserRole
+    referrer_id?: number | null
+    referrals_enabled: boolean
     created_at: string
     updated_at: string
 }
@@ -117,6 +119,10 @@ export interface TokenResponse {
     token: string
 }
 
+export interface ReferralCountResponse {
+    count: number
+}
+
 export interface AdminLog {
     id: number
     admin_id: number
@@ -124,6 +130,60 @@ export interface AdminLog {
     target_id?: number | null
     details?: unknown
     created_at: string
+}
+
+export type Merchant = 'crystalpay' | 'yookassa' | 'tinkoff' | 'referral'
+export type ReplenishmentStatus = 'pending' | 'paid' | 'failed' | 'cancelled'
+
+export interface ReplenishmentAdminItem {
+    id: number
+    user_id: number
+    username: string
+    merchant: Merchant
+    invoice_id: string
+    amount: number
+    status: ReplenishmentStatus
+    created_at: string
+    completed_at?: string | null
+}
+
+export interface CrystalPaySettings {
+    enabled: boolean
+    login: string
+    secret: string
+    salt: string
+    min_amount: number
+    max_amount: number
+}
+
+export interface YooKassaSettings {
+    enabled: boolean
+    shop_id: string
+    secret_key: string
+    min_amount: number
+    max_amount: number
+}
+
+export interface TinkoffSettings {
+    enabled: boolean
+    terminal_key: string
+    password: string
+    min_amount: number
+    max_amount: number
+}
+
+export interface ReferralSettings {
+    enabled: boolean
+    percent: number
+}
+
+export interface Settings {
+    id: number
+    support_username: string
+    crystalpay: CrystalPaySettings
+    yookassa: YooKassaSettings
+    tinkoff: TinkoffSettings
+    referral: ReferralSettings
 }
 
 export interface ErrorResponse {

@@ -1,6 +1,6 @@
 // По одной функции на эндпоинт backend'а, всё в одном файле.
 import {apiRequest} from './client'
-import type {AdminLog, AdminUser, Category, DashboardStats, Paginated, Product, ProductAdminSummary, PurchaseAdminItem, TokenResponse,} from '../types/api'
+import type {AdminLog, AdminUser, Category, DashboardStats, Paginated, Product, ProductAdminSummary, PurchaseAdminItem, ReferralCountResponse, ReplenishmentAdminItem, Settings, TokenResponse,} from '../types/api'
 
 // аутентификация
 export const exchangeLoginCode = (code: string) =>
@@ -41,6 +41,9 @@ export const adjustBalance = (id: number, amount: number) =>
     apiRequest<void>(`/api/users/${id}/balance`, {method: 'POST', body: {amount}})
 export const promoteUser = (id: number) => apiRequest<void>(`/api/users/${id}/promote`, {method: 'POST'})
 export const demoteUser = (id: number) => apiRequest<void>(`/api/users/${id}/demote`, {method: 'POST'})
+export const getUserReferralCount = (id: number) => apiRequest<ReferralCountResponse>(`/api/users/${id}/referrals`)
+export const enableUserReferrals = (id: number) => apiRequest<void>(`/api/users/${id}/referrals/enable`, {method: 'POST'})
+export const disableUserReferrals = (id: number) => apiRequest<void>(`/api/users/${id}/referrals/disable`, {method: 'POST'})
 
 // покупки
 export const listPurchases = (params: {
@@ -53,6 +56,10 @@ export const listPurchases = (params: {
 }) => apiRequest<Paginated<PurchaseAdminItem>>('/api/purchases', {query: params})
 export const getPurchase = (id: number) => apiRequest<PurchaseAdminItem>(`/api/purchases/${id}`)
 
+// пополнения
+export const listReplenishments = (params: { offset?: number; limit?: number; user_id?: number; merchant?: string }) =>
+    apiRequest<Paginated<ReplenishmentAdminItem>>('/api/replenishments', {query: params})
+
 // статистика
 export const getDashboard = (params: { from?: string; to?: string }) =>
     apiRequest<DashboardStats>('/api/stats/dashboard', {query: params})
@@ -60,3 +67,7 @@ export const getDashboard = (params: { from?: string; to?: string }) =>
 // логи админов
 export const listAdminLogs = (params: { offset?: number; limit?: number; admin_id?: number }) =>
     apiRequest<Paginated<AdminLog>>('/api/admin-logs', {query: params})
+
+// настройки
+export const getSettings = () => apiRequest<Settings>('/api/settings')
+export const updateSettings = (body: Omit<Settings, 'id'>) => apiRequest<Settings>('/api/settings', {method: 'PUT', body})

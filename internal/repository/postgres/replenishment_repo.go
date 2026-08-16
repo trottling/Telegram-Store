@@ -91,17 +91,20 @@ func (r *ReplenishmentRepo) SumPaidByUserMerchant(ctx context.Context, userID in
 
 // replenishmentAdminQuery — общая база для ListAllAdmin/CountAllAdmin.
 // users.deleted_at фильтруем вручную — авто-скоуп soft-delete не покрывает джойны.
-func (r *ReplenishmentRepo) replenishmentAdminQuery(ctx context.Context, userID *int64) *gorm.DB {
+func (r *ReplenishmentRepo) replenishmentAdminQuery(ctx context.Context, filter models.ReplenishmentAdminFilter) *gorm.DB {
 	q := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Replenishment{})
-	if userID != nil {
-		q = q.Where("replenishments.user_id = ?", *userID)
+	if filter.UserID != nil {
+		q = q.Where("replenishments.user_id = ?", *filter.UserID)
+	}
+	if filter.Merchant != nil {
+		q = q.Where("replenishments.merchant = ?", *filter.Merchant)
 	}
 	return q
 }
 
-func (r *ReplenishmentRepo) ListAllAdmin(ctx context.Context, userID *int64, offset, limit int) ([]models.ReplenishmentAdminItem, error) {
+func (r *ReplenishmentRepo) ListAllAdmin(ctx context.Context, filter models.ReplenishmentAdminFilter, offset, limit int) ([]models.ReplenishmentAdminItem, error) {
 	var items []models.ReplenishmentAdminItem
-	err := r.replenishmentAdminQuery(ctx, userID).
+	err := r.replenishmentAdminQuery(ctx, filter).
 		Select("replenishments.id, replenishments.user_id, u.username, replenishments.merchant, replenishments.invoice_id, replenishments.amount, replenishments.status, replenishments.created_at, replenishments.completed_at").
 		Joins("JOIN users u ON u.telegram_id = replenishments.user_id AND u.deleted_at IS NULL").
 		Order("replenishments.created_at DESC").
@@ -114,9 +117,9 @@ func (r *ReplenishmentRepo) ListAllAdmin(ctx context.Context, userID *int64, off
 	return items, err
 }
 
-func (r *ReplenishmentRepo) CountAllAdmin(ctx context.Context, userID *int64) (int64, error) {
+func (r *ReplenishmentRepo) CountAllAdmin(ctx context.Context, filter models.ReplenishmentAdminFilter) (int64, error) {
 	var count int64
-	err := r.replenishmentAdminQuery(ctx, userID).Count(&count).Error
+	err := r.replenishmentAdminQuery(ctx, filter).Count(&count).Error
 	if err != nil {
 		r.log.WithError(err).Error("replenishment_repo: count all admin failed")
 	}

@@ -8,17 +8,20 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
-// ListReplenishments — межпользовательский список пополнений, ?user_id опционален.
+// ListReplenishments — межпользовательский список пополнений, ?user_id/?merchant опциональны.
 func (h *Handlers) ListReplenishments(c *gin.Context) {
 	offset, limit := parsePagination(c)
-	userID := parseOptionalIDQuery(c, "user_id")
+	filter := models.ReplenishmentAdminFilter{
+		UserID:   parseOptionalIDQuery(c, "user_id"),
+		Merchant: parseOptionalMerchantQuery(c, "merchant"),
+	}
 
-	items, err := h.replenishmentService.ListAllAdmin(c.Request.Context(), userID, offset, limit)
+	items, err := h.replenishmentService.ListAllAdmin(c.Request.Context(), filter, offset, limit)
 	if err != nil {
 		h.writeError(c, err)
 		return
 	}
-	total, err := h.replenishmentService.CountAllAdmin(c.Request.Context(), userID)
+	total, err := h.replenishmentService.CountAllAdmin(c.Request.Context(), filter)
 	if err != nil {
 		h.writeError(c, err)
 		return
