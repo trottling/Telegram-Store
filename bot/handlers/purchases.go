@@ -118,7 +118,7 @@ func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.PurchaseDetailMsg, purchases[0].Product.Name, total, len(purchases), purchases[0].CreatedAt.Format("02.01.2006 15:04"), strings.Join(contents, "\n")),
+		Text:        fmt.Sprintf(texts.PurchaseDetailMsg, purchases[0].Product.Name, total, len(purchases), purchases[0].CreatedAt.Format("02.01.2006 15:04"), purchases[0].Product.Description, strings.Join(contents, "\n")),
 		ParseMode:   models.ParseModeMarkdownV1,
 		ReplyMarkup: kb,
 	}); err != nil {

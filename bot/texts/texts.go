@@ -29,7 +29,7 @@ var (
 	CategoryMsg       = "📦 Категория: *%s*\n%s\n\n💰 Доступный баланс: %.2f ₽"
 	CatalogEmptyMsg   = "_📦 Пока здесь пусто_"
 	ProductBoughtMsg  = "✅ Покупка совершена! Куплено: *%d* шт.\n\n*📦 Товар(ы):*\n%s"
-	PurchaseDetailMsg = "📦 *%s*\n💰 %.2f ₽ (%d шт.)\n🗓%s\n\n*🛒 Товар(ы):*\n%s"
+	PurchaseDetailMsg = "📦 *%s*\n💰 %.2f ₽ (%d шт.)\n🗓%s\nℹ️%s\n\n*🛒 Товар(ы):*\n%s"
 	PurchasesEmptyMsg = "📜 У вас пока нет покупок"
 	RefillMsg         = "💰 Пополнение баланса в разработке"
 
