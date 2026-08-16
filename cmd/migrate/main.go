@@ -1,7 +1,7 @@
-// Command migrate — одноразовый прогон: схема (AutoMigrate), два разовых
-// клинапа старых колонок и бутстрап root-admin. Отдельный от cmd/bot и
-// cmd/backend бинарник, чтобы два долгоживущих сервиса не гоняли миграцию
-// параллельно — docker-compose ждёт его завершения перед стартом остальных.
+// Command migrate — одноразовый прогон pgdb.AutoMigrate (схема, легаси-клинапы,
+// бутстрап root-admin и дефолтных настроек). Отдельный от cmd/bot и cmd/backend
+// бинарник, чтобы два долгоживущих сервиса не гоняли миграцию параллельно —
+// docker-compose ждёт его завершения перед стартом остальных.
 package main
 
 import (
@@ -28,22 +28,8 @@ func main() {
 		log.Fatalf("migrate: failed to connect to postgres: %v", err)
 	}
 
-	if err = pgdb.AutoMigrate(db); err != nil {
+	if err = pgdb.AutoMigrate(ctx, db, log, cfg.Telegram.RootAdminID); err != nil {
 		log.Fatalf("migrate: failed to run migrations: %v", err)
 	}
-	log.Info("migrate: schema migrated")
-
-	if err = pgdb.BackfillUserRoles(ctx, db, log); err != nil {
-		log.Fatalf("migrate: failed to backfill user roles: %v", err)
-	}
-
-	if err = pgdb.DropLegacyAdminTokenColumn(db, log); err != nil {
-		log.Fatalf("migrate: failed to drop legacy admin_token_hash column: %v", err)
-	}
-
-	userRepo := pgdb.NewUserRepo(db, log)
-	if err = userRepo.EnsureRootAdminExists(ctx, cfg.Telegram.RootAdminID); err != nil {
-		log.Fatalf("migrate: failed to ensure root admin exists: %v", err)
-	}
-	log.Info("migrate: root admin ensured, done")
+	log.Info("migrate: done")
 }
