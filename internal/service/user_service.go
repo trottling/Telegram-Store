@@ -58,6 +58,18 @@ func (s *UserSrv) GetProfile(ctx context.Context, telegramID int64) (*models.Use
 	return user, nil
 }
 
+// RefreshProfile — то же, что GetProfile, но без чтения кэша: сразу идёт в
+// Postgres и перезаписывает кэш свежим значением (для инлайн-кнопки «Обновить»).
+func (s *UserSrv) RefreshProfile(ctx context.Context, telegramID int64) (*models.User, error) {
+	user, err := s.userRepo.GetByID(ctx, telegramID)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = s.cache.SetUser(ctx, user)
+	return user, nil
+}
+
 // ListAdmin/CountAdmin намеренно мимо кэша.
 func (s *UserSrv) ListAdmin(ctx context.Context, offset, limit int) ([]models.User, error) {
 	return s.userRepo.List(ctx, offset, limit)

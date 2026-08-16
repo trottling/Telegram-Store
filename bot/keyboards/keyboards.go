@@ -31,7 +31,7 @@ func New(adminPanelConfig *config.AdminPanelConfig) *Keyboards {
 			ResizeKeyboard: true,
 			Keyboard: [][]models.KeyboardButton{
 				{{Text: texts.PurchasesBtn}, {Text: texts.RefillBalanceBtn}},
-				{{Text: texts.StartMenuBtn}},
+				{{Text: texts.ProfileRefreshBtn}, {Text: texts.StartMenuBtn}},
 			},
 		},
 		AdminKb: &models.InlineKeyboardMarkup{

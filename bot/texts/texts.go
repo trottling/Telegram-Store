@@ -18,6 +18,7 @@ var (
 	ConfirmBtn        = "✅ Подтвердить"
 	PrevPageBtn       = "⬅️"
 	NextPageBtn       = "➡️"
+	ProfileRefreshBtn = "🔄 Обновить"
 
 	StartMsg          = "🤙 Привет, *%s*!"
 	ProfileMsg        = "👤 *@%s*\nℹ️ `%d`\n\n💰 Баланс: *%.2f* ₽\n📝 Покупок: *%d*\n💵 Потрачено: *%.2f* ₽"

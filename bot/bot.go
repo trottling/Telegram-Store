@@ -62,6 +62,7 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.StartMenuBtn, bot.MatchTypeExact, handler.StartMenuHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.PurchasesBtn, bot.MatchTypeExact, handler.PurchasesHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, texts.RefillBalanceBtn, bot.MatchTypeExact, handler.RefillBalanceHandler)
+	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ProfileRefreshBtn, bot.MatchTypeExact, handler.ProfileRefreshHandler)
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ProductCallbackPrefix, bot.MatchTypePrefix, handler.ProductHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.BuyCallbackPrefix, bot.MatchTypePrefix, handler.BuyHandler)

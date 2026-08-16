@@ -9,6 +9,8 @@ import (
 type UserService interface {
 	GetOrCreate(ctx context.Context, telegramID int64, username string) (*models.User, error)
 	GetProfile(ctx context.Context, telegramID int64) (*models.User, error)
+	// RefreshProfile — то же, что GetProfile, но всегда читает Postgres напрямую, минуя кэш, и обновляет кэш свежими данными.
+	RefreshProfile(ctx context.Context, telegramID int64) (*models.User, error)
 	IsBanned(ctx context.Context, telegramID int64) (bool, error)
 
 	// ListAdmin/CountAdmin — все пользователи для админ-панели, мимо кэша.
