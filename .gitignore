@@ -28,5 +28,13 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
+
+frontend/node_modules/
+frontend/dist/
+.env.local
+
+.claude
+/postgres_data
+*/.env

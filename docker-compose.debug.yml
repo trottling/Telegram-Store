@@ -1,0 +1,116 @@
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrate
+    container_name: tg-shop-migrate
+    env_file:
+      - path: .env
+        required: true
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - debug-network
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot
+    container_name: tg-shop-bot
+    env_file:
+      - path: .env
+        required: true
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - debug-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: tg-shop-backend
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      - "${ADMIN_PANEL_BACKEND_PORT:-8080}:${ADMIN_PANEL_BACKEND_PORT:-8080}"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - debug-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
+    container_name: tg-shop-admin-frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      - debug-network
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:latest
+    container_name: tg-shop-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - debug-network
+
+  redis:
+    image: redis:latest
+    container_name: tg-shop-redis
+    ports:
+      - "6379:6379"
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - debug-network
+
+networks:
+  debug-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

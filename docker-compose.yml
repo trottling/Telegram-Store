@@ -1,0 +1,123 @@
+services:
+  # Одноразовый прогон миграций + бутстрап root-admin, затем выход.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrate
+    container_name: tg-shop-migrate
+    env_file:
+      - path: .env
+        required: true
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - backend-network
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: bot
+    container_name: tg-shop-bot
+    env_file:
+      - path: .env
+        required: true
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - public-network
+      - backend-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    container_name: tg-shop-backend
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      # фронтенд стучится в этот порт напрямую из браузера
+      - "${ADMIN_PANEL_BACKEND_PORT:-8080}:${ADMIN_PANEL_BACKEND_PORT:-8080}"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      # без public-network опубликованный порт не достучится до хоста
+      - public-network
+      - backend-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
+    container_name: tg-shop-admin-frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      # отдаёт статику браузеру, к backend по docker-сети ходить не нужно
+      - public-network
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:latest
+    container_name: tg-shop-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_NAME}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-network
+
+  redis:
+    image: redis:latest
+    container_name: tg-shop-redis
+    command: [ "redis-server", "--appendonly", "yes" ]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend-network
+
+networks:
+  # db+redis видны только bot/backend/migrate, без выхода наружу
+  backend-network:
+    driver: bridge
+    internal: true
+  # нужна для исходящих к Telegram (bot) и для доступности опубликованных портов (backend, frontend)
+  public-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
