@@ -4,7 +4,7 @@ import (
 	"os"
 
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/internal/config"
+	"github.com/trottling/Telegram-Store/internal/config"
 )
 
 func New(c *config.LoggerConfig) *logrus.Logger {

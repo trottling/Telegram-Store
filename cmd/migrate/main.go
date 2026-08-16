@@ -7,9 +7,9 @@ package main
 import (
 	"context"
 
-	"github.com/trottling/TG-Store/internal/config"
-	"github.com/trottling/TG-Store/internal/logger"
-	pgdb "github.com/trottling/TG-Store/internal/repository/postgres"
+	"github.com/trottling/Telegram-Store/internal/config"
+	"github.com/trottling/Telegram-Store/internal/logger"
+	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
 )
 
 func main() {

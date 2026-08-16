@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/backend/handlers"
-	"github.com/trottling/TG-Store/backend/middleware"
-	"github.com/trottling/TG-Store/internal/domain/service"
+	"github.com/trottling/Telegram-Store/backend/handlers"
+	"github.com/trottling/Telegram-Store/backend/middleware"
+	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
 // newRouter собирает таблицу маршрутов. /api/auth/exchange — единственный

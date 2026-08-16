@@ -7,13 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/trottling/TG-Store/bot"
-	rdb "github.com/trottling/TG-Store/internal/cache/redis"
-	"github.com/trottling/TG-Store/internal/config"
-	"github.com/trottling/TG-Store/internal/logger"
-	pgdb "github.com/trottling/TG-Store/internal/repository/postgres"
-	"github.com/trottling/TG-Store/internal/service"
-	"github.com/trottling/TG-Store/internal/service/payment"
+	"github.com/trottling/Telegram-Store/bot"
+	rdb "github.com/trottling/Telegram-Store/internal/cache/redis"
+	"github.com/trottling/Telegram-Store/internal/config"
+	"github.com/trottling/Telegram-Store/internal/logger"
+	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
+	"github.com/trottling/Telegram-Store/internal/service"
+	"github.com/trottling/Telegram-Store/internal/service/payment"
 )
 
 func main() {

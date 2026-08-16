@@ -5,7 +5,7 @@ package handlers
 
 import (
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/internal/domain/service"
+	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
 type Handlers struct {

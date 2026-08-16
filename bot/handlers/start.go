@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/trottling/TG-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/texts"
 )
 
 // StartHandler — единственное место, где создаётся запись пользователя.

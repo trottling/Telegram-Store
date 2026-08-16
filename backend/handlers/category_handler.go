@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/backend/dto"
-	"github.com/trottling/TG-Store/backend/middleware"
+	"github.com/trottling/Telegram-Store/backend/dto"
+	"github.com/trottling/Telegram-Store/backend/middleware"
 )
 
 // ListCategories отдаёт плоский список всех категорий — дерево строит фронтенд.

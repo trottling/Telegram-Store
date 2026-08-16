@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/internal/domain/models"
-	"github.com/trottling/TG-Store/internal/domain/repository"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"golang.org/x/sync/errgroup"
 )
 

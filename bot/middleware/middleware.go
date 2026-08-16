@@ -6,10 +6,10 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/sirupsen/logrus"
-	domainfsm "github.com/trottling/TG-Store/internal/domain/fsm"
+	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 
-	"github.com/trottling/TG-Store/internal/domain/service"
-	"github.com/trottling/TG-Store/internal/domain/service/payment"
+	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
 
 type Middlewares struct {

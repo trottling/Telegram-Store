@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/sirupsen/logrus"
-	domainerrors "github.com/trottling/TG-Store/internal/domain/errors"
-	"github.com/trottling/TG-Store/internal/domain/models"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"gorm.io/gorm"
 )
 

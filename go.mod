@@ -1,4 +1,4 @@
-module github.com/trottling/TG-Store
+module github.com/trottling/Telegram-Store
 
 go 1.26
 

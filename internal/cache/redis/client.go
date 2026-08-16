@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/trottling/TG-Store/internal/config"
+	"github.com/trottling/Telegram-Store/internal/config"
 )
 
 func NewClient(cfg *config.RedisConfig) (*redis.Client, error) {

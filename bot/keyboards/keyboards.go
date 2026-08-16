@@ -5,10 +5,10 @@ import (
 	"strconv"
 
 	"github.com/go-telegram/bot/models"
-	"github.com/trottling/TG-Store/bot/texts"
-	"github.com/trottling/TG-Store/bot/utils"
-	"github.com/trottling/TG-Store/internal/config"
-	domain "github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/utils"
+	"github.com/trottling/Telegram-Store/internal/config"
+	domain "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // Keyboards — клавиатуры, не зависящие от запроса, собираются один раз при

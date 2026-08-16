@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	"github.com/sirupsen/logrus"
-	domaincache "github.com/trottling/TG-Store/internal/domain/cache"
-	domainerrors "github.com/trottling/TG-Store/internal/domain/errors"
-	"github.com/trottling/TG-Store/internal/domain/models"
-	"github.com/trottling/TG-Store/internal/domain/repository"
+	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/repository"
 )
 
 type UserSrv struct {

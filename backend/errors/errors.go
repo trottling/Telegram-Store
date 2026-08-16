@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/trottling/TG-Store/backend/dto"
-	domainerrors "github.com/trottling/TG-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/backend/dto"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 )
 
 func DomainErrorToResponse(err error) (int, *dto.ErrorResponse) {

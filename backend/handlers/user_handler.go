@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/backend/dto"
-	"github.com/trottling/TG-Store/backend/middleware"
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/backend/dto"
+	"github.com/trottling/Telegram-Store/backend/middleware"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 func (h *Handlers) ListUsers(c *gin.Context) {

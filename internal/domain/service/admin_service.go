@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // AdminService: adminID — Telegram ID действующего админа, targetTelegramID — объект действия.

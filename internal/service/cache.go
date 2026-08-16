@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
-	domaincache "github.com/trottling/TG-Store/internal/domain/cache"
-	"github.com/trottling/TG-Store/internal/domain/repository"
+	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
+	"github.com/trottling/Telegram-Store/internal/domain/repository"
 )
 
 // multiCache — композиция кэшей для AdminSrv и PurchaseSrv, которым нужно

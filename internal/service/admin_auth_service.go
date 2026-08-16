@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/internal/auth/web"
-	"github.com/trottling/TG-Store/internal/domain/adminsession"
-	domainerrors "github.com/trottling/TG-Store/internal/domain/errors"
-	"github.com/trottling/TG-Store/internal/domain/models"
-	"github.com/trottling/TG-Store/internal/domain/repository"
+	"github.com/trottling/Telegram-Store/internal/auth/web"
+	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/repository"
 )
 
 // loginCodeTTL — срок жизни одноразового кода от /admin.

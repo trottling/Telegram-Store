@@ -7,9 +7,9 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/trottling/TG-Store/bot/keyboards"
-	"github.com/trottling/TG-Store/bot/texts"
-	"github.com/trottling/TG-Store/bot/utils"
+	"github.com/trottling/Telegram-Store/bot/keyboards"
+	"github.com/trottling/Telegram-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/utils"
 )
 
 const purchasesPageSize = 10

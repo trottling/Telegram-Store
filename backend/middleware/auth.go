@@ -4,10 +4,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/trottling/TG-Store/backend/errors"
-	domainerrors "github.com/trottling/TG-Store/internal/domain/errors"
-	"github.com/trottling/TG-Store/internal/domain/models"
-	"github.com/trottling/TG-Store/internal/domain/service"
+	"github.com/trottling/Telegram-Store/backend/errors"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
 // ctxKeyAdmin — ключ gin.Context для авторизованного админа.

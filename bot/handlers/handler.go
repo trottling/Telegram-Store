@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/bot/keyboards"
-	"github.com/trottling/TG-Store/internal/config"
-	domainfsm "github.com/trottling/TG-Store/internal/domain/fsm"
+	"github.com/trottling/Telegram-Store/bot/keyboards"
+	"github.com/trottling/Telegram-Store/internal/config"
+	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 
-	"github.com/trottling/TG-Store/internal/domain/service"
-	"github.com/trottling/TG-Store/internal/domain/service/payment"
+	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
 
 type Handlers struct {

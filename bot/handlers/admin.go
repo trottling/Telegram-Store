@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/trottling/TG-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/texts"
 )
 
 // AdminHandler отвечает на /admin ссылкой на панель и одноразовым кодом входа (30 секунд).

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	domainpayment "github.com/trottling/TG-Store/internal/domain/service/payment"
+	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
 
 // StubProvider — заглушка PaymentProvider, все вызовы намеренно падают.

@@ -8,12 +8,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/trottling/TG-Store/backend"
-	rdb "github.com/trottling/TG-Store/internal/cache/redis"
-	"github.com/trottling/TG-Store/internal/config"
-	"github.com/trottling/TG-Store/internal/logger"
-	pgdb "github.com/trottling/TG-Store/internal/repository/postgres"
-	"github.com/trottling/TG-Store/internal/service"
+	"github.com/trottling/Telegram-Store/backend"
+	rdb "github.com/trottling/Telegram-Store/internal/cache/redis"
+	"github.com/trottling/Telegram-Store/internal/config"
+	"github.com/trottling/Telegram-Store/internal/logger"
+	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
+	"github.com/trottling/Telegram-Store/internal/service"
 )
 
 func main() {

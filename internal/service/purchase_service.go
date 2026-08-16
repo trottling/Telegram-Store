@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	domainerrors "github.com/trottling/TG-Store/internal/domain/errors"
-	"github.com/trottling/TG-Store/internal/domain/models"
-	"github.com/trottling/TG-Store/internal/domain/repository"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/repository"
 )
 
 // maxBuyQuantity ограничивает покупку за один вызов.

@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/trottling/TG-Store/bot/texts"
-	domainerrors "github.com/trottling/TG-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/bot/texts"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 )
 
 // BanCheck — единственный шлюз для всех update, кроме /start: нет

@@ -7,8 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/backend/errors"
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/backend/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 const (

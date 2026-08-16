@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/trottling/TG-Store/backend/dto"
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/backend/dto"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // ListPurchases — межпользовательский список покупок с фильтрами

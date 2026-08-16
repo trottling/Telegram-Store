@@ -7,10 +7,10 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/trottling/TG-Store/bot/keyboards"
-	"github.com/trottling/TG-Store/bot/texts"
-	"github.com/trottling/TG-Store/bot/utils"
-	domainfsm "github.com/trottling/TG-Store/internal/domain/fsm"
+	"github.com/trottling/Telegram-Store/bot/keyboards"
+	"github.com/trottling/Telegram-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/utils"
+	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 )
 
 const maxQuickPickQuantity = 5

@@ -3,7 +3,7 @@ package postgres
 import (
 	"fmt"
 
-	"github.com/trottling/TG-Store/internal/config"
+	"github.com/trottling/Telegram-Store/internal/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

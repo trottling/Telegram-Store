@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"gorm.io/gorm"
 )
 

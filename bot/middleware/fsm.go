@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/trottling/TG-Store/bot/keyboards"
-	"github.com/trottling/TG-Store/bot/texts"
-	domainfsm "github.com/trottling/TG-Store/internal/domain/fsm"
+	"github.com/trottling/Telegram-Store/bot/keyboards"
+	"github.com/trottling/Telegram-Store/bot/texts"
+	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 )
 
 // maxQuickPickQuantity дублирует handlers.maxQuickPickQuantity.

@@ -9,9 +9,9 @@ import (
 	"net/http"
 
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/backend/handlers"
-	"github.com/trottling/TG-Store/internal/config"
-	"github.com/trottling/TG-Store/internal/domain/service"
+	"github.com/trottling/Telegram-Store/backend/handlers"
+	"github.com/trottling/Telegram-Store/internal/config"
+	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
 type Server struct {

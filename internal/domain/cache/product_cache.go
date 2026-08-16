@@ -3,7 +3,7 @@ package cache
 import (
 	"context"
 
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // ProductCache — read-through кэш для Product.

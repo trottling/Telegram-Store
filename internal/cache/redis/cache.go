@@ -9,10 +9,10 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/TG-Store/internal/domain/adminsession"
-	domaincache "github.com/trottling/TG-Store/internal/domain/cache"
-	domainfsm "github.com/trottling/TG-Store/internal/domain/fsm"
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
+	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
+	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // Cache — Redis-реализация domain/cache, domain/fsm.Store и

@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/trottling/TG-Store/backend/dto"
-	"github.com/trottling/TG-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/backend/dto"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // ListAdminLogs — журнал действий админов, можно сузить через ?admin_id=.
