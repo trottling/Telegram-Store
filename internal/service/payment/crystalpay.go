@@ -98,6 +98,11 @@ func (p *CrystalPayProvider) CreateInvoice(ctx context.Context, _ int64, amount 
 	if resp.Error {
 		return "", "", fmt.Errorf("crystalpay: %v", resp.Errors)
 	}
+	// Без счёта и ссылки платить нечем: пустой invoice_id ещё и не даст потом
+	// сопоставить вебхук с этой строкой.
+	if resp.ID == "" || resp.URL == "" {
+		return "", "", fmt.Errorf("crystalpay: ответ без id или url счёта")
+	}
 
 	return resp.URL, resp.ID, nil
 }
@@ -151,6 +156,13 @@ func (p *CrystalPayProvider) do(ctx context.Context, endpoint string, body, dest
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Статус проверяем до разбора тела: ответ шлюза или WAF вполне может быть
+	// валидным JSON без поля error, и тогда без этой проверки вызов выглядел
+	// бы успешным с пустыми полями в ответе.
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("crystalpay: %s ответил %s", endpoint, resp.Status)
+	}
 
 	return json.NewDecoder(resp.Body).Decode(dest)
 }
