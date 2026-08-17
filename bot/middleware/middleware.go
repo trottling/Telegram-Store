@@ -71,3 +71,15 @@ func extractChatID(update *models.Update) (chatID int64, ok bool) {
 	}
 	return 0, false
 }
+
+// extractLanguageCode достаёт From.LanguageCode из update — Message.From
+// nilable, CallbackQuery.From — значение, не указатель.
+func extractLanguageCode(update *models.Update) string {
+	if update.Message != nil && update.Message.From != nil {
+		return update.Message.From.LanguageCode
+	}
+	if update.CallbackQuery != nil {
+		return update.CallbackQuery.From.LanguageCode
+	}
+	return ""
+}

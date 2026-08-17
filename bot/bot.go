@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-telegram/bot"
+	"github.com/go-telegram/bot/models"
 	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/bot/handlers"
 	"github.com/trottling/Telegram-Store/bot/keyboards"
@@ -15,6 +16,22 @@ import (
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
+
+// matchAnyLang матчит текст сообщения с подписью кнопки messageID на любом
+// поддерживаемом языке — подпись reply-кнопки теперь зависит от языка пользователя
+func matchAnyLang(messageID string) bot.MatchFunc {
+	return func(update *models.Update) bool {
+		if update.Message == nil {
+			return false
+		}
+		for _, lang := range texts.SupportedLanguages {
+			if update.Message.Text == texts.T(lang, messageID, nil) {
+				return true
+			}
+		}
+		return false
+	}
+}
 
 type TelegramBot struct {
 	bot                  *bot.Bot
@@ -68,15 +85,16 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeMessageText, "start", bot.MatchTypeCommandStartOnly, handler.StartHandler)
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/admin", bot.MatchTypeExact, handler.AdminHandler)
 
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.HelpBtn, bot.MatchTypeExact, handler.HelpHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.CatalogBtn, bot.MatchTypeExact, handler.CatalogHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ProfileBtn, bot.MatchTypeExact, handler.ProfileHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.StartMenuBtn, bot.MatchTypeExact, handler.StartMenuHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.PurchasesBtn, bot.MatchTypeExact, handler.PurchasesHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.RefillBalanceBtn, bot.MatchTypeExact, handler.RefillBalanceHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ProfileRefreshBtn, bot.MatchTypeExact, handler.ProfileRefreshHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ReplenishmentsBtn, bot.MatchTypeExact, handler.ReplenishmentsHandler)
-	b.RegisterHandler(bot.HandlerTypeMessageText, texts.ReferralBtn, bot.MatchTypeExact, handler.ReferralHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.HelpBtn), handler.HelpHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.CatalogBtn), handler.CatalogHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.ProfileBtn), handler.ProfileHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.StartMenuBtn), handler.StartMenuHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.PurchasesBtn), handler.PurchasesHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.RefillBalanceBtn), handler.RefillBalanceHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.ProfileRefreshBtn), handler.ProfileRefreshHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.ReplenishmentsBtn), handler.ReplenishmentsHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.ReferralBtn), handler.ReferralHandler)
+	b.RegisterHandlerMatchFunc(matchAnyLang(texts.SettingsBtn), handler.SettingsHandler)
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ProductCallbackPrefix, bot.MatchTypePrefix, handler.ProductHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.BuyCallbackPrefix, bot.MatchTypePrefix, handler.BuyHandler)
@@ -92,6 +110,8 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.RefillMerchantCallbackPrefix, bot.MatchTypePrefix, handler.RefillMerchantHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReplenishmentsPageCallbackPrefix, bot.MatchTypePrefix, handler.ReplenishmentsPageHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReferralCloseCallback, bot.MatchTypeExact, handler.ReferralCloseHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.SettingsLanguageCallback, bot.MatchTypeExact, handler.SettingsLanguageHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.LanguageCallbackPrefix, bot.MatchTypePrefix, handler.LanguageSetHandler)
 
 	return &TelegramBot{
 		log:                  log,

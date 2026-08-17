@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -37,6 +36,12 @@ func (h *Handlers) ReplenishmentsPageHandler(ctx context.Context, b *bot.Bot, up
 // (нет выдаваемого товара) — список рисуется одним текстовым блоком, без
 // инлайн-кнопки на строку, только пагинация.
 func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID int64, offset int, messageID int) {
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("renderReplenishments: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	items, err := h.replenishmentService.ListUserReplenishments(ctx, chatID, offset, replenishmentsPageSize)
 	if err != nil {
 		h.log.Errorf("renderReplenishments: failed to get user %d replenishments: %v", chatID, err)
@@ -49,16 +54,21 @@ func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID 
 		return
 	}
 
-	text := texts.ReplenishmentsEmptyMsg
+	text := texts.T(user.Language, texts.ReplenishmentsEmptyMsg, nil)
 	if len(items) > 0 {
 		lines := make([]string, len(items))
 		for i, r := range items {
-			lines[i] = fmt.Sprintf(texts.ReplenishmentLineMsg, utils.FormatAmount(r.Amount), utils.MerchantName(r.Merchant), utils.ReplenishmentStatusName(r.Status), utils.FormatDate(r.CreatedAt))
+			lines[i] = texts.T(user.Language, texts.ReplenishmentLineMsg, map[string]any{
+				"Amount":   utils.FormatAmount(r.Amount),
+				"Merchant": texts.MerchantName(user.Language, r.Merchant),
+				"Status":   texts.ReplenishmentStatusName(user.Language, r.Status),
+				"Date":     utils.FormatDate(r.CreatedAt),
+			})
 		}
-		text = texts.ReplenishmentsMsg + "\n\n" + strings.Join(lines, "\n")
+		text = texts.T(user.Language, texts.ReplenishmentsMsg, nil) + "\n\n" + strings.Join(lines, "\n")
 	}
 
-	kb := keyboards.BuildReplenishmentsKb(offset, replenishmentsPageSize, total)
+	kb := keyboards.BuildReplenishmentsKb(user.Language, offset, replenishmentsPageSize, total)
 
 	if messageID == 0 {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{

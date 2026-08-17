@@ -35,6 +35,11 @@ type User struct {
 	// рефереру (см. AdminSrv.SetReferralsEnabled), по умолчанию включено.
 	ReferralsEnabled bool `gorm:"default:true;not null" json:"referrals_enabled"`
 
+	// Language — язык интерфейса бота ("ru"/"en"), нормализованное значение
+	// (см. bot/texts.Normalize). Определяется автоматически по Telegram-локали
+	// при первом /start, дальше меняется только вручную через UserSrv.SetLanguage.
+	Language string `gorm:"size:8;default:'ru';not null" json:"language"`
+
 	Purchases []Purchase `gorm:"foreignKey:UserID" json:"purchases,omitempty"`
 }
 

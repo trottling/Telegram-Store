@@ -22,9 +22,10 @@ func NewUserSrv(userRepo repository.UserRepository, cache domaincache.UserCache,
 }
 
 // GetOrCreate ищет пользователя по Telegram ID, создаёт при первом контакте.
-// referrerID учитывается только на ветке создания — уже существующий
-// пользователь рефералом не становится, даже если пришёл по ссылке.
-func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64) (*models.User, error) {
+// referrerID/language учитываются только на ветке создания — уже существующий
+// пользователь рефералом не становится и язык не меняет, даже если пришёл по
+// реф-ссылке или сменил локаль в Telegram.
+func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64, language string) (*models.User, error) {
 	if user, err := s.cache.GetUser(ctx, telegramID); err == nil {
 		return user, nil
 	}
@@ -34,15 +35,34 @@ func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username st
 		if !errors.Is(err, domainerrors.ErrUserNotFound) {
 			return nil, err
 		}
-		user = &models.User{TelegramID: telegramID, Username: username, ReferrerID: s.validReferrer(ctx, telegramID, referrerID)}
+		user = &models.User{TelegramID: telegramID, Username: username, Language: language, ReferrerID: s.validReferrer(ctx, telegramID, referrerID)}
 		if err = s.userRepo.Create(ctx, user); err != nil {
 			return nil, err
 		}
-		s.log.WithFields(logrus.Fields{"telegram_id": telegramID, "referrer_id": user.ReferrerID}).Info("user_service: new user registered")
+		s.log.WithFields(logrus.Fields{"telegram_id": telegramID, "referrer_id": user.ReferrerID, "language": language}).Info("user_service: new user registered")
 	}
 
 	_ = s.cache.SetUser(ctx, user)
 	return user, nil
+}
+
+// SetLanguage — ручное переключение языка интерфейса, перекрывает то, что
+// было определено автоматически по Telegram-локали при /start.
+func (s *UserSrv) SetLanguage(ctx context.Context, telegramID int64, language string) error {
+	user, err := s.userRepo.GetByID(ctx, telegramID)
+	if err != nil {
+		return err
+	}
+	if user.Language == language {
+		return nil
+	}
+
+	user.Language = language
+	if err = s.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+	_ = s.cache.InvalidateUser(ctx, telegramID)
+	return nil
 }
 
 // validReferrer — nil, если рефка на себя или на несуществующего пользователя.

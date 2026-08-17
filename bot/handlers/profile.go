@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -46,10 +45,16 @@ func (h *Handlers) sendProfile(ctx context.Context, b *bot.Bot, chatID int64, by
 	}
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.ProfileMsg, utils.EscapeMarkdown(user.Username), user.TelegramID, utils.FormatAmount(user.Balance), count, utils.FormatAmount(spent)),
+		ChatID: chatID,
+		Text: texts.T(user.Language, texts.ProfileMsg, map[string]any{
+			"Username":   utils.EscapeMarkdown(user.Username),
+			"TelegramID": user.TelegramID,
+			"Balance":    utils.FormatAmount(user.Balance),
+			"Count":      count,
+			"Spent":      utils.FormatAmount(spent),
+		}),
 		ParseMode:   models.ParseModeMarkdown,
-		ReplyMarkup: h.kb.ProfileKb,
+		ReplyMarkup: h.kb.ProfileKb(user.Language),
 	}); err != nil {
 		h.log.Errorf("sendProfile: failed to send message to %d: %v", chatID, err)
 	}

@@ -18,13 +18,19 @@ import (
 func (h *Handlers) ReferralHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID := update.Message.Chat.ID
 
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("ReferralHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	settings, err := h.settingsService.Get(ctx)
 	if err != nil {
 		h.log.Errorf("ReferralHandler: failed to get settings: %v", err)
 		return
 	}
 	if !settings.Referral.Enabled {
-		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: texts.ReferralUnavailableMsg}); err != nil {
+		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: texts.T(user.Language, texts.ReferralUnavailableMsg, nil)}); err != nil {
 			h.log.Errorf("ReferralHandler: failed to send message to %d: %v", chatID, err)
 		}
 		return
@@ -47,8 +53,8 @@ func (h *Handlers) ReferralHandler(ctx context.Context, b *bot.Bot, update *mode
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{
-				{Text: texts.CloseBtn, CallbackData: utils.ReferralCloseCallback},
-				{Text: texts.ShareBtn, URL: "https://t.me/share/url?url=" + url.QueryEscape(link)},
+				{Text: texts.T(user.Language, texts.CloseBtn, nil), CallbackData: utils.ReferralCloseCallback},
+				{Text: texts.T(user.Language, texts.ShareBtn, nil), URL: "https://t.me/share/url?url=" + url.QueryEscape(link)},
 			},
 		},
 	}
@@ -57,8 +63,13 @@ func (h *Handlers) ReferralHandler(ctx context.Context, b *bot.Bot, update *mode
 	// одиночное подчёркивание как начало italic-сущности — нечётное количество
 	// ломает парсинг ("can't find end of the entity"). Сам текст форматирования не требует.
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.ReferralMsg, settings.Referral.Percent, link, invited, totalCredited),
+		ChatID: chatID,
+		Text: texts.T(user.Language, texts.ReferralMsg, map[string]any{
+			"Percent":  settings.Referral.Percent,
+			"Link":     link,
+			"Invited":  invited,
+			"Credited": fmt.Sprintf("%.2f", totalCredited),
+		}),
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("ReferralHandler: failed to send message to %d: %v", chatID, err)

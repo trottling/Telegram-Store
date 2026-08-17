@@ -22,12 +22,28 @@ const (
 const CatalogRootCallback = "catalog_root"
 
 const (
-	MainMenuCallback      = "main_menu"
-	StartProfileCallback  = "start_profile"
-	BuyCancelCallback     = "buycancel"
-	BuyConfirmCallback    = "buyconfirm"
-	ReferralCloseCallback = "referral_close"
+	MainMenuCallback         = "main_menu"
+	StartProfileCallback     = "start_profile"
+	BuyCancelCallback        = "buycancel"
+	BuyConfirmCallback       = "buyconfirm"
+	ReferralCloseCallback    = "referral_close"
+	SettingsLanguageCallback = "settings_language"
 )
+
+// LanguageCallbackPrefix — выбор языка в меню языка ("lang_ru"/"lang_en"), сам код языка берется как есть (не число).
+const LanguageCallbackPrefix = "lang_"
+
+func BuildLanguageCallback(lang string) string {
+	return LanguageCallbackPrefix + lang
+}
+
+func ParseLanguageCallback(query string) (string, error) {
+	lang, ok := strings.CutPrefix(query, LanguageCallbackPrefix)
+	if !ok || lang == "" {
+		return "", fmt.Errorf("invalid callback format")
+	}
+	return lang, nil
+}
 
 func BuildProductCallback(productId int64) string {
 	return fmt.Sprintf("%s%d", ProductCallbackPrefix, productId)

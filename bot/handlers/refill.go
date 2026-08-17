@@ -45,16 +45,16 @@ func merchantConfig(settings *domain.Settings, merchant domain.Merchant) merchan
 }
 
 // amountRangeHint — подсказка допустимой суммы для AskRefillAmountMsg.
-func amountRangeHint(mc merchantLimits) string {
+func amountRangeHint(lang string, mc merchantLimits) string {
 	switch {
 	case mc.Min > 0 && mc.Max > 0:
-		return fmt.Sprintf("от %.2f до %.2f ₽", mc.Min, mc.Max)
+		return texts.T(lang, texts.AmountRangeBothMsg, map[string]any{"Min": fmt.Sprintf("%.2f", mc.Min), "Max": fmt.Sprintf("%.2f", mc.Max)})
 	case mc.Min > 0:
-		return fmt.Sprintf("от %.2f ₽", mc.Min)
+		return texts.T(lang, texts.AmountRangeMinMsg, map[string]any{"Min": fmt.Sprintf("%.2f", mc.Min)})
 	case mc.Max > 0:
-		return fmt.Sprintf("до %.2f ₽", mc.Max)
+		return texts.T(lang, texts.AmountRangeMaxMsg, map[string]any{"Max": fmt.Sprintf("%.2f", mc.Max)})
 	default:
-		return "любую сумму"
+		return texts.T(lang, texts.AmountRangeAnyMsg, nil)
 	}
 }
 
@@ -64,6 +64,12 @@ func (h *Handlers) RefillBalanceHandler(ctx context.Context, b *bot.Bot, update 
 }
 
 func (h *Handlers) renderMerchantPicker(ctx context.Context, b *bot.Bot, chatID int64) {
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("renderMerchantPicker: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	settings, err := h.settingsService.Get(ctx)
 	if err != nil {
 		h.log.Errorf("renderMerchantPicker: failed to get settings: %v", err)
@@ -73,12 +79,12 @@ func (h *Handlers) renderMerchantPicker(ctx context.Context, b *bot.Bot, chatID 
 	var rows [][]models.InlineKeyboardButton
 	for _, mc := range refillMerchants {
 		if merchantConfig(settings, mc.Merchant).Enabled {
-			rows = append(rows, []models.InlineKeyboardButton{{Text: mc.Btn, CallbackData: utils.BuildRefillMerchantCallback(string(mc.Merchant))}})
+			rows = append(rows, []models.InlineKeyboardButton{{Text: texts.T(user.Language, mc.Btn, nil), CallbackData: utils.BuildRefillMerchantCallback(string(mc.Merchant))}})
 		}
 	}
 
 	if len(rows) == 0 {
-		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: texts.RefillMsg}); err != nil {
+		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: texts.T(user.Language, texts.RefillMsg, nil)}); err != nil {
 			h.log.Errorf("renderMerchantPicker: failed to send message to %d: %v", chatID, err)
 		}
 		return
@@ -86,7 +92,7 @@ func (h *Handlers) renderMerchantPicker(ctx context.Context, b *bot.Bot, chatID 
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        texts.RefillMerchantPickerMsg,
+		Text:        texts.T(user.Language, texts.RefillMerchantPickerMsg, nil),
 		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: rows},
 	}); err != nil {
 		h.log.Errorf("renderMerchantPicker: failed to send message to %d: %v", chatID, err)
@@ -104,6 +110,12 @@ func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update
 		return
 	}
 	merchant := domain.Merchant(merchantStr)
+
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("RefillMerchantHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
 
 	settings, err := h.settingsService.Get(ctx)
 	if err != nil {
@@ -127,7 +139,7 @@ func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.AskRefillAmountMsg, amountRangeHint(mc)),
+		Text:        texts.T(user.Language, texts.AskRefillAmountMsg, map[string]any{"Hint": amountRangeHint(user.Language, mc)}),
 		ReplyMarkup: &models.InlineKeyboardMarkup{},
 	}); err != nil {
 		h.log.Errorf("RefillMerchantHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)

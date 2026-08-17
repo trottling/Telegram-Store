@@ -34,6 +34,12 @@ func (h *Handlers) PurchasesPageHandler(ctx context.Context, b *bot.Bot, update 
 }
 
 func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID int64, offset int, messageID int) {
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("renderPurchases: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	batches, err := h.purchaseService.GetUserPurchases(ctx, chatID, offset, purchasesPageSize)
 	if err != nil {
 		h.log.Errorf("renderPurchases: failed to get user %d purchases: %v", chatID, err)
@@ -46,12 +52,12 @@ func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID int64
 		return
 	}
 
-	text := texts.PurchasesMsg
+	text := texts.T(user.Language, texts.PurchasesMsg, nil)
 	if len(batches) == 0 {
-		text = texts.PurchasesEmptyMsg
+		text = texts.T(user.Language, texts.PurchasesEmptyMsg, nil)
 	}
 
-	kb := keyboards.BuildPurchasesKb(batches, offset, purchasesPageSize, total)
+	kb := keyboards.BuildPurchasesKb(user.Language, batches, offset, purchasesPageSize, total)
 
 	if messageID == 0 {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
@@ -89,6 +95,12 @@ func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update
 		return
 	}
 
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("PurchaseDetailHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	purchases, err := h.purchaseService.GetBatch(ctx, chatID, batchID)
 	if err != nil {
 		h.log.Errorf("PurchaseDetailHandler: failed to get purchase batch %s: %v", batchID, err)
@@ -111,14 +123,21 @@ func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update
 
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
-			{{Text: texts.BackBtn, CallbackData: utils.BuildPurchasesPageCallback(offset)}},
+			{{Text: texts.T(user.Language, texts.BackBtn, nil), CallbackData: utils.BuildPurchasesPageCallback(offset)}},
 		},
 	}
 
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:      chatID,
-		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.PurchaseDetailMsg, utils.EscapeMarkdown(purchases[0].Product.Name), utils.FormatAmount(total), len(purchases), utils.FormatDate(purchases[0].CreatedAt), utils.EscapeMarkdown(purchases[0].Product.Description), strings.Join(contents, "\n")),
+		ChatID:    chatID,
+		MessageID: messageID,
+		Text: texts.T(user.Language, texts.PurchaseDetailMsg, map[string]any{
+			"Name":        utils.EscapeMarkdown(purchases[0].Product.Name),
+			"Amount":      utils.FormatAmount(total),
+			"Count":       len(purchases),
+			"Date":        utils.FormatDate(purchases[0].CreatedAt),
+			"Description": utils.EscapeMarkdown(purchases[0].Product.Description),
+			"Content":     strings.Join(contents, "\n"),
+		}),
 		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: kb,
 	}); err != nil {

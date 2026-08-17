@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -37,6 +36,12 @@ func (h *Handlers) CategoryHandler(ctx context.Context, b *bot.Bot, update *mode
 
 // renderCatalog: messageID == 0 — новое сообщение, иначе редактирует текущее.
 func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, categoryID *int64, messageID int) {
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("renderCatalog: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	children, err := h.categoryService.ListChildren(ctx, categoryID)
 	if err != nil {
 		h.log.Errorf("renderCatalog: failed to list category children: %v", err)
@@ -49,7 +54,7 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 		return
 	}
 
-	text := texts.CatalogMsg
+	text := texts.T(user.Language, texts.CatalogMsg, nil)
 	var backCallback string
 
 	if categoryID != nil {
@@ -59,13 +64,11 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 			return
 		}
 
-		user, userErr := h.userService.GetProfile(ctx, chatID)
-		if userErr != nil {
-			h.log.Errorf("renderCatalog: failed to get profile for %d: %v", chatID, userErr)
-			return
-		}
-
-		text = fmt.Sprintf(texts.CategoryMsg, utils.EscapeMarkdown(category.Name), utils.EscapeMarkdown(category.Description), utils.FormatAmount(user.Balance))
+		text = texts.T(user.Language, texts.CategoryMsg, map[string]any{
+			"Name":        utils.EscapeMarkdown(category.Name),
+			"Description": utils.EscapeMarkdown(category.Description),
+			"Balance":     utils.FormatAmount(user.Balance),
+		})
 		if category.ParentID != nil {
 			backCallback = utils.BuildCategoryCallback(*category.ParentID)
 		} else {
@@ -74,10 +77,10 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 	}
 
 	if len(children) == 0 && len(products) == 0 {
-		text = texts.CatalogEmptyMsg
+		text = texts.T(user.Language, texts.CatalogEmptyMsg, nil)
 	}
 
-	kb := keyboards.BuildCatalogNavKb(children, products, backCallback)
+	kb := keyboards.BuildCatalogNavKb(user.Language, children, products, backCallback)
 
 	if messageID == 0 {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
@@ -147,11 +150,18 @@ func (h *Handlers) renderProductDetail(ctx context.Context, b *bot.Bot, chatID i
 
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
-			{{Text: texts.BuyBtn, CallbackData: utils.BuildBuyCallback(productID)}},
-			{{Text: texts.BackBtn, CallbackData: backCallback}},
+			{{Text: texts.T(user.Language, texts.BuyBtn, nil), CallbackData: utils.BuildBuyCallback(productID)}},
+			{{Text: texts.T(user.Language, texts.BackBtn, nil), CallbackData: backCallback}},
 		},
 	}
-	text := fmt.Sprintf(texts.ProductMsg, utils.EscapeMarkdown(product.Name), utils.FormatAmount(product.Price), utils.StockIndicator(available), available, utils.EscapeMarkdown(product.Description), utils.FormatAmount(user.Balance))
+	text := texts.T(user.Language, texts.ProductMsg, map[string]any{
+		"Name":           utils.EscapeMarkdown(product.Name),
+		"Price":          utils.FormatAmount(product.Price),
+		"StockIndicator": utils.StockIndicator(available),
+		"Available":      available,
+		"Description":    utils.EscapeMarkdown(product.Description),
+		"Balance":        utils.FormatAmount(user.Balance),
+	})
 
 	if messageID == 0 {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{

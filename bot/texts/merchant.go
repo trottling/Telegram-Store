@@ -1,37 +1,36 @@
-package utils
+package texts
 
 import (
-	"github.com/trottling/Telegram-Store/bot/texts"
 	domain "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // MerchantName — человекочитаемое имя мерчанта для списка "Мои пополнения".
-func MerchantName(merchant domain.Merchant) string {
+func MerchantName(lang string, merchant domain.Merchant) string {
 	switch merchant {
 	case domain.MerchantCrystalPay:
-		return texts.CrystalPayBtn
+		return T(lang, CrystalPayBtn, nil)
 	case domain.MerchantYooKassa:
-		return texts.YooKassaBtn
+		return T(lang, YooKassaBtn, nil)
 	case domain.MerchantTinkoff:
-		return texts.TinkoffBtn
+		return T(lang, TinkoffBtn, nil)
 	case domain.MerchantReferral:
-		return texts.ReferralName
+		return T(lang, ReferralName, nil)
 	default:
 		return string(merchant)
 	}
 }
 
 // ReplenishmentStatusName — человекочитаемый статус пополнения.
-func ReplenishmentStatusName(status domain.ReplenishmentStatus) string {
+func ReplenishmentStatusName(lang string, status domain.ReplenishmentStatus) string {
 	switch status {
 	case domain.ReplenishmentStatusPending:
-		return texts.ReplenishmentStatusPending
+		return T(lang, ReplenishmentStatusPending, nil)
 	case domain.ReplenishmentStatusPaid:
-		return texts.ReplenishmentStatusPaid
+		return T(lang, ReplenishmentStatusPaid, nil)
 	case domain.ReplenishmentStatusFailed:
-		return texts.ReplenishmentStatusFailed
+		return T(lang, ReplenishmentStatusFailed, nil)
 	case domain.ReplenishmentStatusCancelled:
-		return texts.ReplenishmentStatusCancelled
+		return T(lang, ReplenishmentStatusCancelled, nil)
 	default:
 		return string(status)
 	}

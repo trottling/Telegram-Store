@@ -21,6 +21,12 @@ func (h *Handlers) BuyHandler(ctx context.Context, b *bot.Bot, update *models.Up
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
 	messageID := update.CallbackQuery.Message.Message.ID
 
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("BuyHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	productID, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
 	if err != nil {
 		h.log.Errorf("BuyHandler: failed to parse buy callback: %v", err)
@@ -30,7 +36,7 @@ func (h *Handlers) BuyHandler(ctx context.Context, b *bot.Bot, update *models.Up
 	product, err := h.productService.GetByID(ctx, productID)
 	if err != nil {
 		h.log.Errorf("BuyHandler: failed to get product %d: %v", productID, err)
-		if _, sendErr := b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: utils.UserFacingError(err)}); sendErr != nil {
+		if _, sendErr := b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: texts.UserFacingError(user.Language, err)}); sendErr != nil {
 			h.log.Errorf("BuyHandler: failed to send message to %d: %v", chatID, sendErr)
 		}
 		return
@@ -45,9 +51,9 @@ func (h *Handlers) BuyHandler(ctx context.Context, b *bot.Bot, update *models.Up
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.AskQuantityMsg, utils.EscapeMarkdown(product.Name)),
+		Text:        texts.T(user.Language, texts.AskQuantityMsg, map[string]any{"Name": utils.EscapeMarkdown(product.Name)}),
 		ParseMode:   models.ParseModeMarkdown,
-		ReplyMarkup: keyboards.BuildQuantityKb(maxQuickPickQuantity),
+		ReplyMarkup: keyboards.BuildQuantityKb(user.Language, maxQuickPickQuantity),
 	}); err != nil {
 		h.log.Errorf("BuyHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
 	}
@@ -70,12 +76,18 @@ func (h *Handlers) BuyQtyHandler(ctx context.Context, b *bot.Bot, update *models
 		return
 	}
 
-	h.showBuyConfirmation(ctx, b, chatID, messageID, st.ProductID, int(qty))
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("BuyQtyHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
+	h.showBuyConfirmation(ctx, b, chatID, user.Language, messageID, st.ProductID, int(qty))
 }
 
 // showBuyConfirmation — экран подтверждения покупки. Проверка остатка тут
 // нужна только для UX, реальную гарантию даёт транзакция в PurchaseService.Buy.
-func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID int64, messageID int, productID int64, qty int) {
+func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID int64, lang string, messageID int, productID int64, qty int) {
 	product, err := h.productService.GetByID(ctx, productID)
 	if err != nil {
 		h.log.Errorf("showBuyConfirmation: failed to get product %d: %v", productID, err)
@@ -91,9 +103,9 @@ func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID i
 		if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      chatID,
 			MessageID:   messageID,
-			Text:        fmt.Sprintf(texts.InsufficientStockMsg, available),
+			Text:        texts.T(lang, texts.InsufficientStockMsg, map[string]any{"Available": available}),
 			ParseMode:   models.ParseModeMarkdown,
-			ReplyMarkup: keyboards.BuildQuantityKb(maxQuickPickQuantity),
+			ReplyMarkup: keyboards.BuildQuantityKb(lang, maxQuickPickQuantity),
 		}); err != nil {
 			h.log.Errorf("showBuyConfirmation: failed to edit message %d in chat %d: %v", messageID, chatID, err)
 		}
@@ -107,11 +119,15 @@ func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID i
 	}
 
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:      chatID,
-		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.ConfirmPurchaseMsg, utils.EscapeMarkdown(product.Name), qty, utils.FormatAmount(product.Price*float64(qty))),
+		ChatID:    chatID,
+		MessageID: messageID,
+		Text: texts.T(lang, texts.ConfirmPurchaseMsg, map[string]any{
+			"Name":     utils.EscapeMarkdown(product.Name),
+			"Quantity": qty,
+			"Amount":   utils.FormatAmount(product.Price * float64(qty)),
+		}),
 		ParseMode:   models.ParseModeMarkdown,
-		ReplyMarkup: keyboards.BuildBuyConfirmKb(),
+		ReplyMarkup: keyboards.BuildBuyConfirmKb(lang),
 	}); err != nil {
 		h.log.Errorf("showBuyConfirmation: failed to edit message %d in chat %d: %v", messageID, chatID, err)
 	}
@@ -146,13 +162,19 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 		h.log.Errorf("BuyConfirmHandler: failed to strip keyboard from message %d in chat %d: %v", messageID, chatID, err)
 	}
 
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("BuyConfirmHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
 	purchases, credit, err := h.purchaseService.Buy(ctx, chatID, st.ProductID, st.Quantity)
 	if err != nil {
 		h.log.Errorf("BuyConfirmHandler: failed to buy product %d x%d for user %d: %v", st.ProductID, st.Quantity, chatID, err)
 		if _, sendErr := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
-			Text:        utils.UserFacingError(err),
-			ReplyMarkup: h.kb.MainMenuKb,
+			Text:        texts.UserFacingError(user.Language, err),
+			ReplyMarkup: h.kb.MainMenuKb(user.Language),
 		}); sendErr != nil {
 			h.log.Errorf("BuyConfirmHandler: failed to send message to %d: %v", chatID, sendErr)
 		}
@@ -169,18 +191,27 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 	}
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.ProductBoughtMsg, len(purchases), utils.EscapeMarkdown(purchases[0].Product.Description), strings.Join(contents, "\n")),
+		ChatID: chatID,
+		Text: texts.T(user.Language, texts.ProductBoughtMsg, map[string]any{
+			"Count":       len(purchases),
+			"Description": utils.EscapeMarkdown(purchases[0].Product.Description),
+			"Content":     strings.Join(contents, "\n"),
+		}),
 		ParseMode:   models.ParseModeMarkdown,
-		ReplyMarkup: h.kb.MainMenuKb,
+		ReplyMarkup: h.kb.MainMenuKb(user.Language),
 	}); err != nil {
 		h.log.Errorf("BuyConfirmHandler: failed to send message to %d: %v", chatID, err)
 	}
 
 	if credit != nil {
+		// Уведомление рефереру — на его собственном языке, не языке покупателя.
+		referrerLang := texts.LangRU
+		if referrer, refErr := h.userService.GetProfile(ctx, credit.ReferrerID); refErr == nil {
+			referrerLang = referrer.Language
+		}
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    credit.ReferrerID,
-			Text:      fmt.Sprintf(texts.ReferralCreditMsg, utils.FormatAmount(credit.Amount)),
+			Text:      texts.T(referrerLang, texts.ReferralCreditMsg, map[string]any{"Amount": utils.FormatAmount(credit.Amount)}),
 			ParseMode: models.ParseModeMarkdown,
 		}); err != nil {
 			h.log.Errorf("BuyConfirmHandler: failed to notify referrer %d: %v", credit.ReferrerID, err)

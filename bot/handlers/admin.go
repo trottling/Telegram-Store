@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -24,7 +23,7 @@ func (h *Handlers) AdminHandler(ctx context.Context, b *bot.Bot, update *models.
 	if !user.IsAdmin() {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID: chatID,
-			Text:   texts.NotAdminMsg,
+			Text:   texts.T(user.Language, texts.NotAdminMsg, nil),
 		}); err != nil {
 			h.log.Errorf("AdminHandler: failed to send message to %d: %v", chatID, err)
 		}
@@ -34,16 +33,16 @@ func (h *Handlers) AdminHandler(ctx context.Context, b *bot.Bot, update *models.
 	code, err := h.adminAuthService.IssueLoginCode(ctx, chatID)
 	if err != nil {
 		h.log.Errorf("AdminHandler: failed to issue login code for %d: %v", chatID, err)
-		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: texts.AdminCodeErrMsg}); err != nil {
+		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: texts.T(user.Language, texts.AdminCodeErrMsg, nil)}); err != nil {
 			h.log.Errorf("AdminHandler: failed to send message to %d: %v", chatID, err)
 		}
 		return
 	}
 
 	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ReplyMarkup: h.kb.AdminKb,
+		ReplyMarkup: h.kb.AdminKb(user.Language),
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.AdminMsg, utils.EscapeMarkdownCode(code)),
+		Text:        texts.T(user.Language, texts.AdminMsg, map[string]any{"Code": utils.EscapeMarkdownCode(code)}),
 		ParseMode:   models.ParseModeMarkdown,
 	})
 
@@ -58,8 +57,11 @@ func (h *Handlers) AdminHandler(ctx context.Context, b *bot.Bot, update *models.
 	}
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:    chatID,
-		Text:      fmt.Sprintf(texts.AdminMsgWithLink, utils.EscapeMarkdownCode(code), utils.EscapeMarkdown(h.adminPanelConfig.FrontendURL)),
+		ChatID: chatID,
+		Text: texts.T(user.Language, texts.AdminMsgWithLink, map[string]any{
+			"Code": utils.EscapeMarkdownCode(code),
+			"URL":  utils.EscapeMarkdown(h.adminPanelConfig.FrontendURL),
+		}),
 		ParseMode: models.ParseModeMarkdown,
 	}); err != nil {
 		h.log.Errorf("AdminHandler: failed to send message to %d: %v", chatID, err)

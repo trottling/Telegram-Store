@@ -29,11 +29,12 @@ func (m *Middlewares) BanCheck(next bot.HandlerFunc) bot.HandlerFunc {
 			next(ctx, b, update)
 			return
 		}
+		lang := texts.Normalize(extractLanguageCode(update))
 
 		banned, err := m.userService.IsBanned(ctx, chatID)
 		if err != nil {
 			if errors.Is(err, domainerrors.ErrUserNotFound) {
-				m.reply(ctx, b, chatID, texts.PleaseStartMsg)
+				m.reply(ctx, b, chatID, texts.T(lang, texts.PleaseStartMsg, nil))
 				return
 			}
 			m.log.WithError(err).WithField("telegram_id", chatID).Error("ban_check: failed to check ban status")
@@ -41,7 +42,7 @@ func (m *Middlewares) BanCheck(next bot.HandlerFunc) bot.HandlerFunc {
 		}
 
 		if banned {
-			m.reply(ctx, b, chatID, texts.BannedMsg)
+			m.reply(ctx, b, chatID, texts.T(lang, texts.BannedMsg, nil))
 			return
 		}
 
