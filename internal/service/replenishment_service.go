@@ -82,10 +82,20 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 // счёт оплаченным отдельным коммитом, а начисление упадёт, то ретрай вебхука
 // получит changed=false и молча вернёт 200 — деньги списаны у клиента и
 // потеряны без следа.
-func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant, invoiceID string) error {
+func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant, invoiceID string, paidAmount float64) error {
 	replenishment, err := s.replenishmentRepo.GetByMerchantInvoiceID(ctx, merchant, invoiceID)
 	if err != nil {
 		return err
+	}
+
+	// Начисляем всегда записанную сумму — именно её подтверждал пользователь.
+	// Расхождение само по себе зачислению не мешает, но означает, что наша
+	// запись и данные мерчанта разошлись, и это стоит увидеть в логах.
+	if paidAmount > 0 && paidAmount != replenishment.Amount {
+		s.log.WithFields(logrus.Fields{
+			"merchant": merchant, "invoice_id": invoiceID,
+			"recorded_amount": replenishment.Amount, "reported_amount": paidAmount,
+		}).Warn("replenishment_service: merchant reported a different amount")
 	}
 
 	var credited bool

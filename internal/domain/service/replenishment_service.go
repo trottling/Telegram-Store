@@ -14,7 +14,11 @@ type ReplenishmentService interface {
 
 	// Confirm/Fail — вызываются вебхуком мерчанта. Confirm идемпотентен:
 	// повторный вызов на уже обработанной строке баланс не трогает.
-	Confirm(ctx context.Context, merchant models.Merchant, invoiceID string) error
+	// Confirm зачисляет баланс по оплаченному счёту. paidAmount — сумма, о
+	// которой сообщил мерчант; 0, если он её не сообщает. Расхождение с
+	// записанной суммой не блокирует зачисление (начисляем всегда своё,
+	// согласованное с пользователем), но логируется как сигнал рассинхрона.
+	Confirm(ctx context.Context, merchant models.Merchant, invoiceID string, paidAmount float64) error
 	Fail(ctx context.Context, merchant models.Merchant, invoiceID string) error
 
 	ListUserReplenishments(ctx context.Context, telegramID int64, offset, limit int) ([]models.Replenishment, error)

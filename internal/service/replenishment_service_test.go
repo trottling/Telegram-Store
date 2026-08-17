@@ -140,10 +140,10 @@ func TestConfirmCreditsOnce(t *testing.T) {
 	db := &fakeDB{status: models.ReplenishmentStatusPending}
 	srv := newTestSrv(db, nil)
 
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1"); err != nil {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); err != nil {
 		t.Fatalf("первый Confirm вернул ошибку: %v", err)
 	}
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1"); err != nil {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); err != nil {
 		t.Fatalf("повторный Confirm вернул ошибку: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestConfirmRollsBackOnBalanceFailure(t *testing.T) {
 	balanceErr := errors.New("соединение с БД потеряно")
 	srv := newTestSrv(db, balanceErr)
 
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1"); !errors.Is(err, balanceErr) {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); !errors.Is(err, balanceErr) {
 		t.Fatalf("Confirm вернул %v, ожидалась ошибка начисления", err)
 	}
 
@@ -182,7 +182,7 @@ func TestConfirmRollsBackOnBalanceFailure(t *testing.T) {
 
 	// Счёт остался pending, поэтому ретрай мерчанта доводит дело до конца.
 	srv = newTestSrv(db, nil)
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1"); err != nil {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); err != nil {
 		t.Fatalf("ретрай после сбоя вернул ошибку: %v", err)
 	}
 	if db.balance != 250 {

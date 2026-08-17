@@ -88,7 +88,8 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 
 	switch status {
 	case payment.PaymentStatusPaid:
-		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantCrystalPay, payload.ID)
+		// CheckStatus суммы не возвращает — сверять нечего.
+		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantCrystalPay, payload.ID, 0)
 	case payment.PaymentStatusFailed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantCrystalPay, payload.ID)
 	}
@@ -121,7 +122,8 @@ func (h *Handlers) TinkoffWebhook(c *gin.Context) {
 	invoiceID := strconv.FormatUint(notification.PaymentID, 10)
 	switch notification.Status {
 	case tinkoff.StatusConfirmed:
-		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantTinkoff, invoiceID)
+		// Tinkoff считает в копейках, наши суммы — в рублях.
+		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantTinkoff, invoiceID, float64(notification.Amount)/100)
 	case tinkoff.StatusRejected, tinkoff.StatusAuthFail, tinkoff.StatusCanceled, tinkoff.StatusDeadlineExpired, tinkoff.StatusReversed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantTinkoff, invoiceID)
 	}
@@ -159,7 +161,7 @@ func (h *Handlers) YooKassaWebhook(c *gin.Context) {
 
 	switch pay.Status {
 	case yoopayment.Succeeded:
-		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantYooKassa, pay.ID)
+		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantYooKassa, pay.ID, yooKassaPaidAmount(pay))
 	case yoopayment.Canceled:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantYooKassa, pay.ID)
 	}
@@ -168,4 +170,18 @@ func (h *Handlers) YooKassaWebhook(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusOK)
+}
+
+// yooKassaPaidAmount — сумма из ответа ЮKassa в рублях; 0, если её нет,
+// не парсится или валюта не рублёвая (сверять тогда нечего).
+func yooKassaPaidAmount(pay *yoopayment.Payment) float64 {
+	if pay.Amount == nil || pay.Amount.Currency != "RUB" {
+		return 0
+	}
+
+	amount, err := strconv.ParseFloat(pay.Amount.Value, 64)
+	if err != nil {
+		return 0
+	}
+	return amount
 }
