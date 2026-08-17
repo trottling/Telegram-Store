@@ -53,6 +53,10 @@ func main() {
 			fx.Annotate(pgdb.NewUserRepo, fx.As(new(repository.UserRepository))),
 			fx.Annotate(pgdb.NewSettingsRepo, fx.As(new(repository.SettingsRepository))),
 			fx.Annotate(pgdb.NewReplenishmentRepo, fx.As(new(repository.ReplenishmentRepository))),
+			// Транзактор нужен ReplenishmentSrv.Confirm: смена статуса счёта и
+			// начисление баланса должны коммититься вместе, иначе ретрай
+			// вебхука уже ничего не исправит.
+			fx.Annotate(pgdb.NewGormTransactor, fx.As(new(repository.Transactor))),
 
 			fx.Annotate(svc.NewSettingsSrv, fx.As(new(service.SettingsService))),
 			provideReplenishmentService,

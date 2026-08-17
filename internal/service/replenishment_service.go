@@ -19,14 +19,16 @@ type ReplenishmentSrv struct {
 	// входит, начисления с рефералов создаются напрямую, без CreateInvoice.
 	// В backend-процессе (вебхуки/листинг) может быть nil — CreateInvoice
 	// оттуда не вызывается.
-	providers map[models.Merchant]payment.PaymentProvider
-	cache     domaincache.UserCache
-	log       *logrus.Logger
+	providers  map[models.Merchant]payment.PaymentProvider
+	transactor repository.Transactor
+	cache      domaincache.UserCache
+	log        *logrus.Logger
 }
 
 func NewReplenishmentSrv(
 	replenishmentRepo repository.ReplenishmentRepository,
 	userRepo repository.UserRepository,
+	transactor repository.Transactor,
 	providers map[models.Merchant]payment.PaymentProvider,
 	cache domaincache.UserCache,
 	log *logrus.Logger,
@@ -34,6 +36,7 @@ func NewReplenishmentSrv(
 	return &ReplenishmentSrv{
 		replenishmentRepo: replenishmentRepo,
 		userRepo:          userRepo,
+		transactor:        transactor,
 		providers:         providers,
 		cache:             cache,
 		log:               log,
@@ -71,26 +74,39 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 	return paymentURL, nil
 }
 
-// Confirm зачисляет баланс и помечает счёт оплаченным. Идемпотентно:
-// UpdateStatus меняет строку только из pending, повторный вызов — no-op.
+// Confirm зачисляет баланс и помечает счёт оплаченным одной транзакцией.
+// Идемпотентно: UpdateStatus меняет строку только из pending, повторный
+// вебхук мерчанта до UpdateBalance не доходит.
+//
+// Транзакция здесь обязательна именно из-за идемпотентности: если пометить
+// счёт оплаченным отдельным коммитом, а начисление упадёт, то ретрай вебхука
+// получит changed=false и молча вернёт 200 — деньги списаны у клиента и
+// потеряны без следа.
 func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant, invoiceID string) error {
 	replenishment, err := s.replenishmentRepo.GetByMerchantInvoiceID(ctx, merchant, invoiceID)
 	if err != nil {
 		return err
 	}
 
-	now := time.Now()
-	changed, err := s.replenishmentRepo.UpdateStatus(ctx, replenishment.ID, models.ReplenishmentStatusPaid, &now)
-	if err != nil {
-		return err
-	}
-	if !changed {
+	var credited bool
+	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
+		now := time.Now()
+		changed, txErr := s.replenishmentRepo.UpdateStatus(ctx, replenishment.ID, models.ReplenishmentStatusPaid, &now)
+		if txErr != nil || !changed {
+			return txErr
+		}
+		if txErr = s.userRepo.UpdateBalance(ctx, replenishment.UserID, replenishment.Amount); txErr != nil {
+			return txErr
+		}
+		credited = true
 		return nil
+	})
+	if err != nil || !credited {
+		return err
 	}
 
-	if err = s.userRepo.UpdateBalance(ctx, replenishment.UserID, replenishment.Amount); err != nil {
-		return err
-	}
+	// Инвалидация только после коммита: до него в Postgres ещё старый баланс,
+	// и параллельный читатель залил бы его обратно в кэш.
 	_ = s.cache.InvalidateUser(ctx, replenishment.UserID)
 
 	s.log.WithFields(logrus.Fields{"user_id": replenishment.UserID, "merchant": merchant, "invoice_id": invoiceID, "amount": replenishment.Amount}).Info("replenishment_service: balance credited")

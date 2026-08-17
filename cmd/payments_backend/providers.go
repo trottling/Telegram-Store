@@ -21,6 +21,6 @@ func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return c
 // nil): payments_backend счета не создаёт (только принимает вебхуки),
 // CreateInvoice отсюда не вызывается. fx.Annotate тут не подходит — это не
 // просто приведение типа, а реальный "пустой" аргумент.
-func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, cache domaincache.UserCache, log *logrus.Logger) service.ReplenishmentService {
-	return svc.NewReplenishmentSrv(repo, userRepo, nil, cache, log)
+func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *logrus.Logger) service.ReplenishmentService {
+	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, log)
 }

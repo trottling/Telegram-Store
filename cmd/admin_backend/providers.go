@@ -27,8 +27,8 @@ func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { retu
 // payments_backend), только отдаёт листинг — CreateInvoice отсюда не
 // вызывается. fx.Annotate тут не подходит — это не просто приведение типа,
 // а реальный "пустой" аргумент.
-func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, cache domaincache.UserCache, log *logrus.Logger) service.ReplenishmentService {
-	return svc.NewReplenishmentSrv(repo, userRepo, nil, cache, log)
+func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *logrus.Logger) service.ReplenishmentService {
+	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, log)
 }
 
 // provideAdminAuthService — тоже не просто приведение к интерфейсу: JWT-секрет
