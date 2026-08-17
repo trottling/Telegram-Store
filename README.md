@@ -18,7 +18,7 @@
 |                  |                                                                    |
 |------------------|--------------------------------------------------------------------|
 | Бот              | Go, [go-telegram/bot](https://github.com/go-telegram/bot)          |
-| Admin API        | Go, [gin](https://github.com/gin-gonic/gin)                        |
+| Admin API / вебхуки платежей | Go, [gin](https://github.com/gin-gonic/gin) (два независимых бинарника) |
 | Хранение данных  | PostgreSQL через [GORM](https://gorm.io)                           |
 | Кэш / состояние  | Redis (read-through кэш, состояние FSM, сессии админов)            |
 | UI панели        | React, Vite, TypeScript, [Ant Design](https://ant.design)          |
@@ -35,7 +35,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `backend` (admin API на `:8080`) и `frontend` (панель на `:3000`).
+Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend` (admin API на `:8080`), `payments_backend` (вебхуки платежей на `:8081`) и `frontend` (панель на `:3000`).
 
 После запуска:
 
@@ -50,13 +50,14 @@ docker compose up --build
 ### Go-сервисы
 
 ```bash
-go build ./...              # собрать всё
-go run ./cmd/migrate        # один раз на чистой БД: схема + бутстрап root-admin
-go run ./cmd/bot            # телеграм-бот
-go run ./cmd/backend        # admin API (по умолчанию :8080)
+go build ./...                   # собрать всё
+go run ./cmd/migrate             # один раз на чистой БД: схема + бутстрап root-admin
+go run ./cmd/bot                 # телеграм-бот
+go run ./cmd/admin_backend       # admin API (по умолчанию :8080)
+go run ./cmd/payments_backend    # приём вебхуков платежей (по умолчанию :8081)
 ```
 
-Все три читают конфигурацию из `.env` в корне репозитория (см. [Конфигурация](#конфигурация)) — Postgres и Redis должны быть уже доступны (`docker compose up db redis` — самый простой способ поднять оба, не запуская Go-сервисы в контейнерах).
+Все четыре читают конфигурацию из `.env` в корне репозитория (см. [Конфигурация](#конфигурация)) — Postgres и Redis должны быть уже доступны (`docker compose up db redis` — самый простой способ поднять оба, не запуская Go-сервисы в контейнерах).
 
 ### Фронтенд
 
@@ -79,18 +80,20 @@ npm run dev      # Vite dev-сервер на :3000
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_NAME` | доступы к базе данных                                                                                |
 | `ADMIN_JWT_SECRET`                                      | подписывает сессионные токены админов — сгенерировать `openssl rand -base64 32`, плейсхолдер не использовать |
 
-Всё остальное (`POSTGRES_HOST/PORT/SSLMODE`, `REDIS_*`, `ADMIN_PANEL_*`, `LOG_LEVEL`) имеет разумные значения по умолчанию для локальной разработки и Docker — что делает каждая переменная и когда её нужно менять, смотрите в комментариях `.env.example` (например, `ADMIN_PANEL_FRONTEND_URL` в продакшене должен быть настоящим `https://`-доменом, так как Telegram отклоняет `localhost`-ссылки в инлайн-кнопках).
+Всё остальное (`POSTGRES_HOST/PORT/SSLMODE`, `REDIS_*`, `ADMIN_PANEL_*`, `PAYMENTS_BACKEND_PORT/URL`, `LOG_LEVEL`) имеет разумные значения по умолчанию для локальной разработки и Docker — что делает каждая переменная и когда её нужно менять, смотрите в комментариях `.env.example` (например, `ADMIN_PANEL_FRONTEND_URL` в продакшене должен быть настоящим `https://`-доменом, так как Telegram отклоняет `localhost`-ссылки в инлайн-кнопках; `PAYMENTS_BACKEND_URL` — внешний адрес, на который платёжные провайдеры шлют вебхуки).
 
 ## Структура проекта
 
 ```
-cmd/bot/        точка входа телеграм-бота
-cmd/backend/    точка входа admin API
-cmd/migrate/    разовая миграция схемы + бутстрап root-admin
-bot/            хендлеры, middleware, клавиатуры бота
-backend/        хендлеры, middleware, роутинг admin API
-internal/       доменные интерфейсы + их реализации (hexagonal/ports-and-adapters)
-frontend/       React-панель админа (отдельный npm-проект)
+cmd/bot/                точка входа телеграм-бота
+cmd/admin_backend/      точка входа admin API
+cmd/payments_backend/   точка входа приёма вебхуков платежей
+cmd/migrate/            разовая миграция схемы + бутстрап root-admin
+bot/                    хендлеры, middleware, клавиатуры бота
+admin_backend/          хендлеры, middleware, роутинг admin API
+payments_backend/       хендлеры, роутинг вебхуков платёжных мерчантов
+internal/               доменные интерфейсы + их реализации (hexagonal/ports-and-adapters)
+frontend/               React-панель админа (отдельный npm-проект)
 ```
 
 Полный разбор архитектуры, пакет за пакетом — в [CLAUDE.md](CLAUDE.md).

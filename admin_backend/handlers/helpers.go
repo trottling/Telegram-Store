@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/Telegram-Store/backend/errors"
+	"github.com/trottling/Telegram-Store/admin_backend/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 

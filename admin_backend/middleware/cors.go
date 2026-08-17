@@ -18,7 +18,7 @@ func CORS(allowedOrigins string, log *logrus.Logger) gin.HandlerFunc {
 			allowed[o] = struct{}{}
 		}
 	}
-	log.WithField("allowed_origins", allowedOrigins).Info("backend: CORS configured")
+	log.WithField("allowed_origins", allowedOrigins).Info("admin_backend: CORS configured")
 
 	return cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
@@ -27,7 +27,7 @@ func CORS(allowedOrigins string, log *logrus.Logger) gin.HandlerFunc {
 			}
 			// Логируем на Warn — несовпадающий origin частая причина проблем с CORS.
 			log.WithFields(logrus.Fields{"origin": origin, "allowed_origins": allowedOrigins}).
-				Warn("backend: rejected request from disallowed origin")
+				Warn("admin_backend: rejected request from disallowed origin")
 			return false
 		},
 		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},

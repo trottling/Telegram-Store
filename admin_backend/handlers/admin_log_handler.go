@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/trottling/Telegram-Store/backend/dto"
+	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 

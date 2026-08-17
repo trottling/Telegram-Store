@@ -23,9 +23,10 @@ func provideAdminPanelConfig(cfg *config.Config) *config.AdminPanelConfig { retu
 func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Logger }
 
 // provideReplenishmentService — providers=nil (не тип из графа, а буквально
-// nil): backend счета не создаёт (только принимает вебхуки и отдаёт
-// листинг), CreateInvoice отсюда не вызывается. fx.Annotate тут не подходит —
-// это не просто приведение типа, а реальный "пустой" аргумент.
+// nil): admin_backend счета не создаёт и вебхуки не принимает (см.
+// payments_backend), только отдаёт листинг — CreateInvoice отсюда не
+// вызывается. fx.Annotate тут не подходит — это не просто приведение типа,
+// а реальный "пустой" аргумент.
 func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, cache domaincache.UserCache, log *logrus.Logger) service.ReplenishmentService {
 	return svc.NewReplenishmentSrv(repo, userRepo, nil, cache, log)
 }

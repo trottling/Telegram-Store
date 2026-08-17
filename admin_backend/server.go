@@ -1,6 +1,7 @@
-// Package backend — HTTP API админ-панели на gin, отдаёт JSON фронтенду.
-// Зависит только от internal/domain/service.
-package backend
+// Package adminbackend — HTTP API админ-панели на gin, отдаёт JSON фронтенду.
+// Зависит только от internal/domain/service. Вебхуки мерчантов сюда не
+// входят — см. отдельный бинарник payments_backend.
+package adminbackend
 
 import (
 	"context"
@@ -9,7 +10,7 @@ import (
 	"net/http"
 
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/Telegram-Store/backend/handlers"
+	"github.com/trottling/Telegram-Store/admin_backend/handlers"
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
@@ -46,7 +47,7 @@ func New(
 
 // Start блокируется, пока сервер не остановят через Shutdown.
 func (s *Server) Start() error {
-	s.log.WithField("addr", s.httpServer.Addr).Info("backend: starting admin API server")
+	s.log.WithField("addr", s.httpServer.Addr).Info("admin_backend: starting admin API server")
 	err := s.httpServer.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -55,6 +56,6 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	s.log.Info("backend: shutting down admin API server")
+	s.log.Info("admin_backend: shutting down admin API server")
 	return s.httpServer.Shutdown(ctx)
 }

@@ -6,22 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Telegram shop bot written in Go, using [go-telegram/bot](https://github.com/go-telegram/bot) for the Telegram API, GORM (Postgres driver) for persistence, and Redis for both a read-through cache and per-chat FSM conversation state. Users browse a category tree of arbitrary depth, buy products (a multi-step flow: pick quantity → confirm → charge, decrementing pre-stocked `ProductItem` records), top up a balance (UI is done, provider is a stub), and view purchase history. Admin actions (ban/unban, balance, product/category CRUD, promote/demote) are implemented as domain services but have **no UI in the bot** — the bot's `/admin` command replies with a one-time login code for the web panel instead.
 
-The actual admin UI is a separate web panel: a Go+gin JSON API (`backend`, its own binary/container — `cmd/backend`), plus a React+Ant Design frontend (`frontend/`, its own container) that talks to that API cross-origin. Auth has no persistent credential at all: `/admin` issues a 30-second one-time code, the login page exchanges it for a JWT session token (also backed by a Redis-held revocation record), and a fresh code is issued every time — nothing admin-related is ever stored in Postgres.
+The actual admin UI is a separate web panel: a Go+gin JSON API (`admin_backend`, its own binary/container — `cmd/admin_backend`), plus a React+Ant Design frontend (`frontend/`, its own container) that talks to that API cross-origin. Auth has no persistent credential at all: `/admin` issues a 30-second one-time code, the login page exchanges it for a JWT session token (also backed by a Redis-held revocation record), and a fresh code is issued every time — nothing admin-related is ever stored in Postgres.
 
-The three Go binaries (`cmd/bot`, `cmd/backend`, `cmd/migrate`) run as three independent, concurrently-started containers/processes sharing one Postgres and one Redis — see [Commands](#commands) and `cmd/migrate`'s own doc comment for why schema setup is its own one-shot step rather than folded into either long-running service.
+Payment-provider webhooks are handled by a third, wholly separate Go+gin API — `payments_backend`/`cmd/payments_backend` — not by `admin_backend`. The split exists because the two surfaces have opposite trust models: `admin_backend`'s routes are all behind a logged-in admin session (except the one code-exchange endpoint), while `payments_backend`'s three routes are unauthenticated-by-design and must be reachable from the public internet by CrystalPay/YooKassa/Tinkoff's own servers. Keeping them as separate binaries means `payments_backend` never links `AdminAuthService`/the session store/CORS handling at all, and `admin_backend` never exposes a route without a session check.
+
+The four Go binaries (`cmd/bot`, `cmd/admin_backend`, `cmd/payments_backend`, `cmd/migrate`) run as four independent, concurrently-started containers/processes sharing one Postgres and one Redis — see [Commands](#commands) and `cmd/migrate`'s own doc comment for why schema setup is its own one-shot step rather than folded into any long-running service.
 
 ## Commands
 
 ```bash
-go build ./...                     # build everything
-go build -o bot ./cmd/bot          # build the Telegram bot binary
-go build -o backend ./cmd/backend  # build the admin API binary
-go build -o migrate ./cmd/migrate  # build the one-shot migration binary
-go run ./cmd/bot                   # run the bot locally (needs .env populated, see below)
-go run ./cmd/backend                # run the admin API locally
-go vet ./...                        # static checks
-go test ./...                       # run tests (no test files exist yet)
-docker compose up --build   # run migrate + bot + backend + Postgres + Redis + admin frontend together (reads .env)
+go build ./...                                    # build everything
+go build -o bot ./cmd/bot                         # build the Telegram bot binary
+go build -o admin_backend ./cmd/admin_backend      # build the admin API binary
+go build -o payments_backend ./cmd/payments_backend # build the payment-webhooks binary
+go build -o migrate ./cmd/migrate                 # build the one-shot migration binary
+go run ./cmd/bot                                  # run the bot locally (needs .env populated, see below)
+go run ./cmd/admin_backend                        # run the admin API locally
+go run ./cmd/payments_backend                     # run the payment-webhooks API locally
+go vet ./...                                       # static checks
+go test ./...                                      # run tests (no test files exist yet)
+docker compose up --build   # run migrate + bot + admin_backend + payments_backend + Postgres + Redis + admin frontend together (reads .env)
 ```
 
 There is no Makefile or linter config in the repo — use the `go` toolchain directly.
@@ -30,19 +34,19 @@ Frontend (`frontend/`, separate npm project, not part of the Go module):
 
 ```bash
 cd frontend && npm install
-npm run dev      # Vite dev server on :3000, needs VITE_API_BASE_URL pointed at a running backend (defaults to http://localhost:8080)
+npm run dev      # Vite dev server on :3000, needs VITE_API_BASE_URL pointed at a running admin_backend (defaults to http://localhost:8080)
 npm run build    # tsc -b + vite build -> dist/ — what frontend/Dockerfile bundles into nginx
 ```
 
 ### Local configuration
 
-Config is loaded from environment variables via [internal/config/config.go](internal/config/config.go), no config file. Copy `.env.example` to `.env` and fill in `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ROOT_ADMIN_ID`, and `ADMIN_JWT_SECRET` (all required — `config.New()` errors without them; DB user/password/name are also required). Also present: `POSTGRES_HOST/PORT/USER/PASSWORD/NAME/SSLMODE`, `REDIS_ADDR/PASSWORD/DB`, `ADMIN_PANEL_BACKEND_PORT/BACKEND_URL/FRONTEND_URL/CORS_ORIGIN` (the admin API's own port and externally-reachable URL — what the frontend build's `VITE_API_BASE_URL` points at — separately `FRONTEND_URL`, where the React panel itself is served, which is what the bot's `/admin` inline button links to; plus a comma-separated list of exact origins — normally just the frontend's own — the API accepts cross-origin requests from; defaults cover both `localhost` and `127.0.0.1` on port 3000, since browsers treat those as different origins).
+Config is loaded from environment variables via [internal/config/config.go](internal/config/config.go), no config file. Copy `.env.example` to `.env` and fill in `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ROOT_ADMIN_ID`, and `ADMIN_JWT_SECRET` (all required — `config.New()` errors without them; DB user/password/name are also required). Also present: `POSTGRES_HOST/PORT/USER/PASSWORD/NAME/SSLMODE`, `REDIS_ADDR/PASSWORD/DB`, `ADMIN_PANEL_BACKEND_PORT/BACKEND_URL/FRONTEND_URL/CORS_ORIGIN` (`Port` is `admin_backend`'s own listen port; `BACKEND_URL` is read only by docker-compose as the `frontend` build's `VITE_API_BASE_URL` value — Go's `AdminPanelConfig` no longer has a `URL` field, since nothing in Go read it after the payments split; `FrontendURL` is where the React panel itself is served, which is what the bot's `/admin` inline button links to; `CORSOrigin` is a comma-separated list of exact origins — normally just the frontend's own — the API accepts cross-origin requests from; defaults cover both `localhost` and `127.0.0.1` on port 3000, since browsers treat those as different origins), `PAYMENTS_BACKEND_PORT/URL` (`payments_backend`'s own listen port and its externally-reachable URL — `cmd/bot/providers.go` builds CrystalPay/Tinkoff webhook callback URLs from `URL`; YooKassa doesn't take a per-invoice callback URL, so it's unaffected).
 
-**`docker compose` needs a `.env` at the repo root** — read both by Compose's own `${VAR}` substitution (the `db`/`redis` services' `environment:` blocks, and the `backend`/`frontend` services' `${ADMIN_PANEL_BACKEND_PORT}`/`${ADMIN_PANEL_BACKEND_URL}` substitutions) and, via each service's `env_file: .env`, by the containers themselves. `docker-compose.yml` wires Postgres, Redis, a one-shot `migrate`, `bot`, `backend`, and the admin `frontend` container together, on two networks: `backend-network` (internal-only, db+redis+bot+backend+migrate) and `public-network` (bot, for outbound Telegram API calls; backend and frontend, so their published ports actually reach the host — a container whose *only* network is `internal: true` can't have a published port reached even though the mapping is declared, see docker-compose.yml's network comments). There's no admin credential to retrieve from logs anymore — every admin, including the root admin, logs in by sending `/admin` to the bot.
+**`docker compose` needs a `.env` at the repo root** — read both by Compose's own `${VAR}` substitution (the `db`/`redis` services' `environment:` blocks, and the `admin_backend`/`payments_backend`/`frontend` services' `${ADMIN_PANEL_BACKEND_PORT}`/`${PAYMENTS_BACKEND_PORT}`/`${ADMIN_PANEL_BACKEND_URL}` substitutions) and, via each service's `env_file: .env`, by the containers themselves. `docker-compose.yml` wires Postgres, Redis, a one-shot `migrate`, `bot`, `admin_backend`, `payments_backend`, and the admin `frontend` container together, on two networks: `backend-network` (internal-only, db+redis+bot+admin_backend+payments_backend+migrate) and `public-network` (bot, for outbound Telegram API calls; admin_backend, payments_backend, and frontend, so their published ports actually reach the host — a container whose *only* network is `internal: true` can't have a published port reached even though the mapping is declared, see docker-compose.yml's network comments). There's no admin credential to retrieve from logs anymore — every admin, including the root admin, logs in by sending `/admin` to the bot.
 
 ## Architecture
 
-**Ports-and-adapters (hexagonal)**: interfaces live under `internal/domain/`, concrete implementations live in parallel packages. When implementing a repository or service, put the interface in `internal/domain/...` (if not already defined) and the struct that satisfies it in the corresponding non-domain package — do not define new interfaces outside `internal/domain`. Both `bot/` and `backend/` depend only on `internal/domain/service` — never on `internal/domain/repository`, `internal/repository/postgres`, or a concrete `internal/service` implementation directly. `cmd/bot/`, `cmd/backend/`, and `cmd/migrate/` are the three composition roots: each one is the only package allowed to import `internal/repository/postgres` and `internal/service`, wiring concrete repos/services and handing only the domain interfaces down — each is split across main.go/providers.go/lifecycle.go (see below), not a single file, but still one `package main` per binary, so the rule is unchanged, just no longer file-granular.
+**Ports-and-adapters (hexagonal)**: interfaces live under `internal/domain/`, concrete implementations live in parallel packages. When implementing a repository or service, put the interface in `internal/domain/...` (if not already defined) and the struct that satisfies it in the corresponding non-domain package — do not define new interfaces outside `internal/domain`. `bot/`, `admin_backend/`, and `payments_backend/` all depend only on `internal/domain/service` — never on `internal/domain/repository`, `internal/repository/postgres`, or a concrete `internal/service` implementation directly. `cmd/bot/`, `cmd/admin_backend/`, `cmd/payments_backend/`, and `cmd/migrate/` are the four composition roots: each one is the only package allowed to import `internal/repository/postgres` and `internal/service`, wiring concrete repos/services and handing only the domain interfaces down — each is split across main.go/providers.go/lifecycle.go (see below), not a single file, but still one `package main` per binary, so the rule is unchanged, just no longer file-granular. `payments_backend` deliberately wires a much narrower slice of repos/services than `admin_backend` — see its own paragraph below.
 
 ```
 internal/domain/models/       GORM entities (User, Category, Product, ProductItem, Purchase, AdminLog) — the
@@ -63,8 +67,8 @@ internal/domain/fsm/          Store interface — per-chat FSM conversation stat
 internal/domain/adminsession/ Store interface — web-panel one-time login codes + sessions (Redis-backed, nothing
                                in Postgres); a distinct bounded concern from domain/cache and domain/fsm, just
                                implemented by the same Redis-backed struct
-internal/domain/errors/       sentinel error values, mapped to user-facing text by bot/utils.UserFacingError, and
-                               to HTTP status/JSON by backend/errors.DomainErrorToResponse
+internal/domain/errors/       sentinel error values, mapped to user-facing text by bot/texts.UserFacingError, and
+                               to HTTP status/JSON by admin_backend/errors.DomainErrorToResponse
 
 internal/repository/postgres/ GORM-backed implementations, using the Generics API (gorm.G[T]) for CRUD — aggregate
                                queries (e.g. grouping purchases into batches, dashboard stats) use the classic
@@ -89,7 +93,7 @@ internal/service/payment/     PaymentProvider implementations: StubProvider (alw
                                SettingsService — admin edits apply without restarting the bot — and each does its
                                own enabled/range check before calling out, returning ErrMerchantDisabled/
                                ErrAmountOutOfRange. CheckStatus is implemented on all three but nothing currently
-                               polls it — confirmation is webhook-driven (see backend/handlers below)
+                               polls it — confirmation is webhook-driven (see payments_backend/handlers below)
 internal/cache/redis/         the ONE Redis-backed struct implementing domain/cache's per-entity interfaces,
                                domain/fsm.Store, and domain/adminsession.Store — one client, one struct, three
                                unrelated keyspaces: plain keys for the cache, fsm:<telegramID> for conversation
@@ -137,10 +141,12 @@ internal/auth/web/            package admintoken (import resolves by package cla
                                tamper-evident and self-describes its own expiry, but is not by itself sufficient
                                to trust a session — see AdminAuthSrv.ValidateSession below for why
 
-backend/                       the web admin panel's HTTP API (package `backend`, binary entrypoint is
-                               cmd/backend) — gin, depends only on internal/domain/service, same rule as bot/.
-                               backend.New(...) wires everything; cmd/backend/main.go is the composition root
-backend/handlers/              one file per resource; read-only admin listings (all products/categories/purchases/
+admin_backend/                 the web admin panel's HTTP API (package `adminbackend`, directory `admin_backend/`,
+                               binary entrypoint is cmd/admin_backend) — gin, depends only on
+                               internal/domain/service, same rule as bot/. adminbackend.New(...) wires everything;
+                               cmd/admin_backend/main.go is the composition root. Payment-provider webhooks are
+                               NOT here — see payments_backend/ below, a wholly separate binary
+admin_backend/handlers/        one file per resource; read-only admin listings (all products/categories/purchases/
                                admin-logs, unfiltered by active/stock/other-users'-rows) call dedicated *Admin/*All
                                service methods (UserService.ListAdmin, ProductService.ListAllAdmin,
                                CategoryService.ListAllFlat, PurchaseService.ListAllAdmin, AdminService.ListLogs) —
@@ -151,25 +157,39 @@ backend/handlers/              one file per resource; read-only admin listings (
                                a whole models.Settings from the request and always goes through AdminService.
                                UpdateSettings (audit-logged), never SettingsService directly. replenishment_handler.go
                                is read-only (ListAllAdmin, ?user_id filter) — writes to Replenishment only ever
-                               happen via webhook_handler.go's three handlers (CrystalPay/YooKassa/Tinkoff), each
-                               verifying that merchant's own signature scheme before calling ReplenishmentService.
-                               Confirm/Fail; none of them go through AdminService (no admin acted, nothing to audit)
-backend/middleware/            auth.go (bearer session token -> AdminAuthService.ValidateSession, attaches
+                               happen via payments_backend/handlers' webhook handlers (CrystalPay/YooKassa/Tinkoff,
+                               a different binary), each verifying that merchant's own signature scheme before
+                               calling ReplenishmentService.Confirm/Fail; none of them go through AdminService (no
+                               admin acted, nothing to audit)
+admin_backend/middleware/      auth.go (bearer session token -> AdminAuthService.ValidateSession, attaches
                                *models.User to request context), cors.go (comma-separated allowed-origin list via
                                ADMIN_PANEL_CORS_ORIGIN, no credentials — logs rejected origins at Warn for diagnosis)
-backend/dto/                   request bodies + the Paginated[T] list envelope + ErrorResponse; responses mostly
+admin_backend/dto/             request bodies + the Paginated[T] list envelope + ErrorResponse; responses mostly
                                reuse internal/domain/models types directly (already have clean json tags)
-backend/errors/                domain sentinel error -> HTTP status + JSON body (DomainErrorToResponse), mirrors
-                               bot/utils.UserFacingError
-backend/router.go, server.go   route table + http.Server lifecycle (Start/Shutdown). /api/webhooks/{crystalpay,
-                               yookassa,tinkoff} sit next to /api/auth/exchange outside the /api Auth group — the
-                               caller is the merchant's server, not a logged-in admin, so there's no session to check
+admin_backend/errors/          domain sentinel error -> HTTP status + JSON body (DomainErrorToResponse), mirrors
+                               bot/texts.UserFacingError
+admin_backend/router.go,       route table + http.Server lifecycle (Start/Shutdown). /api/auth/exchange is the
+  server.go                    only route outside the /api Auth group (no session exists yet to check) — every
+                               other route requires a valid admin session
 
-internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Logger sub-configs)
+payments_backend/              accepts payment-provider webhooks only (package `paymentsbackend`, directory
+                               `payments_backend/`, binary entrypoint is cmd/payments_backend) — gin, depends only
+                               on internal/domain/service, same rule as bot/ and admin_backend/. Deliberately tiny:
+                               paymentsbackend.New(...) takes just SettingsService + ReplenishmentService, nothing
+                               admin-related (no AdminAuthService, no session store, no CORS middleware — the
+                               caller is a merchant's server, never a browser)
+payments_backend/handlers/     handler.go (the 2-service Handlers struct/constructor) + webhook_handler.go
+                               (CrystalPayWebhook/YooKassaWebhook/TinkoffWebhook — moved here verbatim from the old
+                               single `backend` binary; each verifies that merchant's own signature scheme before
+                               calling ReplenishmentService.Confirm/Fail — see the Data model section below)
+payments_backend/router.go,    three POST routes (/api/webhooks/{crystalpay,yookassa,tinkoff}), gin.Recovery()
+  server.go                    only, no Auth group, no CORS — http.Server lifecycle (Start/Shutdown)
+
+internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Payments/Logger sub-configs)
 internal/logger/               logrus logger construction from config.LoggerConfig, plus fx.go's NewFxLogger
                                (routes fx's own PROVIDE/INVOKE/START/STOP event log through the same logrus
                                logger at Debug — quiet in prod, visible with LOG_LEVEL=debug); the only
-                               importers of this package are the three cmd/* binaries
+                               importers of this package are the four cmd/* binaries
 
 Each cmd/* binary wires its dependency graph with go.uber.org/fx, split into main.go (the fx.New(...) call —
 the actual list of what's wired, read this first) and lifecycle.go (fx.Lifecycle OnStart/OnStop for the
@@ -185,17 +205,23 @@ providePaymentProviders (assembles a map from three constructors, not a type cas
 provideAdminAuthService/provideReplenishmentService (pull a field out of a config struct, or hand-supply a
 literal nil — real argument-shaping, not interface-casting). Repos/services needed by more than one binary are
 NOT factored into a shared package — each binary's main.go re-declares its own fx.Annotate entries, same
-duplication the manual wiring already had; the point was translating the wiring mechanism, not merging the
-two binaries' composition roots into one. The one Redis-backed cache struct is wired once per binary via
-fx.Annotate(rdb.NewRedisCache, fx.As(new(X)), fx.As(new(Y)), ...) — multiple fx.As() on one constructor
-registers that single instance under every interface it implements (domaincache.UserCache/ProductCache/
-CategoryCache/SettingsCache, domain/fsm.Store [bot only, backend has no FSM], domain/adminsession.Store,
-service.MultiCache [exported specifically so cmd/*/main.go can name it in fx.As — see internal/service/cache.go]).
-bot.New/backend.New themselves also take no fx.Lifecycle param and know nothing about fx — lifecycle.go's
-runBot/runServer register the OnStart/OnStop hooks from outside, in cmd/*, the same "fx stays out of
-non-composition-root packages" principle applied one level up (an alternative, equally common fx idiom would
-have the constructor itself accept fx.Lifecycle and self-register — deliberately not used here, since that
-would mean bot/ and backend/ importing fx just to be constructed, which is exactly the coupling being avoided).
+duplication the manual wiring already had; the point was translating the wiring mechanism, not merging separate
+composition roots into one — this is also why payments_backend's graph doesn't just reuse admin_backend's: it
+deliberately re-declares only the handful of fx.Annotate entries it needs (see its own paragraph below), rather
+than importing a shared "all repos/services" provider set that would drag in everything admin_backend wires.
+The one Redis-backed cache struct is wired once per binary via fx.Annotate(rdb.NewRedisCache, fx.As(new(X)),
+fx.As(new(Y)), ...) — multiple fx.As() on one constructor registers that single instance under every interface
+it implements, but each binary annotates only the subset it actually consumes: bot annotates
+domaincache.UserCache/ProductCache/CategoryCache/SettingsCache/domain/fsm.Store/adminsession.Store/
+service.MultiCache; admin_backend annotates the same set minus domain/fsm.Store (no FSM scenarios there);
+payments_backend annotates only domaincache.UserCache and domaincache.SettingsCache — no adminsession.Store, no
+MultiCache, no Product/CategoryCache (service.MultiCache is exported specifically so cmd/*/main.go can name it
+in fx.As — see internal/service/cache.go). bot.New/adminbackend.New/paymentsbackend.New themselves also take no
+fx.Lifecycle param and know nothing about fx — lifecycle.go's runBot/runServer register the OnStart/OnStop hooks
+from outside, in cmd/*, the same "fx stays out of non-composition-root packages" principle applied one level up
+(an alternative, equally common fx idiom would have the constructor itself accept fx.Lifecycle and self-register
+— deliberately not used here, since that would mean bot/, admin_backend/, and payments_backend/ importing fx
+just to be constructed, which is exactly the coupling being avoided).
 cmd/migrate/main.go            one-shot, no fx.Lifecycle/Run(): fx.New(...) both builds the graph AND runs
                                fx.Invoke(runMigrate) synchronously (Invoke functions execute during fx.New
                                itself, before any Start) — runMigrate's single pgdb.AutoMigrate(ctx, db, log,
@@ -205,22 +231,31 @@ cmd/migrate/main.go            one-shot, no fx.Lifecycle/Run(): fx.New(...) both
                                — LOG_LEVEL shouldn't get to hide a fatal migration failure, and if the graph
                                failed to build at all there may be no working logger yet to report through.
                                Its own doc comment explains why this is a separate binary/container from
-                               cmd/bot and cmd/backend: two independent, concurrently-started long-running
-                               services can't both own "run AutoMigrate on startup" without racing
+                               cmd/bot, cmd/admin_backend, and cmd/payments_backend: independent, concurrently-
+                               started long-running services can't both own "run AutoMigrate on startup" without racing
 cmd/bot/main.go                fx.New(...).Run() — Run() itself blocks and listens for SIGINT/SIGTERM (no
                                manual signal.NotifyContext anymore). lifecycle.go's runBot launches
                                bt.Start(ctx) in a goroutine from OnStart (Start blocks on long-polling, so it
                                can't run inline — OnStart hooks are expected to return quickly) and cancels
                                that ctx from OnStop, then closes the redis client
-cmd/backend/main.go            fx.New(...).Run(), same signal handling as cmd/bot. lifecycle.go's runServer
+cmd/admin_backend/main.go      fx.New(...).Run(), same signal handling as cmd/bot. lifecycle.go's runServer
                                launches webServer.Start() in a goroutine from OnStart (it blocks until
                                Shutdown) and calls webServer.Shutdown(ctx) (10s timeout) then closes the redis
-                               client from OnStop
+                               client from OnStop. Wires all repos/services admin_backend/handlers needs: eight
+                               repos (User/Product/Purchase/Category/Settings/Replenishment/AdminLog/Stats) plus
+                               GormTransactor, seven services (User/Product/Category/Settings/Purchase/Admin/Stats
+                               via fx.Annotate) plus provideReplenishmentService/provideAdminAuthService
+cmd/payments_backend/main.go   Same fx.New(...).Run()/runServer shape as cmd/admin_backend, but a much narrower
+                               graph: three repos (User/Settings/Replenishment, no GormTransactor), one service
+                               via fx.Annotate (SettingsSrv) plus provideReplenishmentService — no
+                               UserService/AdminAuthService/adminsession.Store/Product/Category/AdminLog/Stats
+                               anything. ReplenishmentSrv itself takes a raw repository.UserRepository, not
+                               UserService, which is why payments_backend never needs to wire UserSrv at all
 
 frontend/                      the web admin panel's UI — React + Vite + Ant Design, its own package.json/Dockerfile,
                                deployed as a separate container (nginx serving the built static bundle) that calls
-                               backend's API cross-origin (VITE_API_BASE_URL, baked in at image build time, not read
-                               at runtime). Not part of the Go module. Every protected page is React.lazy()-loaded
+                               admin_backend's API cross-origin (VITE_API_BASE_URL, baked in at image build time, not
+                               read at runtime). Not part of the Go module. Every protected page is React.lazy()-loaded
                                (see App.tsx) — StatsPage alone pulls in @ant-design/plots (~1.4MB), which shouldn't
                                block loading the login screen or any other page
 ```
@@ -237,13 +272,13 @@ All repositories and services are fully implemented (not stubs) and logging (`*l
 
 `Settings` is a singleton row (fixed `ID = models.SettingsID`, bootstrapped by `cmd/migrate`'s `SettingsRepo.EnsureExists`) holding `SupportUsername` plus one embedded sub-struct per merchant (`CrystalPaySettings`/`YooKassaSettings`/`TinkoffSettings` — GORM `embedded;embeddedPrefix:<merchant>_`), each with its own credential fields, `Enabled`, and `MinAmount`/`MaxAmount`. The three merchants' credentials are genuinely different shapes (CrystalPay: Login+Secret+Salt; YooKassa: ShopID+SecretKey; Tinkoff: TerminalKey+Password) so they're three distinct structs, not one generic `Token`/`Secret` pair forced across all of them.
 
-Payments are abstracted behind `payment.PaymentProvider` (`CreateInvoice`/`CheckStatus`, see `internal/service/payment/` above). `Replenishment` is one balance top-up attempt: `UserID`, `Merchant` (`crystalpay`/`yookassa`/`tinkoff`/`referral`), `InvoiceID` (the merchant's own payment/invoice ID — empty for `referral` rows, there's no external invoice), `Amount`, `Status` (`pending`/`paid`/`failed`/`cancelled`). `ReplenishmentSrv.CreateInvoice` calls the matching `PaymentProvider` then inserts a `pending` row; `Confirm`/`Fail` (called only from `backend/handlers`' webhook handlers) transition it via `ReplenishmentRepository.UpdateStatus`, which is a conditional `UPDATE ... WHERE status = 'pending'` — the returned `changed` bool is how `Confirm` stays idempotent against a merchant retrying the same webhook (a no-op past the first successful call, so `UserRepository.UpdateBalance` never double-credits).
+Payments are abstracted behind `payment.PaymentProvider` (`CreateInvoice`/`CheckStatus`, see `internal/service/payment/` above). `Replenishment` is one balance top-up attempt: `UserID`, `Merchant` (`crystalpay`/`yookassa`/`tinkoff`/`referral`), `InvoiceID` (the merchant's own payment/invoice ID — empty for `referral` rows, there's no external invoice), `Amount`, `Status` (`pending`/`paid`/`failed`/`cancelled`). `ReplenishmentSrv.CreateInvoice` calls the matching `PaymentProvider` then inserts a `pending` row; `Confirm`/`Fail` (called only from `payments_backend/handlers`' webhook handlers) transition it via `ReplenishmentRepository.UpdateStatus`, which is a conditional `UPDATE ... WHERE status = 'pending'` — the returned `changed` bool is how `Confirm` stays idempotent against a merchant retrying the same webhook (a no-op past the first successful call, so `UserRepository.UpdateBalance` never double-credits).
 
 **Referral program**: `Settings.Referral` (`Enabled` + integer `Percent`, `Enabled=false` overrides `Percent` and turns the whole thing off) is the only global switch — everything else is per-user (`User.ReferrerID`/`ReferralsEnabled` above). Attribution happens once, in `UserSrv.GetOrCreate`, only on the create branch: `bot.go` registers `/start` with `MatchTypeCommandStartOnly` (not `MatchTypeExact`) so `/start <id>` deep-link payloads (`t.me/<bot>?start=<id>`, parsed by `handlers.parseStartPayload`) still match; `GetOrCreate`'s private `validReferrer` helper drops the payload (referral never recorded) if it's self-referral or the ID doesn't belong to an existing user — an *already-existing* user opening a ref link is never attributed, by construction, since that whole code path only runs when the row doesn't exist yet. The actual credit happens in `PurchaseSrv.Buy`, inside the same DB transaction as the purchase itself (`creditReferral`, called after the buyer's balance is debited): reads `Settings.Referral` (cached), re-checks the buyer's referrer is real and `ReferralsEnabled`, credits `Percent`% of the purchase total via `UserRepository.UpdateBalance`, and inserts a `Replenishment{Merchant: MerchantReferral, Status: ReplenishmentStatusPaid}` row so the credit shows up in the referrer's "Мои пополнения" like any other top-up. `Buy` returns `*models.ReferralCredit` (nil if nothing was credited) alongside the purchases — `BuyConfirmHandler` is what actually messages the referrer (`texts.ReferralCreditMsg`), since `PurchaseSrv` has no Telegram dependency and can't send it itself.
 
 ### Bot wiring
 
-`bot/bot.go` builds `Middlewares` and `Handlers` from the domain service interfaces plus a `keyboards.Keyboards` (built from `cfg.AdminPanel.URL`). The middleware chain is `Logging -> AnswerCallback -> BanCheck -> FSM` — there's no `AutoMigrate` middleware; the user row is only ever created in `StartHandler` on `/start`, and `BanCheck` always lets `/start` itself through (otherwise a brand-new user could never pass it to get created) but otherwise fails closed on real errors, prompts `ErrUserNotFound` users to `/start`, and tells banned users they're banned.
+`bot/bot.go` builds `Middlewares` and `Handlers` from the domain service interfaces plus a `keyboards.Keyboards` (built from `cfg.AdminPanel` — `AdminKb`'s URL comes from `FrontendURL`). The middleware chain is `Logging -> AnswerCallback -> BanCheck -> FSM` — there's no `AutoMigrate` middleware; the user row is only ever created in `StartHandler` on `/start`, and `BanCheck` always lets `/start` itself through (otherwise a brand-new user could never pass it to get created) but otherwise fails closed on real errors, prompts `ErrUserNotFound` users to `/start`, and tells banned users they're banned.
 
 Reply-keyboard text handlers: `/admin`, `texts.{Help,Catalog,Profile,StartMenu,Purchases,RefillBalance,ProfileRefresh,Replenishments,Referral}Btn` (`ProfileRefreshBtn` re-sends the profile card via `UserService.RefreshProfile`, which reads Postgres directly instead of the user cache — purchase stats are already always read straight from Postgres), and `/start` — registered with `MatchTypeCommandStartOnly` rather than `MatchTypeExact` specifically so a ref-link's `/start <id>` payload still matches (see the referral paragraph above); everything else here still uses `MatchTypeExact`. Callback-query (inline button) prefixes, via `bot.MatchTypePrefix`: `product_`, `buy_`, `buyqty_`, `purchase_` (purchase-batch UUID, not a raw row ID), `purchasespage_`, `category_`, `refillmerchant_` (bare merchant string, own Build/Parse pair — not numeric, doesn't fit `ParseCallbackQuery`), `replenishmentspage_`; exact-match: `buycancel`, `buyconfirm`, `catalog_root`, `main_menu`, `referral_close`. `bot/utils.ParseCallbackQuery` parses the trailing numeric segment; `ParseBatchCallbackQuery` parses the trailing UUID (works because UUIDs use hyphens, not underscores, so splitting on `_` and taking the last part is still safe).
 
@@ -253,11 +288,11 @@ The buy flow is stateful, backed by `internal/cache/redis.Cache` (which doubles 
 
 ### Web admin panel
 
-CRUDL for categories/products, view+edit for users (ban/unban, balance, promote/demote admin, plus `POST /api/users/:telegram_id/referrals/{enable,disable}` -> `AdminService.SetReferralsEnabled`), view for purchases (cross-user — everything on `PurchaseService`/`PurchaseRepository` elsewhere is scoped to one Telegram user, so `ListAllAdmin`/`CountAllAdmin`/`GetAdminByID` exist purely for this screen), a cross-user replenishments view (same `ListAllAdmin`/`CountAllAdmin` pattern on `ReplenishmentService` — this is also where `Merchant: referral` credits are visible across all users, not just each referrer's own "Мои пополнения"), an admin audit-log view, a Statistics screen backed by `StatsService`/`StatsRepository` (plain SQL aggregates, no Prometheus/Grafana), and settings (Support username, per-merchant credentials/`Enabled`/min-max, and the referral `Enabled`+`Percent` pair, via `GET`/`PUT /api/settings` — **frontend page not built yet**, only the backend API).
+CRUDL for categories/products, view+edit for users (ban/unban, balance, promote/demote admin, plus `POST /api/users/:telegram_id/referrals/{enable,disable}` -> `AdminService.SetReferralsEnabled`), view for purchases (cross-user — everything on `PurchaseService`/`PurchaseRepository` elsewhere is scoped to one Telegram user, so `ListAllAdmin`/`CountAllAdmin`/`GetAdminByID` exist purely for this screen), a cross-user replenishments view (same `ListAllAdmin`/`CountAllAdmin` pattern on `ReplenishmentService` — this is also where `Merchant: referral` credits are visible across all users, not just each referrer's own "Мои пополнения"), an admin audit-log view, a Statistics screen backed by `StatsService`/`StatsRepository` (plain SQL aggregates, no Prometheus/Grafana), and settings (Support username, per-merchant credentials/`Enabled`/min-max, and the referral `Enabled`+`Percent` pair, via `GET`/`PUT /api/settings` — **frontend page not built yet**, only the admin_backend API).
 
 Auth is code-then-session, entirely Redis-backed, nothing in Postgres: `Handlers.AdminHandler` (`/admin`) calls `AdminAuthService.IssueLoginCode`, which generates a 6-digit code (`admintoken.GenerateCode`), stores `sha256(code) -> telegramID` in Redis for 30 seconds (`domain/adminsession.Store`, implemented by the same `internal/cache/redis.Cache` struct as the read-through cache and FSM state, separate keyspace), and sends it back in the `/admin` reply. The login page's `POST /api/auth/exchange` (the *one* unauthenticated route — registered directly on the top-level gin engine, outside the `/api` route group, so it never passes through `Auth`) calls `AdminAuthService.ExchangeLoginCode`: consumes the code atomically (Redis `GETDEL`, so it's single-use even under concurrent attempts), re-checks `IsAdmin()` (a demote between issuance and exchange must not slip through), and issues a 24h HS256 JWT session token (`admintoken.GenerateSessionJWT`, keyed by `ADMIN_JWT_SECRET`) whose hash is *also* stored in Redis the same way the login code was.
 
-`backend/middleware.Auth` resolves the incoming `Authorization: Bearer <session token>` header via `AdminAuthService.ValidateSession`, which requires all three of: the JWT signature/expiry to check out (`admintoken.ParseSessionJWT`, rejects a forged or expired token before any I/O), the token's hash to still have a live Redis entry (this is what makes the token revocable at all — a signed JWT can't be un-issued, so `Logout` works by deleting this entry instead), and the resolved user to still satisfy `IsAdmin()` in Postgres. `GET /api/auth/me`'s 200-vs-401 response *is* the login check from the frontend's perspective. `POST /api/auth/logout` deletes the Redis session entry early, which is what actually revokes the JWT before its natural expiry.
+`admin_backend/middleware.Auth` resolves the incoming `Authorization: Bearer <session token>` header via `AdminAuthService.ValidateSession`, which requires all three of: the JWT signature/expiry to check out (`admintoken.ParseSessionJWT`, rejects a forged or expired token before any I/O), the token's hash to still have a live Redis entry (this is what makes the token revocable at all — a signed JWT can't be un-issued, so `Logout` works by deleting this entry instead), and the resolved user to still satisfy `IsAdmin()` in Postgres. `GET /api/auth/me`'s 200-vs-401 response *is* the login check from the frontend's perspective. `POST /api/auth/logout` deletes the Redis session entry early, which is what actually revokes the JWT before its natural expiry.
 
 `AdminService.MakeAdmin`/`RevokeAdmin`/`BanUser`/`UnbanUser` only ever change `User.Role` — they hand back no credential; a newly promoted admin gets in by sending `/admin` themselves. `MakeAdmin` is root-admin-only (`ErrOnlyRootAdminCanPromote` otherwise, checked against the acting admin's own persisted role) — without that, any admin could promote arbitrary users, who could promote further admins, with nothing containing the spread. Because `Role` is a single field, `BanUser`/`RevokeAdmin` both refuse to target the root admin (`ErrCannotBanRootAdmin`/`ErrCannotRevokeRootAdmin`) or the acting admin's own account (`ErrCannotBanSelf`/`ErrCannotRevokeSelf`) — banning or revoking would otherwise overwrite/strip root status with no one left able to grant it back. `UnbanUser` always restores plain `user`, never whatever role the target held before being banned — a banned former admin needs `MakeAdmin` run again after unban. A demoted admin's still-live session keeps validating JWT-wise until its TTL, but `ValidateSession` re-checks the role against Postgres on every call, so it's rejected on their very next request regardless.
 
@@ -267,4 +302,4 @@ Telegram rejects inline URL buttons pointing at `localhost`/loopback hosts outri
 
 ### Caching gotcha worth knowing
 
-`cmd/migrate` (and any direct Postgres edit) has zero awareness of the Redis read-through cache by design — it's a Postgres-only step. In the normal deploy flow this is fine (`migrate` completes before `bot`/`backend` even start, so there's nothing cached yet). But re-running `migrate` (or hand-editing a row) against an *already-running* bot/backend can leave a stale cached `User` (10-minute TTL, key `user:<telegram_id>`) — e.g. promoting someone to `root_admin` in Postgres doesn't retroactively fix a session that already cached their old role. Fix: `redis-cli DEL user:<telegram_id>`, or wait out the TTL.
+`cmd/migrate` (and any direct Postgres edit) has zero awareness of the Redis read-through cache by design — it's a Postgres-only step. In the normal deploy flow this is fine (`migrate` completes before `bot`/`admin_backend`/`payments_backend` even start, so there's nothing cached yet). But re-running `migrate` (or hand-editing a row) against an *already-running* bot/admin_backend can leave a stale cached `User` (10-minute TTL, key `user:<telegram_id>`) — e.g. promoting someone to `root_admin` in Postgres doesn't retroactively fix a session that already cached their old role. Fix: `redis-cli DEL user:<telegram_id>`, or wait out the TTL.

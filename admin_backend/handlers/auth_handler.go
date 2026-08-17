@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/trottling/Telegram-Store/backend/dto"
-	"github.com/trottling/Telegram-Store/backend/middleware"
+	"github.com/trottling/Telegram-Store/admin_backend/dto"
+	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 )
 
 // Exchange меняет одноразовый код от бота на сессионный токен. Единственный

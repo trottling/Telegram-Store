@@ -11,6 +11,7 @@ type Config struct {
 	Postgres   *PostgresConfig
 	Redis      *RedisConfig
 	AdminPanel *AdminPanelConfig
+	Payments   *PaymentsConfig
 	Logger     *LoggerConfig
 }
 
@@ -36,14 +37,20 @@ type RedisConfig struct {
 
 type AdminPanelConfig struct {
 	Port int
-	// URL — адрес самого API (VITE_API_BASE_URL), не панели.
-	URL string
 	// FrontendURL — где отдаётся React-панель, на неё ссылается /admin.
 	FrontendURL string
 	// CORSOrigin — разрешённые origin'ы через запятую.
 	CORSOrigin string
 	// JWTSecret подписывает сессионные токены, обязателен.
 	JWTSecret []byte
+}
+
+// PaymentsConfig — конфиг payments_backend (вебхуки мерчантов).
+type PaymentsConfig struct {
+	Port int
+	// URL — внешний адрес payments_backend, на него указывают webhook-колбэки
+	// CrystalPay/Tinkoff (строится в cmd/bot/providers.go при создании провайдеров).
+	URL string
 }
 
 type LoggerConfig struct {
@@ -75,11 +82,16 @@ func New() (*Config, error) {
 	if adminPanelPort == 0 {
 		adminPanelPort = 8080
 	}
-	adminPanelURL := getEnv("ADMIN_PANEL_BACKEND_URL", "http://localhost:8080")
 	adminPanelFrontendURL := getEnv("ADMIN_PANEL_FRONTEND_URL", "http://localhost:3000")
 	// localhost и 127.0.0.1 разрешены оба — браузер считает их разными origin.
 	adminPanelCORSOrigin := getEnv("ADMIN_PANEL_CORS_ORIGIN", "http://localhost:3000,http://127.0.0.1:3000")
 	adminJWTSecret := os.Getenv("ADMIN_JWT_SECRET")
+
+	paymentsPort, _ := strconv.Atoi(os.Getenv("PAYMENTS_BACKEND_PORT"))
+	if paymentsPort == 0 {
+		paymentsPort = 8081
+	}
+	paymentsURL := getEnv("PAYMENTS_BACKEND_URL", "http://localhost:8081")
 
 	logLevel := getEnv("LOG_LEVEL", "info")
 
@@ -106,10 +118,14 @@ func New() (*Config, error) {
 
 		AdminPanel: &AdminPanelConfig{
 			Port:        adminPanelPort,
-			URL:         adminPanelURL,
 			FrontendURL: adminPanelFrontendURL,
 			CORSOrigin:  adminPanelCORSOrigin,
 			JWTSecret:   []byte(adminJWTSecret),
+		},
+
+		Payments: &PaymentsConfig{
+			Port: paymentsPort,
+			URL:  paymentsURL,
 		},
 
 		Logger: &LoggerConfig{

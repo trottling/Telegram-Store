@@ -35,17 +35,39 @@ services:
     networks:
       - debug-network
 
-  backend:
+  admin_backend:
     build:
       context: .
       dockerfile: Dockerfile
-      target: backend
-    container_name: telegram-store-backend
+      target: admin_backend
+    container_name: telegram-store-admin-backend
     env_file:
       - path: .env
         required: true
     ports:
       - "${ADMIN_PANEL_BACKEND_PORT:-8080}:${ADMIN_PANEL_BACKEND_PORT:-8080}"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - debug-network
+
+  payments_backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: payments_backend
+    container_name: telegram-store-payments-backend
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      - "${PAYMENTS_BACKEND_PORT:-8081}:${PAYMENTS_BACKEND_PORT:-8081}"
     depends_on:
       db:
         condition: service_healthy
@@ -70,7 +92,7 @@ services:
     networks:
       - debug-network
     depends_on:
-      - backend
+      - admin_backend
 
   db:
     image: postgres:latest

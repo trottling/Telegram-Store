@@ -1,18 +1,18 @@
-package backend
+package adminbackend
 
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/trottling/Telegram-Store/backend/handlers"
-	"github.com/trottling/Telegram-Store/backend/middleware"
+	"github.com/trottling/Telegram-Store/admin_backend/handlers"
+	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
-// newRouter собирает таблицу маршрутов. Без Auth — /api/auth/exchange (там
-// ещё нет сессии) и /api/webhooks/* (вызывающая сторона — сервер мерчанта,
-// не залогиненный админ; каждый вебхук сам проверяет подпись). Остальные — за Auth.
+// newRouter собирает таблицу маршрутов. Без Auth — только /api/auth/exchange
+// (там ещё нет сессии). Вебхуки мерчантов сюда не входят — они принимаются
+// отдельным бинарником, payments_backend (см. его router.go).
 func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, corsOrigin string, log *logrus.Logger) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
@@ -20,10 +20,6 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 	r.Use(middleware.CORS(corsOrigin, log))
 
 	r.POST("/api/auth/exchange", h.Exchange)
-
-	r.POST("/api/webhooks/crystalpay", h.CrystalPayWebhook)
-	r.POST("/api/webhooks/yookassa", h.YooKassaWebhook)
-	r.POST("/api/webhooks/tinkoff", h.TinkoffWebhook)
 
 	api := r.Group("/api")
 	api.Use(middleware.Auth(adminAuthService))

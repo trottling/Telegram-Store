@@ -43,6 +43,7 @@ func main() {
 			providePostgresConfig,
 			provideRedisConfig,
 			provideAdminPanelConfig,
+			providePaymentsConfig,
 			provideLoggerConfig,
 
 			rdb.NewClient,

@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/trottling/Telegram-Store/backend/errors"
+	"github.com/trottling/Telegram-Store/admin_backend/errors"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service"

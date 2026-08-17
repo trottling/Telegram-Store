@@ -23,18 +23,20 @@ func provideTelegramConfig(cfg *config.Config) *config.TelegramConfig     { retu
 func providePostgresConfig(cfg *config.Config) *config.PostgresConfig     { return cfg.Postgres }
 func provideRedisConfig(cfg *config.Config) *config.RedisConfig           { return cfg.Redis }
 func provideAdminPanelConfig(cfg *config.Config) *config.AdminPanelConfig { return cfg.AdminPanel }
+func providePaymentsConfig(cfg *config.Config) *config.PaymentsConfig     { return cfg.Payments }
 func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Logger }
 
 // providePaymentProviders — по одному провайдеру на реальный мерчант;
 // MerchantReferral сюда не входит, начисления с рефералов создаются
 // напрямую, без CreateInvoice (см. domain/models.Replenishment). Реальная
 // сборка map — не просто приведение типа, поэтому fx.Annotate тут не
-// подходит, нужна обычная функция.
-func providePaymentProviders(settingsService service.SettingsService, adminPanelCfg *config.AdminPanelConfig) map[domainmodels.Merchant]domainpayment.PaymentProvider {
+// подходит, нужна обычная функция. Колбэки CrystalPay/Tinkoff указывают на
+// payments_backend (paymentsCfg.URL), не на admin_backend — вебхуки принимает он.
+func providePaymentProviders(settingsService service.SettingsService, paymentsCfg *config.PaymentsConfig) map[domainmodels.Merchant]domainpayment.PaymentProvider {
 	return map[domainmodels.Merchant]domainpayment.PaymentProvider{
-		domainmodels.MerchantCrystalPay: payment.NewCrystalPayProvider(settingsService, adminPanelCfg.URL),
+		domainmodels.MerchantCrystalPay: payment.NewCrystalPayProvider(settingsService, paymentsCfg.URL),
 		domainmodels.MerchantYooKassa:   payment.NewYooKassaProvider(settingsService),
-		domainmodels.MerchantTinkoff:    payment.NewTinkoffProvider(settingsService, adminPanelCfg.URL),
+		domainmodels.MerchantTinkoff:    payment.NewTinkoffProvider(settingsService, paymentsCfg.URL),
 	}
 }
 

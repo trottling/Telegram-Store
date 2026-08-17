@@ -1,5 +1,6 @@
-// Command backend — только JSON API админ-панели, без бота и миграций
-// (см. cmd/migrate). Отдельный контейнер, схема БД уже должна существовать.
+// Command admin_backend — только JSON API админ-панели, без бота, вебхуков
+// платежей (см. cmd/payments_backend) и миграций (см. cmd/migrate).
+// Отдельный контейнер, схема БД уже должна существовать.
 //
 // Граф зависимостей собирает go.uber.org/fx. Каждый репозиторий/сервис ниже
 // возвращает конкретный тип (*pgdb.UserRepo, *service.UserSrv, ...) — сам
@@ -20,7 +21,7 @@ package main
 import (
 	"go.uber.org/fx"
 
-	"github.com/trottling/Telegram-Store/backend"
+	adminbackend "github.com/trottling/Telegram-Store/admin_backend"
 	rdb "github.com/trottling/Telegram-Store/internal/cache/redis"
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
@@ -46,7 +47,7 @@ func main() {
 			rdb.NewClient,
 			// cacheService — один клиент, отданный в граф сразу под все
 			// интерфейсы, которые он реализует (fsm.Store сюда не входит —
-			// у backend нет FSM-сценариев).
+			// у admin_backend нет FSM-сценариев).
 			fx.Annotate(
 				rdb.NewRedisCache,
 				fx.As(new(domaincache.UserCache)),
@@ -79,7 +80,7 @@ func main() {
 			provideReplenishmentService,
 			provideAdminAuthService,
 
-			backend.New,
+			adminbackend.New,
 		),
 		fx.Invoke(runServer),
 	).Run()

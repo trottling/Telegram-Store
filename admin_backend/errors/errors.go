@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/trottling/Telegram-Store/backend/dto"
+	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 )
 
