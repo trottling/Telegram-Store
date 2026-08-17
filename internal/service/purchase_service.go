@@ -87,7 +87,6 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	batchID := uuid.NewString()
 
 	purchases := make([]*models.Purchase, 0, count)
-	var credit *models.ReferralCredit
 	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
 		for range count {
 			item, itemErr := s.productRepo.GetAvailableItem(ctx, productID)
@@ -117,12 +116,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 			purchases = append(purchases, p)
 		}
 
-		if updErr := s.userRepo.UpdateBalance(ctx, telegramID, -totalPrice); updErr != nil {
-			return updErr
-		}
-
-		credit = s.creditReferral(ctx, user.ReferrerID, totalPrice)
-		return nil
+		return s.userRepo.UpdateBalance(ctx, telegramID, -totalPrice)
 	})
 	if err != nil {
 		if errors.Is(err, domainerrors.ErrProductOutOfStock) {
@@ -132,6 +126,14 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		}
 		return nil, nil, err
 	}
+
+	// Реферальный бонус — после коммита покупки, отдельной транзакцией. Внутри
+	// той же он быть не может: любая упавшая там команда переводит транзакцию
+	// Postgres в aborted, COMMIT выполняет ROLLBACK, и pgx возвращает
+	// ErrTxCommitRollback — то есть сбой необязательного бонуса отменял бы
+	// полностью оплаченную покупку. А best-effort в этом и состоит, что не
+	// должен её ронять.
+	credit := s.creditReferral(ctx, user.ReferrerID, totalPrice)
 
 	_ = s.cache.InvalidateUser(ctx, telegramID)
 	_ = s.cache.InvalidateProductAvailableCount(ctx, productID)
@@ -148,9 +150,13 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 }
 
 // creditReferral — best-effort: реферальная система выключена, у реферера
-// отключены начисления, либо процент/сумма нулевые — молча ничего не делает
-// (это не должно ронять саму покупку). Пишет и Replenishment (Merchant=referral),
-// чтобы начисление было видно в "Мои пополнения" реферера.
+// отключены начисления, либо процент/сумма нулевые — молча ничего не делает.
+// Пишет и Replenishment (Merchant=referral), чтобы начисление было видно в
+// "Мои пополнения" реферера.
+//
+// Вызывается после коммита покупки, отдельной транзакцией — см. Buy. Свои две
+// записи держит вместе, чтобы у реферера не оказалось начисленных денег без
+// строки в истории пополнений.
 func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, purchaseAmount float64) *models.ReferralCredit {
 	if referrerID == nil {
 		return nil
@@ -171,20 +177,23 @@ func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, pur
 		return nil
 	}
 
-	if err = s.userRepo.UpdateBalance(ctx, referrer.TelegramID, credit); err != nil {
+	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
+		if updErr := s.userRepo.UpdateBalance(ctx, referrer.TelegramID, credit); updErr != nil {
+			return updErr
+		}
+
+		now := time.Now()
+		return s.replenishmentRepo.Create(ctx, &models.Replenishment{
+			UserID:      referrer.TelegramID,
+			Merchant:    models.MerchantReferral,
+			Amount:      credit,
+			Status:      models.ReplenishmentStatusPaid,
+			CompletedAt: &now,
+		})
+	})
+	if err != nil {
 		s.log.WithError(err).WithField("referrer_id", referrer.TelegramID).Error("purchase_service: failed to credit referral")
 		return nil
-	}
-
-	now := time.Now()
-	if err = s.replenishmentRepo.Create(ctx, &models.Replenishment{
-		UserID:      referrer.TelegramID,
-		Merchant:    models.MerchantReferral,
-		Amount:      credit,
-		Status:      models.ReplenishmentStatusPaid,
-		CompletedAt: &now,
-	}); err != nil {
-		s.log.WithError(err).WithField("referrer_id", referrer.TelegramID).Error("purchase_service: failed to record referral replenishment")
 	}
 
 	return &models.ReferralCredit{ReferrerID: referrer.TelegramID, Amount: credit}
