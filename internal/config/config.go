@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
 )
@@ -77,9 +79,9 @@ func New() (*Config, error) {
 	}
 
 	pgHost := getEnv("POSTGRES_HOST", "localhost")
-	pgPort, _ := strconv.Atoi(os.Getenv("POSTGRES_PORT"))
-	if pgPort == 0 {
-		pgPort = 5432
+	pgPort, err := getEnvInt("POSTGRES_PORT", 5432)
+	if err != nil {
+		return nil, err
 	}
 	pgUser := os.Getenv("POSTGRES_USER")
 	pgPassword := os.Getenv("POSTGRES_PASSWORD")
@@ -88,11 +90,14 @@ func New() (*Config, error) {
 
 	redisAddr := getEnv("REDIS_ADDR", "localhost:6379")
 	redisPassword := os.Getenv("REDIS_PASSWORD")
-	redisDB, _ := strconv.Atoi(os.Getenv("REDIS_DB"))
+	redisDB, err := getEnvInt("REDIS_DB", 0)
+	if err != nil {
+		return nil, err
+	}
 
-	adminPanelPort, _ := strconv.Atoi(os.Getenv("ADMIN_PANEL_BACKEND_PORT"))
-	if adminPanelPort == 0 {
-		adminPanelPort = 8080
+	adminPanelPort, err := getEnvInt("ADMIN_PANEL_BACKEND_PORT", 8080)
+	if err != nil {
+		return nil, err
 	}
 	adminPanelFrontendURL := getEnv("ADMIN_PANEL_FRONTEND_URL", "http://localhost:3000")
 	// localhost и 127.0.0.1 разрешены оба — браузер считает их разными origin.
@@ -101,9 +106,9 @@ func New() (*Config, error) {
 	adminPanelTrustedProxies := getEnv("ADMIN_PANEL_TRUSTED_PROXIES", "172.28.0.0/16")
 	adminJWTSecret := os.Getenv("ADMIN_JWT_SECRET")
 
-	paymentsPort, _ := strconv.Atoi(os.Getenv("PAYMENTS_BACKEND_PORT"))
-	if paymentsPort == 0 {
-		paymentsPort = 8081
+	paymentsPort, err := getEnvInt("PAYMENTS_BACKEND_PORT", 8081)
+	if err != nil {
+		return nil, err
 	}
 	paymentsURL := getEnv("PAYMENTS_BACKEND_URL", "http://localhost:8081")
 
@@ -165,8 +170,63 @@ func New() (*Config, error) {
 	if len(cfg.AdminPanel.JWTSecret) < minJWTSecretLen {
 		return nil, fmt.Errorf("ADMIN_JWT_SECRET must be at least %d characters, got %d", minJWTSecretLen, len(cfg.AdminPanel.JWTSecret))
 	}
+	if err = validateURL("PAYMENTS_BACKEND_URL", cfg.Payments.URL); err != nil {
+		return nil, err
+	}
+	if err = validateURL("ADMIN_PANEL_FRONTEND_URL", cfg.AdminPanel.FrontendURL); err != nil {
+		return nil, err
+	}
 
 	return cfg, nil
+}
+
+// getEnvInt — как getEnv, но для чисел и с ошибкой вместо молчаливого дефолта:
+// опечатка в номере порта иначе тихо превращалась в 8080, а caddy проксировал
+// в пустоту, и причину приходилось искать по 502.
+func getEnvInt(key string, fallback int) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s: %q is not a number", key, raw)
+	}
+	return value, nil
+}
+
+// validateURL проверяет структуру: парсится, есть схема и хост. Забытую
+// переменную так не поймать — в проде и в разработке она одна и та же, — но
+// опечатку поймать можно. Про адрес, на который мерчант не сможет доставить
+// вебхук, предупреждает уже cmd/bot (см. providePaymentProviders).
+func validateURL(key, raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid %s: %w", key, err)
+	}
+	if parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("invalid %s: %q must include scheme and host", key, raw)
+	}
+	return nil
+}
+
+// IsLoopbackURL — URL смотрит на localhost. Для PAYMENTS_BACKEND_URL это
+// значит, что вебхуки мерчантов не придут: они стучатся из интернета.
+func (c *PaymentsConfig) IsLoopbackURL() bool {
+	parsed, err := url.Parse(c.URL)
+	if err != nil {
+		return false
+	}
+
+	host := parsed.Hostname()
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 func getEnv(key, fallback string) string {
