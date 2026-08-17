@@ -9,6 +9,30 @@ import (
 	"gorm.io/gorm"
 )
 
+// partialIndexes — то, что не выражается тегами GORM.
+//
+// Непроданных единиц у товара всегда мало, а проданные копятся и не удаляются.
+// Обычный индекс по product_id со временем заставляет пробегать все проданные
+// строки, чтобы отфильтровать их по is_sold; частичный содержит только
+// непроданные и остаётся маленьким независимо от оборота. Задействован в самых
+// горячих местах: ReserveItem (денежный путь под локами), проверка наличия в
+// листинге товаров, рекурсивный CTE видимости категорий, счётчик на карточке.
+//
+// IF NOT EXISTS — cmd/migrate прогоняется на каждый деплой.
+var partialIndexes = []string{
+	`CREATE INDEX IF NOT EXISTS idx_product_items_unsold
+	 ON product_items (product_id) WHERE is_sold = false`,
+}
+
+func createPartialIndexes(db *gorm.DB) error {
+	for _, stmt := range partialIndexes {
+		if err := db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // AutoMigrate — единственная точка входа для cmd/migrate: схема (DDL), бутстрап root-admin + дефолтных настроек.
 // cmd/migrate/main.go - тонкая обвязка
 func AutoMigrate(ctx context.Context, db *gorm.DB, log *logrus.Logger, rootAdminID int64) error {
@@ -25,6 +49,11 @@ func AutoMigrate(ctx context.Context, db *gorm.DB, log *logrus.Logger, rootAdmin
 		return err
 	}
 	log.Info("postgres: schema migrated")
+
+	if err := createPartialIndexes(db); err != nil {
+		return fmt.Errorf("create partial indexes: %w", err)
+	}
+	log.Info("postgres: partial indexes ensured")
 
 	userRepo := NewUserRepo(db, log)
 	if err := userRepo.EnsureRootAdminExists(ctx, rootAdminID); err != nil {
