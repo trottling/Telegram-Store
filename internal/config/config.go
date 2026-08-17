@@ -6,6 +6,13 @@ import (
 	"strconv"
 )
 
+const (
+	// minJWTSecretLen — HS256, поэтому секрет короче 32 байт ослабляет подпись.
+	minJWTSecretLen = 32
+	// jwtSecretPlaceholder — значение из .env.example, его нельзя пускать в работу.
+	jwtSecretPlaceholder = "change_me_generate_with_openssl_rand_base64_32"
+)
+
 type Config struct {
 	Telegram   *TelegramConfig
 	Postgres   *PostgresConfig
@@ -149,6 +156,14 @@ func New() (*Config, error) {
 	}
 	if len(cfg.AdminPanel.JWTSecret) == 0 {
 		return nil, fmt.Errorf("ADMIN_JWT_SECRET is required")
+	}
+	// Плейсхолдер из .env.example лежит в git, то есть известен всем: проверку
+	// "не пустой" он проходил, а секретом при этом не является.
+	if adminJWTSecret == jwtSecretPlaceholder {
+		return nil, fmt.Errorf("ADMIN_JWT_SECRET is still the .env.example placeholder, generate a real one: openssl rand -base64 32")
+	}
+	if len(cfg.AdminPanel.JWTSecret) < minJWTSecretLen {
+		return nil, fmt.Errorf("ADMIN_JWT_SECRET must be at least %d characters, got %d", minJWTSecretLen, len(cfg.AdminPanel.JWTSecret))
 	}
 
 	return cfg, nil
