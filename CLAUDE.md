@@ -193,8 +193,17 @@ payments_backend/handlers/     handler.go (the 2-service Handlers struct/constru
                                (CrystalPayWebhook/YooKassaWebhook/TinkoffWebhook — moved here verbatim from the old
                                single `backend` binary; each verifies that merchant's own signature scheme before
                                calling ReplenishmentService.Confirm/Fail — see the Data model section below)
-payments_backend/router.go,    three POST routes (/api/webhooks/{crystalpay,yookassa,tinkoff}), gin.Recovery()
-  server.go                    only, no Auth group, no CORS — http.Server lifecycle (Start/Shutdown)
+payments_backend/router.go,    three POST routes (/api/webhooks/{crystalpay,yookassa,tinkoff}), gin.Recovery() +
+  server.go                    middleware.Detach, no Auth group, no CORS — http.Server lifecycle (Start/Shutdown)
+payments_backend/middleware/   detach.go (Detach) — the only middleware here, and it exists for a correctness
+                               reason, not tidiness: gin cancels the request ctx the moment the client
+                               disconnects, and payment merchants cut the connection on their own few-second
+                               timeout. That cancellation used to land between Confirm's commit and its cache
+                               invalidation. Detach swaps in context.WithoutCancel + a 30s deadline of its own.
+                               Consequence to know: an in-flight webhook can now outlive the 10s graceful-shutdown
+                               grace in cmd/payments_backend/lifecycle.go and be killed by process exit instead —
+                               which is safe precisely because Confirm is transactional (the tx rolls back, the
+                               row stays pending, the merchant's retry still credits)
 
 internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Payments/Logger sub-configs)
 internal/logger/               logrus logger construction from config.LoggerConfig, plus fx.go's NewFxLogger
