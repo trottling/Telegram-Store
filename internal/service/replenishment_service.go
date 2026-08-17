@@ -68,6 +68,13 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 		Status:    models.ReplenishmentStatusPending,
 	}
 	if err = s.replenishmentRepo.Create(ctx, replenishment); err != nil {
+		// Счёт у мерчанта уже создан, а у нас записи о нём нет: оплата придёт
+		// вебхуком на неизвестный invoice_id и будет отброшена. Компенсации
+		// нет, поэтому оставляем в логе всё нужное для ручного разбора.
+		s.log.WithError(err).WithFields(logrus.Fields{
+			"user_id": telegramID, "merchant": merchant,
+			"invoice_id": invoiceID, "amount": amount,
+		}).Error("replenishment_service: invoice created at merchant but not recorded")
 		return "", err
 	}
 
@@ -130,8 +137,19 @@ func (s *ReplenishmentSrv) Fail(ctx context.Context, merchant models.Merchant, i
 	}
 
 	now := time.Now()
-	_, err = s.replenishmentRepo.UpdateStatus(ctx, replenishment.ID, models.ReplenishmentStatusFailed, &now)
-	return err
+	changed, err := s.replenishmentRepo.UpdateStatus(ctx, replenishment.ID, models.ReplenishmentStatusFailed, &now)
+	if err != nil {
+		return err
+	}
+	// Строка была не pending. Обычно это повторный вебхук, но если счёт уже
+	// оплачен, то мерчант считает его неудачным, а мы — оплаченным, и деньги
+	// уже зачислены. Разбираться придётся руками, поэтому пишем в лог.
+	if !changed && replenishment.Status == models.ReplenishmentStatusPaid {
+		s.log.WithFields(logrus.Fields{
+			"user_id": replenishment.UserID, "merchant": merchant, "invoice_id": invoiceID,
+		}).Warn("replenishment_service: merchant reported failure for an already paid invoice")
+	}
+	return nil
 }
 
 func (s *ReplenishmentSrv) ListUserReplenishments(ctx context.Context, telegramID int64, offset, limit int) ([]models.Replenishment, error) {
