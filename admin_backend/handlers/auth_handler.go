@@ -19,6 +19,11 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 	token, admin, err := h.adminAuthService.ExchangeLoginCode(c.Request.Context(), req.Code)
 	if err != nil {
+		// Отдельный Warn: writeError пишет 4xx в Debug, а прод работает на
+		// info — то есть подбор кода не оставлял бы в логах ничего вообще.
+		// Это единственный роут без авторизации, неудачный обмен здесь —
+		// сигнал, а не рядовая клиентская ошибка.
+		h.log.WithError(err).WithField("ip", c.ClientIP()).Warn("handlers: login code exchange failed")
 		h.writeError(c, err)
 		return
 	}
