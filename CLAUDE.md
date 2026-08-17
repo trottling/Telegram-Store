@@ -192,10 +192,15 @@ bot/utils/                     callback.go (build/parse callback_data — numeri
                                bot/texts, not here.
 
 internal/auth/web/            package admintoken (import resolves by package clause, not directory name) —
-                               crypto/rand + sha256 generation/hashing for the web panel's one-time login codes
-                               (6-digit, GenerateCode), plus HS256 JWT session tokens (GenerateSessionJWT/
-                               ParseSessionJWT, keyed by ADMIN_JWT_SECRET) — a leaf utility package (no domain
-                               imports) used only by internal/service/admin_auth_service.go. The JWT is
+                               crypto/rand generation for the web panel's one-time login codes (6-digit,
+                               GenerateCode), plus HS256 JWT session tokens (GenerateSessionJWT/ParseSessionJWT)
+                               — a leaf utility package (no domain imports) used only by
+                               internal/service/admin_auth_service.go. Everything here is keyed by
+                               ADMIN_JWT_SECRET, including Hash: it is HMAC-SHA256, not bare sha256, because the
+                               login code is only 6 digits and a rainbow table over a million values is
+                               instant — an unkeyed hash would mean read access to Redis yields a working login
+                               code. Consequence of changing the key: every stored hash becomes unmatchable, so
+                               rotating ADMIN_JWT_SECRET logs all admins out (they just send /admin again). The JWT is
                                tamper-evident and self-describes its own expiry, but is not by itself sufficient
                                to trust a session — see AdminAuthSrv.ValidateSession below for why
 

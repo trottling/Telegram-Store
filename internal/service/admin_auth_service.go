@@ -39,7 +39,7 @@ func NewAdminAuthSrv(userRepo repository.UserRepository, store adminsession.Stor
 }
 
 func (s *AdminAuthSrv) IssueLoginCode(ctx context.Context, telegramID int64) (string, error) {
-	code, hash, err := admintoken.GenerateCode()
+	code, hash, err := admintoken.GenerateCode(s.jwtSecret)
 	if err != nil {
 		return "", err
 	}
@@ -50,7 +50,7 @@ func (s *AdminAuthSrv) IssueLoginCode(ctx context.Context, telegramID int64) (st
 }
 
 func (s *AdminAuthSrv) ExchangeLoginCode(ctx context.Context, code string) (string, *models.User, error) {
-	telegramID, err := s.store.ConsumeLoginCode(ctx, admintoken.Hash(code))
+	telegramID, err := s.store.ConsumeLoginCode(ctx, admintoken.Hash(code, s.jwtSecret))
 	if err != nil {
 		if errors.Is(err, adminsession.ErrNotFound) {
 			return "", nil, domainerrors.ErrInvalidLoginCode
@@ -70,7 +70,7 @@ func (s *AdminAuthSrv) ExchangeLoginCode(ctx context.Context, code string) (stri
 	if err != nil {
 		return "", nil, err
 	}
-	if err = s.store.SetSession(ctx, admintoken.Hash(plaintext), telegramID, sessionTTL); err != nil {
+	if err = s.store.SetSession(ctx, admintoken.Hash(plaintext, s.jwtSecret), telegramID, sessionTTL); err != nil {
 		return "", nil, err
 	}
 
@@ -87,7 +87,7 @@ func (s *AdminAuthSrv) ValidateSession(ctx context.Context, sessionToken string)
 		return nil, domainerrors.ErrInvalidToken
 	}
 
-	storedTelegramID, err := s.store.GetSession(ctx, admintoken.Hash(sessionToken))
+	storedTelegramID, err := s.store.GetSession(ctx, admintoken.Hash(sessionToken, s.jwtSecret))
 	if err != nil || storedTelegramID != claims.TelegramID {
 		return nil, domainerrors.ErrInvalidToken
 	}
@@ -103,7 +103,7 @@ func (s *AdminAuthSrv) ValidateSession(ctx context.Context, sessionToken string)
 }
 
 func (s *AdminAuthSrv) Logout(ctx context.Context, sessionToken string) error {
-	return s.store.DeleteSession(ctx, admintoken.Hash(sessionToken))
+	return s.store.DeleteSession(ctx, admintoken.Hash(sessionToken, s.jwtSecret))
 }
 
 func (s *AdminAuthSrv) AllowExchangeAttempt(ctx context.Context, key string) (bool, error) {

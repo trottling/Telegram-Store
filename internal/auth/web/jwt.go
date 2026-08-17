@@ -3,6 +3,7 @@
 package admintoken
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -24,8 +25,8 @@ type AdminClaims struct {
 	jwt.RegisteredClaims
 }
 
-// GenerateCode — пара (код, sha256-хеш), crypto/rand.
-func GenerateCode() (plaintext string, hash string, err error) {
+// GenerateCode — пара (код, его хеш для Store), crypto/rand.
+func GenerateCode(key []byte) (plaintext string, hash string, err error) {
 	m := big.NewInt(1)
 	for range loginCodeDigits {
 		m.Mul(m, big.NewInt(10))
@@ -35,7 +36,7 @@ func GenerateCode() (plaintext string, hash string, err error) {
 		return "", "", err
 	}
 	plaintext = fmt.Sprintf("%0*d", loginCodeDigits, n.Int64())
-	return plaintext, Hash(plaintext), nil
+	return plaintext, Hash(plaintext, key), nil
 }
 
 // GenerateSessionJWT подписывает токен на ttl (HS256). Подпись даёт
@@ -74,7 +75,13 @@ func ParseSessionJWT(tokenString string, secret []byte) (*AdminClaims, error) {
 }
 
 // Hash — общий способ хешировать код/токен перед поиском в Store.
-func Hash(plaintext string) string {
-	sum := sha256.Sum256([]byte(plaintext))
-	return hex.EncodeToString(sum[:])
+//
+// HMAC, а не голый sha256: для сессионного токена разницы нет (энтропии в нём
+// достаточно), но код входа шестизначный, и радужная таблица на миллион
+// значений строится мгновенно. Без ключа доступ на чтение к Redis давал бы
+// действующий код входа; с ключом хеш бесполезен без ADMIN_JWT_SECRET.
+func Hash(plaintext string, key []byte) string {
+	mac := hmac.New(sha256.New, key)
+	mac.Write([]byte(plaintext))
+	return hex.EncodeToString(mac.Sum(nil))
 }
