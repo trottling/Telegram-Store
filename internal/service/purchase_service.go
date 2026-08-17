@@ -75,6 +75,8 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	}
 
 	totalPrice := product.Price * float64(count)
+	// Ниже totalPrice пересчитывается внутри транзакции по свежей цене; списание
+	// всё равно защищено guard'ом balance >= сумма в UpdateBalance.
 	if user.Balance < totalPrice {
 		logCtx.WithField("balance", user.Balance).Warn("purchase_service: buy rejected, not enough balance")
 		return nil, nil, domainerrors.ErrNotEnoughBalance
@@ -85,6 +87,18 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 
 	purchases := make([]*models.Purchase, 0, count)
 	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
+		// Товар перечитываем внутри транзакции: между проверками выше и этим
+		// моментом админ мог его деактивировать или поменять цену. Проверки
+		// снаружи остаются как быстрый отказ, последнее слово — здесь.
+		var txErr error
+		if product, txErr = s.productRepo.GetByID(ctx, productID); txErr != nil {
+			return txErr
+		}
+		if !product.IsActive {
+			return domainerrors.ErrProductInactive
+		}
+		totalPrice = product.Price * float64(count)
+
 		for range count {
 			item, itemErr := s.productRepo.GetAvailableItem(ctx, productID)
 			if itemErr != nil {
