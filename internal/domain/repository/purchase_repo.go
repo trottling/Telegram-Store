@@ -12,8 +12,10 @@ type PurchaseRepository interface {
 	GetByID(ctx context.Context, id int64) (*models.Purchase, error)
 	// GetByBatchID — все строки одного Buy(), в рамках userID.
 	GetByBatchID(ctx context.Context, userID int64, batchID string) ([]models.Purchase, error)
-	GetByUserID(ctx context.Context, userID int64, offset, limit int) ([]models.Purchase, error)
-	CountByUserID(ctx context.Context, userID int64) (int64, error)
+	// StatsByUserID — количество покупок и сумма завершённых, одним агрегатом.
+	// Считать это выборкой всех строк нельзя: карточку профиля открывают часто,
+	// а у активного покупателя строк тысячи.
+	StatsByUserID(ctx context.Context, userID int64) (count int64, totalSpent float64, err error)
 	// CountByProductID — есть ли история покупок (проверка перед удалением товара).
 	CountByProductID(ctx context.Context, productID int64) (int64, error)
 	// ListBatchesByUserID/CountBatchesByUserID — по батчам, не по сырым строкам.

@@ -64,27 +64,23 @@ func (r *PurchaseRepo) GetByBatchID(ctx context.Context, userID int64, batchID s
 	return purchases, err
 }
 
-func (r *PurchaseRepo) GetByUserID(ctx context.Context, userID int64, offset, limit int) ([]models.Purchase, error) {
-	purchases, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).
-		Preload("Product", nil).
-		Preload("Item", nil).
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Offset(offset).
-		Limit(limit).
-		Find(ctx)
-	if err != nil {
-		r.log.WithError(err).WithField("user_id", userID).Error("purchase_repo: get by user id failed")
+// StatsByUserID — счётчик и сумма одним запросом. FILTER нужен потому, что
+// считаются все покупки, а суммируются только завершённые.
+func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, float64, error) {
+	var stats struct {
+		Count      int64
+		TotalSpent float64
 	}
-	return purchases, err
-}
 
-func (r *PurchaseRepo) CountByUserID(ctx context.Context, userID int64) (int64, error) {
-	count, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Where("user_id = ?", userID).Count(ctx, "*")
+	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Purchase{}).
+		Select("COUNT(*) AS count, COALESCE(SUM(amount) FILTER (WHERE status = ?), 0) AS total_spent", models.PurchaseStatusCompleted).
+		Where("user_id = ?", userID).
+		Scan(&stats).Error
 	if err != nil {
-		r.log.WithError(err).WithField("user_id", userID).Error("purchase_repo: count by user id failed")
+		r.log.WithError(err).WithField("user_id", userID).Error("purchase_repo: stats by user id failed")
+		return 0, 0, err
 	}
-	return count, err
+	return stats.Count, stats.TotalSpent, nil
 }
 
 func (r *PurchaseRepo) CountByProductID(ctx context.Context, productID int64) (int64, error) {

@@ -212,23 +212,9 @@ func (s *PurchaseSrv) GetBatch(ctx context.Context, telegramID int64, batchID st
 }
 
 func (s *PurchaseSrv) GetUserStats(ctx context.Context, telegramID int64) (purchaseCount int, totalSpent float64, err error) {
-	count, err := s.purchaseRepo.CountByUserID(ctx, telegramID)
+	count, totalSpent, err := s.purchaseRepo.StatsByUserID(ctx, telegramID)
 	if err != nil {
 		return 0, 0, err
-	}
-	if count == 0 {
-		return 0, 0, nil
-	}
-
-	purchases, err := s.purchaseRepo.GetByUserID(ctx, telegramID, 0, int(count))
-	if err != nil {
-		return 0, 0, err
-	}
-
-	for _, p := range purchases {
-		if p.Status == models.PurchaseStatusCompleted {
-			totalSpent += p.Amount
-		}
 	}
 	return int(count), totalSpent, nil
 }
