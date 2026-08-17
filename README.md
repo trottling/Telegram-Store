@@ -35,7 +35,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend` (admin API на `:8080`), `payments_backend` (вебхуки платежей на `:8081`) и `frontend` (панель на `:3000`).
+Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend` (admin API на `:8080`), `payments_backend` (вебхуки платежей на `:8081`) и `admin_frontend` (панель на `:3000`).
 
 После запуска:
 
@@ -62,12 +62,12 @@ go run ./cmd/payments_backend    # приём вебхуков платежей 
 ### Фронтенд
 
 ```bash
-cd frontend
+cd admin_frontend
 npm install
 npm run dev      # Vite dev-сервер на :3000
 ```
 
-Задайте `VITE_API_BASE_URL` (например, в `frontend/.env.local`), если admin API не на дефолтном `http://localhost:8080`.
+Задайте `VITE_API_BASE_URL` (например, в `admin_frontend/.env.local`), если admin API не на дефолтном `http://localhost:8080`.
 
 ## Конфигурация
 
@@ -93,7 +93,7 @@ bot/                    хендлеры, middleware, клавиатуры бо�
 admin_backend/          хендлеры, middleware, роутинг admin API
 payments_backend/       хендлеры, роутинг вебхуков платёжных мерчантов
 internal/               доменные интерфейсы + их реализации (hexagonal/ports-and-adapters)
-frontend/               React-панель админа (отдельный npm-проект)
+admin_frontend/         React-панель админа (отдельный npm-проект)
 ```
 
 Полный разбор архитектуры, пакет за пакетом — в [CLAUDE.md](CLAUDE.md).

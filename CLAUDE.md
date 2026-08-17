@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A Telegram shop bot written in Go, using [go-telegram/bot](https://github.com/go-telegram/bot) for the Telegram API, GORM (Postgres driver) for persistence, and Redis for both a read-through cache and per-chat FSM conversation state. Users browse a category tree of arbitrary depth, buy products (a multi-step flow: pick quantity → confirm → charge, decrementing pre-stocked `ProductItem` records), top up a balance (UI is done, provider is a stub), and view purchase history. Admin actions (ban/unban, balance, product/category CRUD, promote/demote) are implemented as domain services but have **no UI in the bot** — the bot's `/admin` command replies with a one-time login code for the web panel instead.
 
-The actual admin UI is a separate web panel: a Go+gin JSON API (`admin_backend`, its own binary/container — `cmd/admin_backend`), plus a React+Ant Design frontend (`frontend/`, its own container) that talks to that API cross-origin. Auth has no persistent credential at all: `/admin` issues a 30-second one-time code, the login page exchanges it for a JWT session token (also backed by a Redis-held revocation record), and a fresh code is issued every time — nothing admin-related is ever stored in Postgres.
+The actual admin UI is a separate web panel: a Go+gin JSON API (`admin_backend`, its own binary/container — `cmd/admin_backend`), plus a React+Ant Design frontend (`admin_frontend/`, its own container) that talks to that API cross-origin. Auth has no persistent credential at all: `/admin` issues a 30-second one-time code, the login page exchanges it for a JWT session token (also backed by a Redis-held revocation record), and a fresh code is issued every time — nothing admin-related is ever stored in Postgres.
 
 Payment-provider webhooks are handled by a third, wholly separate Go+gin API — `payments_backend`/`cmd/payments_backend` — not by `admin_backend`. The split exists because the two surfaces have opposite trust models: `admin_backend`'s routes are all behind a logged-in admin session (except the one code-exchange endpoint), while `payments_backend`'s three routes are unauthenticated-by-design and must be reachable from the public internet by CrystalPay/YooKassa/Tinkoff's own servers. Keeping them as separate binaries means `payments_backend` never links `AdminAuthService`/the session store/CORS handling at all, and `admin_backend` never exposes a route without a session check.
 
@@ -25,24 +25,24 @@ go run ./cmd/admin_backend                        # run the admin API locally
 go run ./cmd/payments_backend                     # run the payment-webhooks API locally
 go vet ./...                                       # static checks
 go test ./...                                      # run tests (no test files exist yet)
-docker compose up --build   # run migrate + bot + admin_backend + payments_backend + Postgres + Redis + admin frontend together (reads .env)
+docker compose up --build   # run migrate + bot + admin_backend + payments_backend + Postgres + Redis + admin_frontend together (reads .env)
 ```
 
 There is no Makefile or linter config in the repo — use the `go` toolchain directly.
 
-Frontend (`frontend/`, separate npm project, not part of the Go module):
+Frontend (`admin_frontend/`, separate npm project, not part of the Go module):
 
 ```bash
-cd frontend && npm install
+cd admin_frontend && npm install
 npm run dev      # Vite dev server on :3000, needs VITE_API_BASE_URL pointed at a running admin_backend (defaults to http://localhost:8080)
-npm run build    # tsc -b + vite build -> dist/ — what frontend/Dockerfile bundles into nginx
+npm run build    # tsc -b + vite build -> dist/ — what admin_frontend/Dockerfile bundles into nginx
 ```
 
 ### Local configuration
 
-Config is loaded from environment variables via [internal/config/config.go](internal/config/config.go), no config file. Copy `.env.example` to `.env` and fill in `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ROOT_ADMIN_ID`, and `ADMIN_JWT_SECRET` (all required — `config.New()` errors without them; DB user/password/name are also required). Also present: `POSTGRES_HOST/PORT/USER/PASSWORD/NAME/SSLMODE`, `REDIS_ADDR/PASSWORD/DB`, `ADMIN_PANEL_BACKEND_PORT/BACKEND_URL/FRONTEND_URL/CORS_ORIGIN` (`Port` is `admin_backend`'s own listen port; `BACKEND_URL` is read only by docker-compose as the `frontend` build's `VITE_API_BASE_URL` value — Go's `AdminPanelConfig` no longer has a `URL` field, since nothing in Go read it after the payments split; `FrontendURL` is where the React panel itself is served, which is what the bot's `/admin` inline button links to; `CORSOrigin` is a comma-separated list of exact origins — normally just the frontend's own — the API accepts cross-origin requests from; defaults cover both `localhost` and `127.0.0.1` on port 3000, since browsers treat those as different origins), `PAYMENTS_BACKEND_PORT/URL` (`payments_backend`'s own listen port and its externally-reachable URL — `cmd/bot/providers.go` builds CrystalPay/Tinkoff webhook callback URLs from `URL`; YooKassa doesn't take a per-invoice callback URL, so it's unaffected).
+Config is loaded from environment variables via [internal/config/config.go](internal/config/config.go), no config file. Copy `.env.example` to `.env` and fill in `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ROOT_ADMIN_ID`, and `ADMIN_JWT_SECRET` (all required — `config.New()` errors without them; DB user/password/name are also required). Also present: `POSTGRES_HOST/PORT/USER/PASSWORD/NAME/SSLMODE`, `REDIS_ADDR/PASSWORD/DB`, `ADMIN_PANEL_BACKEND_PORT/BACKEND_URL/FRONTEND_URL/CORS_ORIGIN` (`Port` is `admin_backend`'s own listen port; `BACKEND_URL` is read only by docker-compose as the `admin_frontend` build's `VITE_API_BASE_URL` value — Go's `AdminPanelConfig` no longer has a `URL` field, since nothing in Go read it after the payments split; `FrontendURL` is where the React panel itself is served, which is what the bot's `/admin` inline button links to; `CORSOrigin` is a comma-separated list of exact origins — normally just the frontend's own — the API accepts cross-origin requests from; defaults cover both `localhost` and `127.0.0.1` on port 3000, since browsers treat those as different origins), `PAYMENTS_BACKEND_PORT/URL` (`payments_backend`'s own listen port and its externally-reachable URL — `cmd/bot/providers.go` builds CrystalPay/Tinkoff webhook callback URLs from `URL`; YooKassa doesn't take a per-invoice callback URL, so it's unaffected).
 
-**`docker compose` needs a `.env` at the repo root** — read both by Compose's own `${VAR}` substitution (the `db`/`redis` services' `environment:` blocks, and the `admin_backend`/`payments_backend`/`frontend` services' `${ADMIN_PANEL_BACKEND_PORT}`/`${PAYMENTS_BACKEND_PORT}`/`${ADMIN_PANEL_BACKEND_URL}` substitutions) and, via each service's `env_file: .env`, by the containers themselves. `docker-compose.yml` wires Postgres, Redis, a one-shot `migrate`, `bot`, `admin_backend`, `payments_backend`, and the admin `frontend` container together, on two networks: `backend-network` (internal-only, db+redis+bot+admin_backend+payments_backend+migrate) and `public-network` (bot, for outbound Telegram API calls; admin_backend, payments_backend, and frontend, so their published ports actually reach the host — a container whose *only* network is `internal: true` can't have a published port reached even though the mapping is declared, see docker-compose.yml's network comments). There's no admin credential to retrieve from logs anymore — every admin, including the root admin, logs in by sending `/admin` to the bot.
+**`docker compose` needs a `.env` at the repo root** — read both by Compose's own `${VAR}` substitution (the `db`/`redis` services' `environment:` blocks, and the `admin_backend`/`payments_backend`/`admin_frontend` services' `${ADMIN_PANEL_BACKEND_PORT}`/`${PAYMENTS_BACKEND_PORT}`/`${ADMIN_PANEL_BACKEND_URL}` substitutions) and, via each service's `env_file: .env`, by the containers themselves. `docker-compose.yml` wires Postgres, Redis, a one-shot `migrate`, `bot`, `admin_backend`, `payments_backend`, and the `admin_frontend` container together, on two networks: `backend-network` (internal-only, db+redis+bot+admin_backend+payments_backend+migrate) and `public-network` (bot, for outbound Telegram API calls; admin_backend, payments_backend, and admin_frontend, so their published ports actually reach the host — a container whose *only* network is `internal: true` can't have a published port reached even though the mapping is declared, see docker-compose.yml's network comments). There's no admin credential to retrieve from logs anymore — every admin, including the root admin, logs in by sending `/admin` to the bot.
 
 ## Architecture
 
@@ -252,7 +252,7 @@ cmd/payments_backend/main.go   Same fx.New(...).Run()/runServer shape as cmd/adm
                                anything. ReplenishmentSrv itself takes a raw repository.UserRepository, not
                                UserService, which is why payments_backend never needs to wire UserSrv at all
 
-frontend/                      the web admin panel's UI — React + Vite + Ant Design, its own package.json/Dockerfile,
+admin_frontend/                the web admin panel's UI — React + Vite + Ant Design, its own package.json/Dockerfile,
                                deployed as a separate container (nginx serving the built static bundle) that calls
                                admin_backend's API cross-origin (VITE_API_BASE_URL, baked in at image build time, not
                                read at runtime). Not part of the Go module. Every protected page is React.lazy()-loaded

@@ -87,9 +87,9 @@ services:
       - public-network
       - backend-network
 
-  frontend:
+  admin_frontend:
     build:
-      context: ./frontend
+      context: ./admin_frontend
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
@@ -139,7 +139,7 @@ networks:
   backend-network:
     driver: bridge
     internal: true
-  # нужна для исходящих к Telegram (bot) и для доступности опубликованных портов (admin_backend, payments_backend, frontend)
+  # нужна для исходящих к Telegram (bot) и для доступности опубликованных портов (admin_backend, payments_backend, admin_frontend)
   public-network:
     driver: bridge
 

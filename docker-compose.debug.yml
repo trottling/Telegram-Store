@@ -79,9 +79,9 @@ services:
     networks:
       - debug-network
 
-  frontend:
+  admin_frontend:
     build:
-      context: ./frontend
+      context: ./admin_frontend
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
