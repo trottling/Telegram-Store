@@ -31,8 +31,11 @@ func New(c *config.LoggerConfig) *logrus.Logger {
 	}
 
 	l.SetLevel(level)
+	// ForceColors намеренно не выставляем: logrus сам включит цвета, только
+	// если stdout — терминал. В контейнере это pipe, и escape-последовательности
+	// уходили бы в json-file прямо в поле log, отравляя и `docker logs`, и
+	// любой агрегатор.
 	l.SetFormatter(&logrus.TextFormatter{
-		ForceColors:            true,
 		DisableLevelTruncation: true,
 		FullTimestamp:          true,
 	})

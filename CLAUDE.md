@@ -250,7 +250,15 @@ internal/config/               env-var config loader (Telegram/Postgres/Redis/Ad
 internal/logger/               logrus logger construction from config.LoggerConfig, plus fx.go's NewFxLogger
                                (routes fx's own PROVIDE/INVOKE/START/STOP event log through the same logrus
                                logger at Debug — quiet in prod, visible with LOG_LEVEL=debug); the only
-                               importers of this package are the four cmd/* binaries
+                               importers of this package are the four cmd/* binaries.
+                               **Everything logs through this one logrus instance, and nothing should print
+                               ANSI**: these binaries always run with stdout as a pipe (docker json-file), so
+                               escape codes end up inside the stored log field and break both `docker logs` and
+                               any aggregator. That is why TextFormatter does NOT set ForceColors (logrus then
+                               colors only a real TTY), and why postgres.NewClient hands GORM its own
+                               gormlogger with Colorful:false whose Writer forwards into logrus — GORM otherwise
+                               writes coloured lines straight to stderr via the standard log package, ignoring
+                               LOG_LEVEL entirely
 
 Each cmd/* binary wires its dependency graph with go.uber.org/fx, split into main.go (the fx.New(...) call —
 the actual list of what's wired, read this first) and lifecycle.go (fx.Lifecycle OnStart/OnStop for the
