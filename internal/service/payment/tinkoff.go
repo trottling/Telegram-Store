@@ -4,13 +4,21 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net/http"
 	"time"
 
 	"github.com/nikita-vanyasin/tinkoff"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
+
+// tinkoffTimeout — таймаут запросов к Tinkoff. Задаём явно: NewClient в SDK
+// берёт http.DefaultClient, у которого таймаута нет вовсе, и зависшее
+// соединение держало бы горутину хендлера бота бесконечно (ctx долгого
+// поллинга дедлайна не имеет).
+const tinkoffTimeout = 15 * time.Second
 
 // TinkoffProvider — обёртка над github.com/nikita-vanyasin/tinkoff (Tinkoff
 // Acquiring API, одностадийная оплата PayTypeOneStep). Креды читаются из
@@ -18,10 +26,25 @@ import (
 type TinkoffProvider struct {
 	settingsService service.SettingsService
 	backendURL      string
+	httpClient      *http.Client
 }
 
 func NewTinkoffProvider(settingsService service.SettingsService, backendURL string) *TinkoffProvider {
-	return &TinkoffProvider{settingsService: settingsService, backendURL: backendURL}
+	return &TinkoffProvider{
+		settingsService: settingsService,
+		backendURL:      backendURL,
+		httpClient:      &http.Client{Timeout: tinkoffTimeout},
+	}
+}
+
+// newClient — креды приходят из Settings на каждый вызов, поэтому клиент
+// собирается заново, а http-клиент с таймаутом переиспользуется.
+func (p *TinkoffProvider) newClient(cfg models.TinkoffSettings) *tinkoff.Client {
+	return tinkoff.NewClientWithOptions(
+		tinkoff.WithTerminalKey(cfg.TerminalKey),
+		tinkoff.WithPassword(cfg.Password),
+		tinkoff.WithHTTPClient(p.httpClient),
+	)
 }
 
 func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID int64, amount float64, description string) (string, string, error) {
@@ -37,7 +60,7 @@ func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID int64, amoun
 		return "", "", domainerrors.ErrAmountOutOfRange
 	}
 
-	client := tinkoff.NewClient(cfg.TerminalKey, cfg.Password)
+	client := p.newClient(cfg)
 
 	resp, err := client.InitWithContext(ctx, &tinkoff.InitRequest{
 		Amount:          uint64(math.Round(amount * 100)), // копейки
@@ -60,7 +83,7 @@ func (p *TinkoffProvider) CheckStatus(ctx context.Context, invoiceID string) (do
 	}
 	cfg := settings.Tinkoff
 
-	client := tinkoff.NewClient(cfg.TerminalKey, cfg.Password)
+	client := p.newClient(cfg)
 	resp, err := client.GetStateWithContext(ctx, &tinkoff.GetStateRequest{PaymentID: invoiceID})
 	if err != nil {
 		return "", err
