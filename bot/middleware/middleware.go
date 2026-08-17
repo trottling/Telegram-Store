@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"sync"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -19,6 +20,8 @@ type Middlewares struct {
 	replenishmentService service.ReplenishmentService
 	stateStore           domainfsm.Store
 	log                  *logrus.Logger
+	// inFlight — update'ы в обработке, см. Track/WaitInFlight.
+	inFlight sync.WaitGroup
 }
 
 func New(

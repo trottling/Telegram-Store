@@ -35,6 +35,7 @@ func matchAnyLang(messageID string) bot.MatchFunc {
 
 type TelegramBot struct {
 	bot                  *bot.Bot
+	middlewares          *middleware.Middlewares
 	config               *config.Config
 	log                  *logrus.Logger
 	userService          service.UserService
@@ -65,7 +66,7 @@ func New(
 
 	middlewares := middleware.New(userService, purchaseService, productService, replenishmentService, stateStore, log)
 
-	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Recover, middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
+	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Track, middlewares.Recover, middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +117,7 @@ func New(
 	return &TelegramBot{
 		log:                  log,
 		bot:                  b,
+		middlewares:          middlewares,
 		userService:          userService,
 		productService:       productService,
 		purchaseService:      purchaseService,
@@ -129,4 +131,11 @@ func New(
 func (bt *TelegramBot) Start(ctx context.Context) {
 	bt.log.Info("starting bot")
 	bt.bot.Start(ctx)
+}
+
+// WaitInFlight ждёт, пока догребут уже начатые update'ы. Отмена ctx у Start
+// останавливает только поллинг: горутины обработки живут отдельно, и без этого
+// ожидания их рвало закрытием Redis (см. middleware.Track).
+func (bt *TelegramBot) WaitInFlight(ctx context.Context) error {
+	return bt.middlewares.WaitInFlight(ctx)
 }

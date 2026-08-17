@@ -42,7 +42,9 @@ inaccessible message — builds the `Update` from raw JSON on purpose, since tha
 `MaybeInaccessibleMessage.UnmarshalJSON` and a struct literal would not reproduce it), and
 `admin_backend/middleware/ratelimit_test.go` (a spoofed `X-Forwarded-For` must not buy a fresh rate-limit
 bucket — this one exists because the control is worthless if `SetTrustedProxies` is ever dropped, and that is
-invisible in a diff). Do not add breadth for its own sake; do add a test when a fix's correctness cannot be
+invisible in a diff), and `bot/middleware/track_test.go` (the handler ctx must survive cancellation of the
+polling ctx, and the in-flight counter must be released even on panic — otherwise one panic would hold shutdown
+for the whole drain timeout). Do not add breadth for its own sake; do add a test when a fix's correctness cannot be
 seen by reading the diff. `-race` needs `CGO_ENABLED=1` and a C compiler, which this dev machine does not have.
 
 Frontend (`admin_frontend/`, separate npm project, not part of the Go module):
@@ -144,16 +146,24 @@ bot/handlers/                  start.go (/start creates the user row, parses the
                                referral.go (ReferralHandler: link + live invited-count/total-credited stats,
                                bails out to texts.ReferralUnavailableMsg if Settings.Referral.Enabled is false;
                                ReferralCloseHandler just deletes the message)
-bot/middleware/                recover.go (Recover: go-telegram/bot runs every update in its own goroutine and has
+bot/middleware/                track.go (Track: registers each in-flight update in a WaitGroup and hands the
+                               handler a context.WithoutCancel copy of the polling ctx. Both halves exist for
+                               shutdown: Bot.Start's WaitGroup covers only the polling loop, never the per-update
+                               goroutines, and those goroutines share the polling ctx — so cancelling it to stop
+                               polling used to tear live handlers in half. WaitInFlight, surfaced as
+                               TelegramBot.WaitInFlight, is what cmd/bot/lifecycle.go waits on between stopping
+                               the poller and closing Redis; outermost in the chain so the detached ctx reaches
+                               everything, including BanCheck's lookups), recover.go (Recover: go-telegram/bot
+                               runs every update in its own goroutine and has
                                no recover() anywhere, so an unhandled panic kills the whole process — this is the
-                               bot's equivalent of gin.Recovery(); registered FIRST because applyMiddlewares wraps
+                               bot's equivalent of gin.Recovery(); registered right after Track because applyMiddlewares wraps
                                in reverse, making m[0] outermost, and the panic sites it has to cover include
                                Logging itself), middleware.go (Logging: logs every update at Debug, first after
                                Recover so nothing skips it), answer_callback.go (acks every callback_query first,
                                or the tapped button stays "loading" until Telegram times it out), ban_check.go (the
                                only per-update user-exists/banned gate — see below), fsm.go (multi-step flows: buy
-                               quantity+confirm, refill amount) — registered in that order: Recover -> Logging ->
-                               AnswerCallback -> BanCheck -> FSM. Refill's merchant pick (handlers/refill.go's
+                               quantity+confirm, refill amount) — registered in that order: Track -> Recover ->
+                               Logging -> AnswerCallback -> BanCheck -> FSM. Refill's merchant pick (handlers/refill.go's
                                RefillMerchantHandler, a plain inline callback) happens before FSM state exists;
                                only the subsequent amount prompt is FSM-tracked (State.Merchant carries the pick
                                through to fsm.go's handleRefillAmount)
@@ -305,8 +315,11 @@ cmd/migrate/main.go            one-shot, no fx.Lifecycle/Run(): fx.New(...) both
 cmd/bot/main.go                fx.New(...).Run() — Run() itself blocks and listens for SIGINT/SIGTERM (no
                                manual signal.NotifyContext anymore). lifecycle.go's runBot launches
                                bt.Start(ctx) in a goroutine from OnStart (Start blocks on long-polling, so it
-                               can't run inline — OnStart hooks are expected to return quickly) and cancels
-                               that ctx from OnStop, then closes the redis client
+                               can't run inline — OnStart hooks are expected to return quickly). OnStop is
+                               ordered on purpose and the order is load-bearing: cancel the polling ctx, then
+                               bt.WaitInFlight (bounded by drainTimeout) for updates already being handled, and
+                               only then close the redis client. Closing Redis first meant a purchase caught by
+                               SIGTERM committed but failed to invalidate the balance cache
 cmd/admin_backend/main.go      fx.New(...).Run(), same signal handling as cmd/bot. lifecycle.go's runServer
                                launches webServer.Start() in a goroutine from OnStart (it blocks until
                                Shutdown) and calls webServer.Shutdown(ctx) (10s timeout) then closes the redis
@@ -349,7 +362,7 @@ Payments are abstracted behind `payment.PaymentProvider` (`CreateInvoice`/`Check
 
 ### Bot wiring
 
-`bot/bot.go` builds `Middlewares` and `Handlers` from the domain service interfaces plus a `keyboards.Keyboards` (built from `cfg.AdminPanel` — `AdminKb`'s URL comes from `FrontendURL`). The middleware chain is `Recover -> Logging -> AnswerCallback -> BanCheck -> FSM` — there's no `AutoMigrate` middleware; the user row is only ever created in `StartHandler` on `/start`, and `BanCheck` always lets `/start` itself through (otherwise a brand-new user could never pass it to get created) but otherwise fails closed on real errors, prompts `ErrUserNotFound` users to `/start`, and tells banned users they're banned.
+`bot/bot.go` builds `Middlewares` and `Handlers` from the domain service interfaces plus a `keyboards.Keyboards` (built from `cfg.AdminPanel` — `AdminKb`'s URL comes from `FrontendURL`). The middleware chain is `Track -> Recover -> Logging -> AnswerCallback -> BanCheck -> FSM` — there's no `AutoMigrate` middleware; the user row is only ever created in `StartHandler` on `/start`, and `BanCheck` always lets `/start` itself through (otherwise a brand-new user could never pass it to get created) but otherwise fails closed on real errors, prompts `ErrUserNotFound` users to `/start`, and tells banned users they're banned.
 
 Reply-keyboard text handlers: `/admin`, `texts.{Help,Catalog,Profile,StartMenu,Purchases,RefillBalance,ProfileRefresh,Replenishments,Referral}Btn` (`ProfileRefreshBtn` re-sends the profile card via `UserService.RefreshProfile`, which reads Postgres directly instead of the user cache — purchase stats are already always read straight from Postgres), and `/start` — registered with `MatchTypeCommandStartOnly` rather than `MatchTypeExact` specifically so a ref-link's `/start <id>` payload still matches (see the referral paragraph above); everything else here still uses `MatchTypeExact`. Callback-query (inline button) prefixes, via `bot.MatchTypePrefix`: `product_`, `buy_`, `buyqty_`, `purchase_` (purchase-batch UUID, not a raw row ID), `purchasespage_`, `category_`, `refillmerchant_` (bare merchant string, own Build/Parse pair — not numeric, doesn't fit `ParseCallbackQuery`), `replenishmentspage_`; exact-match: `buycancel`, `buyconfirm`, `catalog_root`, `main_menu`, `referral_close`. `bot/utils.ParseCallbackQuery` parses the trailing numeric segment; `ParseBatchCallbackQuery` parses the trailing UUID (works because UUIDs use hyphens, not underscores, so splitting on `_` and taking the last part is still safe).
 

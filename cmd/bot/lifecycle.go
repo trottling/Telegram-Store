@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/trottling/Telegram-Store/bot"
 )
+
+// drainTimeout — сколько ждём догребающие update'ы при остановке.
+const drainTimeout = 15 * time.Second
 
 // runBot регистрирует старт/стоп бота в fx.Lifecycle. bt.Start блокируется
 // до отмены ctx (long-polling), поэтому запускается в горутине — OnStart
@@ -21,8 +25,20 @@ func runBot(lc fx.Lifecycle, bt *bot.TelegramBot, redisClient *redis.Client, log
 			go bt.Start(ctx)
 			return nil
 		},
-		OnStop: func(context.Context) error {
+		// Порядок обязателен: сначала останавливаем поллинг, потом даём
+		// догрестись начатым update'ам и только затем закрываем Redis. Иначе
+		// покупка, попавшая под SIGTERM, коммитится, а сброс кэша баланса
+		// падает на закрытом клиенте — пользователь до истечения TTL видит
+		// старый баланс.
+		OnStop: func(ctx context.Context) error {
 			cancel()
+
+			drainCtx, drainCancel := context.WithTimeout(ctx, drainTimeout)
+			defer drainCancel()
+			if err := bt.WaitInFlight(drainCtx); err != nil {
+				log.Warnf("bot: in-flight updates did not finish in time: %v", err)
+			}
+
 			if err := redisClient.Close(); err != nil {
 				log.Warnf("bot: failed to close redis client: %v", err)
 			}
