@@ -101,8 +101,10 @@ func (h *Handlers) renderMerchantPicker(ctx context.Context, b *bot.Bot, chatID 
 
 // RefillMerchantHandler — мерчант выбран, спрашиваем сумму (с подсказкой min/max).
 func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	merchantStr, err := utils.ParseRefillMerchantCallback(update.CallbackQuery.Data)
 	if err != nil {

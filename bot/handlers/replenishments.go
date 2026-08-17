@@ -20,8 +20,10 @@ func (h *Handlers) ReplenishmentsHandler(ctx context.Context, b *bot.Bot, update
 
 // ReplenishmentsPageHandler — кнопки «вперёд»/«назад» по страницам истории.
 func (h *Handlers) ReplenishmentsPageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	offset, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
 	if err != nil {

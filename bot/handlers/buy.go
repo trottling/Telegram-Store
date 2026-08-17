@@ -18,8 +18,10 @@ const maxQuickPickQuantity = 5
 // BuyHandler ничего не покупает — переводит карточку в запрос количества и
 // ставит чат в состояние ожидания. Списывает деньги только BuyConfirmHandler.
 func (h *Handlers) BuyHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
@@ -61,8 +63,10 @@ func (h *Handlers) BuyHandler(ctx context.Context, b *bot.Bot, update *models.Up
 
 // BuyQtyHandler обрабатывает тап по быстрому выбору количества 1..5.
 func (h *Handlers) BuyQtyHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	qty, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
 	if err != nil {
@@ -135,8 +139,10 @@ func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID i
 
 // BuyCancelHandler возвращает с экрана количества/подтверждения к карточке товара.
 func (h *Handlers) BuyCancelHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	st, err := h.stateStore.GetFSMState(ctx, chatID)
 	if err != nil {
@@ -149,8 +155,10 @@ func (h *Handlers) BuyCancelHandler(ctx context.Context, b *bot.Bot, update *mod
 
 // BuyConfirmHandler — единственное место, где реально происходит покупка.
 func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	st, err := h.stateStore.GetFSMState(ctx, chatID)
 	if err != nil || st.Step != domainfsm.StepAwaitingBuyConfirmation {

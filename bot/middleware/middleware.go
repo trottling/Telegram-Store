@@ -6,6 +6,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/sirupsen/logrus"
+	"github.com/trottling/Telegram-Store/bot/utils"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 
 	"github.com/trottling/Telegram-Store/internal/domain/service"
@@ -66,10 +67,7 @@ func extractChatID(update *models.Update) (chatID int64, ok bool) {
 	if update.Message != nil {
 		return update.Message.Chat.ID, true
 	}
-	if update.CallbackQuery != nil {
-		return update.CallbackQuery.Message.Message.Chat.ID, true
-	}
-	return 0, false
+	return utils.CallbackChatID(update)
 }
 
 // extractLanguageCode достаёт From.LanguageCode из update — Message.From

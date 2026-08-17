@@ -73,7 +73,10 @@ func (h *Handlers) StartMenuHandler(ctx context.Context, b *bot.Bot, update *mod
 
 // MainMenuHandler — кнопка «В главное меню», показывается только в корне каталога.
 func (h *Handlers) MainMenuHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
+	chatID, ok := utils.CallbackChatID(update)
+	if !ok {
+		return
+	}
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {

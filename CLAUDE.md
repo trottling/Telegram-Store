@@ -116,11 +116,15 @@ bot/handlers/                  start.go (/start creates the user row, parses the
                                referral.go (ReferralHandler: link + live invited-count/total-credited stats,
                                bails out to texts.ReferralUnavailableMsg if Settings.Referral.Enabled is false;
                                ReferralCloseHandler just deletes the message)
-bot/middleware/                middleware.go (Logging: logs every update at Debug, first in the chain so nothing
-                               skips it), answer_callback.go (acks every callback_query first, or the tapped
-                               button stays "loading" until Telegram times it out), ban_check.go (the only
-                               per-update user-exists/banned gate — see below), fsm.go (multi-step flows: buy
-                               quantity+confirm, refill amount) — registered in that order: Logging ->
+bot/middleware/                recover.go (Recover: go-telegram/bot runs every update in its own goroutine and has
+                               no recover() anywhere, so an unhandled panic kills the whole process — this is the
+                               bot's equivalent of gin.Recovery(); registered FIRST because applyMiddlewares wraps
+                               in reverse, making m[0] outermost, and the panic sites it has to cover include
+                               Logging itself), middleware.go (Logging: logs every update at Debug, first after
+                               Recover so nothing skips it), answer_callback.go (acks every callback_query first,
+                               or the tapped button stays "loading" until Telegram times it out), ban_check.go (the
+                               only per-update user-exists/banned gate — see below), fsm.go (multi-step flows: buy
+                               quantity+confirm, refill amount) — registered in that order: Recover -> Logging ->
                                AnswerCallback -> BanCheck -> FSM. Refill's merchant pick (handlers/refill.go's
                                RefillMerchantHandler, a plain inline callback) happens before FSM state exists;
                                only the subsequent amount prompt is FSM-tracked (State.Merchant carries the pick
@@ -131,9 +135,14 @@ bot/texts/                     all user-facing button/message strings — add ne
 bot/utils/                     callback.go (build/parse callback_data — numeric "prefix_<id>" and, for purchase
                                batches, "purchase_<uuid>"; refillmerchant_<merchant> carries a bare string, not a
                                number, so it gets its own Build/Parse pair instead of reusing ParseCallbackQuery),
-                               errors.go (domain sentinel error -> user-facing text, UserFacingError), stock.go
-                               (traffic-light emoji for remaining stock), merchant.go (Merchant/ReplenishmentStatus
-                               -> Russian display text, used by both the merchant picker and replenishments.go)
+                               update.go (CallbackChatID/CallbackTarget — the ONLY sanctioned way to read chat/
+                               message out of a callback_query: CallbackQuery.Message is a MaybeInaccessibleMessage
+                               whose .Message is nil for a message the bot can no longer access, so a direct
+                               .Message.Message.Chat.ID deref panics and takes the process down; CallbackTarget
+                               additionally refuses an inaccessible message, since it can't be edited), markdown.go
+                               (MarkdownV2 escaping + amount/date formatting), stock.go (traffic-light emoji for
+                               remaining stock). Merchant/status display text and domain-error text live in
+                               bot/texts, not here.
 
 internal/auth/web/            package admintoken (import resolves by package clause, not directory name) —
                                crypto/rand + sha256 generation/hashing for the web panel's one-time login codes
@@ -280,7 +289,7 @@ Payments are abstracted behind `payment.PaymentProvider` (`CreateInvoice`/`Check
 
 ### Bot wiring
 
-`bot/bot.go` builds `Middlewares` and `Handlers` from the domain service interfaces plus a `keyboards.Keyboards` (built from `cfg.AdminPanel` — `AdminKb`'s URL comes from `FrontendURL`). The middleware chain is `Logging -> AnswerCallback -> BanCheck -> FSM` — there's no `AutoMigrate` middleware; the user row is only ever created in `StartHandler` on `/start`, and `BanCheck` always lets `/start` itself through (otherwise a brand-new user could never pass it to get created) but otherwise fails closed on real errors, prompts `ErrUserNotFound` users to `/start`, and tells banned users they're banned.
+`bot/bot.go` builds `Middlewares` and `Handlers` from the domain service interfaces plus a `keyboards.Keyboards` (built from `cfg.AdminPanel` — `AdminKb`'s URL comes from `FrontendURL`). The middleware chain is `Recover -> Logging -> AnswerCallback -> BanCheck -> FSM` — there's no `AutoMigrate` middleware; the user row is only ever created in `StartHandler` on `/start`, and `BanCheck` always lets `/start` itself through (otherwise a brand-new user could never pass it to get created) but otherwise fails closed on real errors, prompts `ErrUserNotFound` users to `/start`, and tells banned users they're banned.
 
 Reply-keyboard text handlers: `/admin`, `texts.{Help,Catalog,Profile,StartMenu,Purchases,RefillBalance,ProfileRefresh,Replenishments,Referral}Btn` (`ProfileRefreshBtn` re-sends the profile card via `UserService.RefreshProfile`, which reads Postgres directly instead of the user cache — purchase stats are already always read straight from Postgres), and `/start` — registered with `MatchTypeCommandStartOnly` rather than `MatchTypeExact` specifically so a ref-link's `/start <id>` payload still matches (see the referral paragraph above); everything else here still uses `MatchTypeExact`. Callback-query (inline button) prefixes, via `bot.MatchTypePrefix`: `product_`, `buy_`, `buyqty_`, `purchase_` (purchase-batch UUID, not a raw row ID), `purchasespage_`, `category_`, `refillmerchant_` (bare merchant string, own Build/Parse pair — not numeric, doesn't fit `ParseCallbackQuery`), `replenishmentspage_`; exact-match: `buycancel`, `buyconfirm`, `catalog_root`, `main_menu`, `referral_close`. `bot/utils.ParseCallbackQuery` parses the trailing numeric segment; `ParseBatchCallbackQuery` parses the trailing UUID (works because UUIDs use hyphens, not underscores, so splitting on `_` and taking the last part is still safe).
 

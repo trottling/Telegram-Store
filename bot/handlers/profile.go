@@ -16,7 +16,11 @@ func (h *Handlers) ProfileHandler(ctx context.Context, b *bot.Bot, update *model
 }
 
 func (h *Handlers) ProfileCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	h.sendProfile(ctx, b, update.CallbackQuery.Message.Message.Chat.ID, false)
+	chatID, ok := utils.CallbackChatID(update)
+	if !ok {
+		return
+	}
+	h.sendProfile(ctx, b, chatID, false)
 }
 
 // ProfileRefreshHandler — кнопка «Обновить» на клавиатуре профиля: та же

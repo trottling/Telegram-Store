@@ -21,8 +21,10 @@ func (h *Handlers) PurchasesHandler(ctx context.Context, b *bot.Bot, update *mod
 
 // PurchasesPageHandler — кнопки «вперёд»/«назад» по страницам истории.
 func (h *Handlers) PurchasesPageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	offset, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
 	if err != nil {
@@ -86,8 +88,10 @@ func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID int64
 // Buy()), редактируя список покупок на месте — «назад» возвращает список той
 // же страницы (переиспользует PurchasesPageHandler через тот же callback).
 func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	offset, batchID, err := utils.ParseBatchCallbackQuery(update.CallbackQuery.Data)
 	if err != nil {

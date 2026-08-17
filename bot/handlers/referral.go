@@ -78,8 +78,10 @@ func (h *Handlers) ReferralHandler(ctx context.Context, b *bot.Bot, update *mode
 
 // ReferralCloseHandler — инлайн-кнопка «Закрыть».
 func (h *Handlers) ReferralCloseHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	if _, err := b.DeleteMessage(ctx, &bot.DeleteMessageParams{ChatID: chatID, MessageID: messageID}); err != nil {
 		h.log.Errorf("ReferralCloseHandler: failed to delete message %d in chat %d: %v", messageID, chatID, err)

@@ -31,8 +31,10 @@ func (h *Handlers) SettingsHandler(ctx context.Context, b *bot.Bot, update *mode
 
 // SettingsLanguageHandler — пункт "🌐 Язык" в меню настроек, открывает выбор RU/EN.
 func (h *Handlers) SettingsLanguageHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
@@ -60,8 +62,10 @@ func (h *Handlers) SettingsLanguageHandler(ctx context.Context, b *bot.Bot, upda
 // LanguageSetHandler — выбор языка сделан: сохраняем, подтверждаем на новом
 // языке, возвращаем в главное меню (новой reply-клавиатурой на выбранном языке).
 func (h *Handlers) LanguageSetHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	lang, err := utils.ParseLanguageCallback(update.CallbackQuery.Data)
 	if err != nil || !texts.IsSupported(lang) {

@@ -17,13 +17,19 @@ func (h *Handlers) CatalogHandler(ctx context.Context, b *bot.Bot, update *model
 
 // CatalogRootHandler — кнопка «в корень каталога» из глубины дерева.
 func (h *Handlers) CatalogRootHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	h.renderCatalog(ctx, b, chatID, nil, update.CallbackQuery.Message.Message.ID)
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
+	h.renderCatalog(ctx, b, chatID, nil, messageID)
 }
 
 // CategoryHandler показывает подкатегории и товары одной категории.
 func (h *Handlers) CategoryHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 
 	categoryID, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
 	if err != nil {
@@ -31,7 +37,7 @@ func (h *Handlers) CategoryHandler(ctx context.Context, b *bot.Bot, update *mode
 		return
 	}
 
-	h.renderCatalog(ctx, b, chatID, &categoryID, update.CallbackQuery.Message.Message.ID)
+	h.renderCatalog(ctx, b, chatID, &categoryID, messageID)
 }
 
 // renderCatalog: messageID == 0 — новое сообщение, иначе редактирует текущее.
@@ -107,8 +113,10 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 
 // ProductHandler открывает карточку товара, редактируя текущее сообщение.
 func (h *Handlers) ProductHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.CallbackQuery.Message.Message.Chat.ID
-	messageID := update.CallbackQuery.Message.Message.ID
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
 	callback := update.CallbackQuery.Data
 
 	productID, err := utils.ParseCallbackQuery(callback)
