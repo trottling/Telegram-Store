@@ -135,7 +135,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	// должен её ронять.
 	credit := s.creditReferral(ctx, user.ReferrerID, totalPrice)
 
-	_ = s.cache.InvalidateUser(ctx, telegramID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, telegramID), "user", telegramID)
 	_ = s.cache.InvalidateProductAvailableCount(ctx, productID)
 	// Листинг скрывает распроданные товары — нужно сбросить и его тоже.
 	_ = s.cache.InvalidateActiveProducts(ctx)
@@ -143,7 +143,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
 	}
 	if credit != nil {
-		_ = s.cache.InvalidateUser(ctx, credit.ReferrerID)
+		logInvalidation(s.log, s.cache.InvalidateUser(ctx, credit.ReferrerID), "user", credit.ReferrerID)
 	}
 	logCtx.WithField("total_price", totalPrice).Info("purchase_service: purchase completed")
 	return purchases, credit, nil

@@ -80,7 +80,7 @@ func (s *AdminSrv) AddBalance(ctx context.Context, adminID, targetTelegramID int
 	}
 
 	s.logAction(ctx, adminID, "balance_add", &targetTelegramID, map[string]any{"amount": amount})
-	_ = s.cache.InvalidateUser(ctx, targetTelegramID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
 
@@ -109,7 +109,7 @@ func (s *AdminSrv) BanUser(ctx context.Context, adminID, targetTelegramID int64)
 	}
 
 	s.logAction(ctx, adminID, "ban", &targetTelegramID, nil)
-	_ = s.cache.InvalidateUser(ctx, targetTelegramID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
 
@@ -130,7 +130,7 @@ func (s *AdminSrv) UnbanUser(ctx context.Context, adminID, targetTelegramID int6
 	}
 
 	s.logAction(ctx, adminID, "unban", &targetTelegramID, nil)
-	_ = s.cache.InvalidateUser(ctx, targetTelegramID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
 
@@ -159,7 +159,7 @@ func (s *AdminSrv) MakeAdmin(ctx context.Context, adminID, targetTelegramID int6
 	}
 
 	s.logAction(ctx, adminID, "make_admin", &targetTelegramID, nil)
-	_ = s.cache.InvalidateUser(ctx, targetTelegramID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
 
@@ -186,7 +186,7 @@ func (s *AdminSrv) RevokeAdmin(ctx context.Context, adminID, targetTelegramID in
 	}
 
 	s.logAction(ctx, adminID, "revoke_admin", &targetTelegramID, nil)
-	_ = s.cache.InvalidateUser(ctx, targetTelegramID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
 
@@ -212,7 +212,7 @@ func (s *AdminSrv) SetReferralsEnabled(ctx context.Context, adminID, targetTeleg
 		action = "referral_enable"
 	}
 	s.logAction(ctx, adminID, action, &targetTelegramID, nil)
-	_ = s.cache.InvalidateUser(ctx, targetTelegramID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
 
@@ -423,7 +423,7 @@ func (s *AdminSrv) UpdateSettings(ctx context.Context, adminID int64, settings *
 	}
 
 	s.logAction(ctx, adminID, "settings_update", &settings.ID, nil)
-	_ = s.settingsCache.InvalidateSettings(ctx)
+	logInvalidation(s.log, s.settingsCache.InvalidateSettings(ctx), "settings", models.SettingsID)
 	return settings, nil
 }
 

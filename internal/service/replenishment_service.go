@@ -117,7 +117,7 @@ func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant
 
 	// Инвалидация только после коммита: до него в Postgres ещё старый баланс,
 	// и параллельный читатель залил бы его обратно в кэш.
-	_ = s.cache.InvalidateUser(ctx, replenishment.UserID)
+	logInvalidation(s.log, s.cache.InvalidateUser(ctx, replenishment.UserID), "user", replenishment.UserID)
 
 	s.log.WithFields(logrus.Fields{"user_id": replenishment.UserID, "merchant": merchant, "invoice_id": invoiceID, "amount": replenishment.Amount}).Info("replenishment_service: balance credited")
 	return nil
