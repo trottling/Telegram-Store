@@ -9,14 +9,64 @@
 	email {$ACME_EMAIL}
 }
 
+# Заголовки, общие для всех трёх хостов. Ставятся здесь, а не middleware'ом в
+# gin: так они накрывают ещё и статику панели, которую отдаёт nginx, и лежат в
+# одном месте вместо трёх.
+(common_headers) {
+	header {
+		# HSTS. Область действия — сам хост и его поддомены, на соседние
+		# admin./api./pay. не влияет: каждый выставляет свой заголовок.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# Запрещает браузеру угадывать тип содержимого вопреки Content-Type.
+		X-Content-Type-Options "nosniff"
+		# Версию сервера наружу не сообщаем.
+		-Server
+	}
+}
+
+# Панель. Единственный хост, отдающий документ, поэтому весь набор
+# «документных» заголовков только здесь.
 admin.{$DOMAIN_NAME} {
+	import common_headers
+
+	header {
+		X-Frame-Options "DENY"
+		# no-referrer, а не strict-origin: в URL панели попадают telegram ID и
+		# идентификаторы покупок, и утекать они не должны никуда вообще.
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "geolocation=(), camera=(), microphone=()"
+
+		# CSP подогнан под реальную сборку, а не скопирован из примера:
+		#   style-src 'unsafe-inline' — Ant Design инжектит стили в рантайме,
+		#     с чистым 'self' панель останется без оформления;
+		#   connect-src — фронт ходит в API на ДРУГОЙ поддомен, без явного
+		#     разрешения все запросы панели будут заблокированы;
+		#   data: для img/font — инлайновые иконки и шрифты Ant Design.
+		# Менять сборку фронта — перепроверять этот заголовок в консоли браузера.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://api.{$DOMAIN_NAME}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	}
+
 	reverse_proxy admin_frontend:80
 }
 
+# API админ-панели. Отдаёт только JSON, поэтому ресурсы ему не нужны вовсе —
+# отсюда 'none' вместо 'self'. CORS остаётся на стороне admin_backend: там он
+# завязан на ADMIN_PANEL_CORS_ORIGIN и умеет логировать отказы.
 api.{$DOMAIN_NAME} {
+	import common_headers
+
+	header {
+		X-Frame-Options "DENY"
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+	}
+
 	reverse_proxy admin_backend:{$ADMIN_PANEL_BACKEND_PORT:8080}
 }
 
+# Приём вебхуков мерчантов. Вызывающая сторона — сервер, а не браузер, так что
+# заголовки тут ни на что не влияют; выставляем их только ради единообразия.
 pay.{$DOMAIN_NAME} {
+	import common_headers
+
 	reverse_proxy payments_backend:{$PAYMENTS_BACKEND_PORT:8081}
 }
