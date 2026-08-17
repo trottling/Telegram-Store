@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 	"github.com/trottling/Telegram-Store/payments_backend/handlers"
 )
 
@@ -22,10 +23,11 @@ type Server struct {
 func New(
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
+	crystalPayProvider payment.PaymentProvider,
 	cfg *config.PaymentsConfig,
 	log *logrus.Logger,
 ) *Server {
-	h := handlers.New(settingsService, replenishmentService, log)
+	h := handlers.New(settingsService, replenishmentService, crystalPayProvider, log)
 	router := newRouter(h)
 
 	return &Server{

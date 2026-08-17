@@ -16,10 +16,18 @@ import (
 	yoopayment "github.com/rvinnie/yookassa-sdk-go/yookassa/payment"
 	yoowebhook "github.com/rvinnie/yookassa-sdk-go/yookassa/webhook"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
 
 // CrystalPayWebhook — POST callback_url из invoice/create. Подпись:
 // sha1(id + ":" + salt), salt — отдельный секрет, не auth_secret.
+//
+// Подпись покрывает только id и постоянна на весь срок жизни счёта, а поле
+// state в том же теле ничем не подписано — то есть валидная подпись из вебхука
+// о неудачном платеже годится и для подделки state="payed". Поэтому телу не
+// доверяем: статус спрашиваем у мерчанта сами, как в YooKassaWebhook. Проверка
+// подписи остаётся первым фильтром, чтобы посторонний не гонял нас за
+// статусами чужих счётов.
 func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 	var payload struct {
 		ID        string `json:"id"`
@@ -46,10 +54,17 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 		return
 	}
 
-	switch payload.State {
-	case "payed":
+	status, err := h.crystalPayProvider.CheckStatus(c.Request.Context(), payload.ID)
+	if err != nil {
+		h.log.WithError(err).Warn("handlers: crystalpay webhook status re-check failed")
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	switch status {
+	case payment.PaymentStatusPaid:
 		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantCrystalPay, payload.ID)
-	case "failed", "unavailable":
+	case payment.PaymentStatusFailed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantCrystalPay, payload.ID)
 	}
 	if err != nil {

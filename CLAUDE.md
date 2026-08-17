@@ -118,8 +118,12 @@ internal/service/payment/     PaymentProvider implementations: StubProvider (alw
                                Settings sub-struct (credentials + Enabled + Min/MaxAmount) fresh on every call via
                                SettingsService — admin edits apply without restarting the bot — and each does its
                                own enabled/range check before calling out, returning ErrMerchantDisabled/
-                               ErrAmountOutOfRange. CheckStatus is implemented on all three but nothing currently
-                               polls it — confirmation is webhook-driven (see payments_backend/handlers below)
+                               ErrAmountOutOfRange. Confirmation is webhook-driven, not polled: nothing runs
+                               CheckStatus on a timer. It IS called for CrystalPay, synchronously from that
+                               merchant's webhook, because CrystalPay's signature covers only the invoice id and
+                               leaves `state` unsigned — see payments_backend/handlers below. Tinkoff's and
+                               YooKassa's CheckStatus have no caller today (their webhooks establish the status
+                               another way) and exist for interface completeness
 internal/cache/redis/         the ONE Redis-backed struct implementing domain/cache's per-entity interfaces,
                                domain/fsm.Store, and domain/adminsession.Store — one client, one struct, three
                                unrelated keyspaces: plain keys for the cache, fsm:<telegramID> for conversation
@@ -216,13 +220,20 @@ admin_backend/router.go,       route table + http.Server lifecycle (Start/Shutdo
 payments_backend/              accepts payment-provider webhooks only (package `paymentsbackend`, directory
                                `payments_backend/`, binary entrypoint is cmd/payments_backend) — gin, depends only
                                on internal/domain/service, same rule as bot/ and admin_backend/. Deliberately tiny:
-                               paymentsbackend.New(...) takes just SettingsService + ReplenishmentService, nothing
-                               admin-related (no AdminAuthService, no session store, no CORS middleware — the
-                               caller is a merchant's server, never a browser)
-payments_backend/handlers/     handler.go (the 2-service Handlers struct/constructor) + webhook_handler.go
-                               (CrystalPayWebhook/YooKassaWebhook/TinkoffWebhook — moved here verbatim from the old
-                               single `backend` binary; each verifies that merchant's own signature scheme before
-                               calling ReplenishmentService.Confirm/Fail — see the Data model section below)
+                               paymentsbackend.New(...) takes just SettingsService + ReplenishmentService + the
+                               CrystalPay PaymentProvider, nothing admin-related (no AdminAuthService, no session
+                               store, no CORS middleware — the caller is a merchant's server, never a browser)
+payments_backend/handlers/     handler.go (the Handlers struct/constructor — two services plus the CrystalPay
+                               PaymentProvider) + webhook_handler.go (CrystalPayWebhook/YooKassaWebhook/
+                               TinkoffWebhook; each verifies that merchant's own signature scheme before calling
+                               ReplenishmentService.Confirm/Fail — see the Data model section below). **Signature
+                               valid does not mean status trustworthy**, and the three merchants differ: Tinkoff
+                               signs the whole body, so notification.Status can be used directly; YooKassa signs
+                               nothing, so the payload is a bare trigger and the status comes from an authorized
+                               FindPayment; CrystalPay signs only the invoice id, so its unsigned `state` field is
+                               ignored too and the status comes from CrystalPayProvider.CheckStatus. Only
+                               CrystalPay's provider is wired here — the other two need no re-fetch through the
+                               domain interface
 payments_backend/router.go,    three POST routes (/api/webhooks/{crystalpay,yookassa,tinkoff}), gin.Recovery() +
   server.go                    middleware.Detach, no Auth group, no CORS — http.Server lifecycle (Start/Shutdown)
 payments_backend/middleware/   detach.go (Detach) — the only middleware here, and it exists for a correctness

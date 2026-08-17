@@ -60,6 +60,7 @@ func main() {
 
 			fx.Annotate(svc.NewSettingsSrv, fx.As(new(service.SettingsService))),
 			provideReplenishmentService,
+			provideCrystalPayProvider,
 
 			paymentsbackend.New,
 		),
