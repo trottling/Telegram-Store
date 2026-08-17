@@ -250,7 +250,26 @@ func (c *Cache) ClearFSMState(ctx context.Context, telegramID int64) error {
 
 // логин-коды и сессии веб-панели
 
+// SetLoginCode держит два ключа: сам код (hash -> telegramID, по нему ищет
+// ConsumeLoginCode) и обратный индекс владельца, по которому гасится
+// предыдущий код того же админа. Живой код у админа всегда один.
 func (c *Cache) SetLoginCode(ctx context.Context, codeHash string, telegramID int64, ttl time.Duration) error {
+	ownerKey := adminLoginCodeOwnerKey(telegramID)
+
+	// Предыдущий код гасим до записи нового. Ошибку не считаем фатальной:
+	// хуже лишний живой код на 30 секунд, чем невозможность войти.
+	if previousHash, err := c.client.GetSet(ctx, ownerKey, codeHash).Result(); err == nil && previousHash != "" {
+		if err = c.client.Del(ctx, adminLoginCodeKey(previousHash)).Err(); err != nil {
+			c.log.WithError(err).Warn("cache: redis DEL failed (previous admin login code)")
+		}
+	} else if err != nil && !errors.Is(err, redis.Nil) {
+		c.log.WithError(err).Warn("cache: redis GETSET failed (admin login code owner)")
+	}
+
+	if err := c.client.Expire(ctx, ownerKey, ttl).Err(); err != nil {
+		c.log.WithError(err).Warn("cache: redis EXPIRE failed (admin login code owner)")
+	}
+
 	if err := c.client.Set(ctx, adminLoginCodeKey(codeHash), strconv.FormatInt(telegramID, 10), ttl).Err(); err != nil {
 		c.log.WithError(err).Warn("cache: redis SET failed (admin login code)")
 		return err
