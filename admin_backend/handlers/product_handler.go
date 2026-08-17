@@ -44,7 +44,7 @@ func (h *Handlers) GetProduct(c *gin.Context) {
 func (h *Handlers) CreateProduct(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
 	var req dto.CreateProductRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 	product, err := h.adminService.CreateProduct(c.Request.Context(), admin.TelegramID, req.CategoryID, req.Name, req.Description, req.Price)
@@ -63,7 +63,7 @@ func (h *Handlers) UpdateProduct(c *gin.Context) {
 		return
 	}
 	var req dto.UpdateProductRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 	product, err := h.adminService.UpdateProduct(c.Request.Context(), admin.TelegramID, id, req.CategoryID, req.Name, req.Description, req.Price, req.IsActive)
@@ -96,7 +96,7 @@ func (h *Handlers) AddProductItems(c *gin.Context) {
 		return
 	}
 	var req dto.AddItemsRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 	if err := h.adminService.AddProductItems(c.Request.Context(), admin.TelegramID, id, req.Contents); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
@@ -29,10 +30,18 @@ func (h *Handlers) writeError(c *gin.Context, err error) {
 	c.JSON(status, body)
 }
 
-func decodeJSON(c *gin.Context, v any) bool {
+// decodeJSON читает тело запроса в v, при ошибке сам отвечает 400.
+//
+// Ошибку биндинга нельзя отдавать в DomainErrorToResponse: она не доменная, не
+// матчится ни на один case и уходила в default — то есть клиент получал 500 за
+// свой же кривой JSON, причём молча, без записи в лог. Наружу отдаём общий
+// текст, подробности только в лог.
+func (h *Handlers) decodeJSON(c *gin.Context, v any) bool {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
 	if err := c.ShouldBindJSON(v); err != nil {
-		c.JSON(errors.DomainErrorToResponse(err))
+		h.log.WithError(err).WithFields(logrus.Fields{"method": c.Request.Method, "path": c.Request.URL.Path}).
+			Debug("handlers: invalid request body")
+		c.JSON(http.StatusBadRequest, &dto.ErrorResponse{Code: "bad_request", Message: "invalid request body"})
 		return false
 	}
 	return true

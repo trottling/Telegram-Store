@@ -7,6 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -15,9 +16,33 @@ import (
 	"github.com/rvinnie/yookassa-sdk-go/yookassa"
 	yoopayment "github.com/rvinnie/yookassa-sdk-go/yookassa/payment"
 	yoowebhook "github.com/rvinnie/yookassa-sdk-go/yookassa/webhook"
+	"github.com/sirupsen/logrus"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
+
+// replenishmentOK — можно ли отвечать мерчанту успехом. Тело успешного ответа
+// у мерчантов разное (Tinkoff ждёт своё), поэтому пишет его вызывающий.
+//
+// Неизвестный invoice_id — не наша внутренняя ошибка, и повторами он не
+// вылечится: мерчанты ретраят 5xx часами, поэтому такой вебхук подтверждаем и
+// оставляем след в логе. Всё остальное — настоящий сбой, тут ретрай как раз
+// нужен.
+func (h *Handlers) replenishmentOK(merchant models.Merchant, invoiceID string, err error) bool {
+	if err == nil {
+		return true
+	}
+
+	fields := logrus.Fields{"merchant": merchant, "invoice_id": invoiceID}
+	if errors.Is(err, domainerrors.ErrReplenishmentNotFound) {
+		h.log.WithFields(fields).Warn("handlers: webhook for unknown invoice, acknowledged without retry")
+		return true
+	}
+
+	h.log.WithError(err).WithFields(fields).Error("handlers: webhook processing failed")
+	return false
+}
 
 // CrystalPayWebhook — POST callback_url из invoice/create. Подпись:
 // sha1(id + ":" + salt), salt — отдельный секрет, не auth_secret.
@@ -67,8 +92,7 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 	case payment.PaymentStatusFailed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantCrystalPay, payload.ID)
 	}
-	if err != nil {
-		h.log.WithError(err).Error("handlers: crystalpay webhook confirm failed")
+	if !h.replenishmentOK(models.MerchantCrystalPay, payload.ID, err) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -101,8 +125,7 @@ func (h *Handlers) TinkoffWebhook(c *gin.Context) {
 	case tinkoff.StatusRejected, tinkoff.StatusAuthFail, tinkoff.StatusCanceled, tinkoff.StatusDeadlineExpired, tinkoff.StatusReversed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantTinkoff, invoiceID)
 	}
-	if err != nil {
-		h.log.WithError(err).Error("handlers: tinkoff webhook confirm failed")
+	if !h.replenishmentOK(models.MerchantTinkoff, invoiceID, err) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -140,8 +163,7 @@ func (h *Handlers) YooKassaWebhook(c *gin.Context) {
 	case yoopayment.Canceled:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantYooKassa, pay.ID)
 	}
-	if err != nil {
-		h.log.WithError(err).Error("handlers: yookassa webhook confirm failed")
+	if !h.replenishmentOK(models.MerchantYooKassa, pay.ID, err) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}

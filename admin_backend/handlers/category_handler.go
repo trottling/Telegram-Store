@@ -35,7 +35,7 @@ func (h *Handlers) GetCategory(c *gin.Context) {
 func (h *Handlers) CreateCategory(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
 	var req dto.CreateCategoryRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 	category, err := h.adminService.CreateCategory(c.Request.Context(), admin.TelegramID, req.ParentID, req.Name, req.Description)
@@ -54,7 +54,7 @@ func (h *Handlers) UpdateCategory(c *gin.Context) {
 		return
 	}
 	var req dto.UpdateCategoryRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 	category, err := h.adminService.UpdateCategory(c.Request.Context(), admin.TelegramID, id, req.Name, req.Description, req.ParentID)

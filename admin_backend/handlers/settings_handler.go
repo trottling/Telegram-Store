@@ -22,7 +22,7 @@ func (h *Handlers) GetSettings(c *gin.Context) {
 func (h *Handlers) UpdateSettings(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
 	var req dto.UpdateSettingsRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 	settings, err := h.adminService.UpdateSettings(c.Request.Context(), admin.TelegramID, &domainmodels.Settings{

@@ -73,7 +73,7 @@ func (h *Handlers) AdjustBalance(c *gin.Context) {
 		return
 	}
 	var req dto.UpdateBalanceRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 	if err := h.adminService.AddBalance(c.Request.Context(), admin.TelegramID, id, req.Amount); err != nil {

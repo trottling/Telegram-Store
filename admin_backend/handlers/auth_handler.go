@@ -13,7 +13,7 @@ import (
 // незащищённый /api-роут — см. router.go.
 func (h *Handlers) Exchange(c *gin.Context) {
 	var req dto.ExchangeCodeRequest
-	if !decodeJSON(c, &req) {
+	if !h.decodeJSON(c, &req) {
 		return
 	}
 
