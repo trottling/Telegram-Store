@@ -17,8 +17,10 @@ type ProductRepository interface {
 
 	// единицы товара
 	AddItems(ctx context.Context, productID int64, contents []string) error
-	GetAvailableItem(ctx context.Context, productID int64) (*models.ProductItem, error)
-	MarkItemSold(ctx context.Context, itemID int64, purchaseID int64) error
+	// ReserveItem забирает одну непроданную единицу и сразу помечает её
+	// проданной. Только внутри транзакции: иначе единица спишется даже тогда,
+	// когда покупка в итоге не состоится.
+	ReserveItem(ctx context.Context, productID int64) (*models.ProductItem, error)
 	CountAvailableItems(ctx context.Context, productID int64) (int, error)
 
 	// ListAll/CountAll — админ-листинг: все товары, включая неактивные и распроданные.

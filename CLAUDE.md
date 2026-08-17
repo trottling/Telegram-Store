@@ -101,9 +101,13 @@ internal/domain/errors/       sentinel error values, mapped to user-facing text 
 internal/repository/postgres/ GORM-backed implementations, using the Generics API (gorm.G[T]) for CRUD — aggregate
                                queries (e.g. grouping purchases into batches, dashboard stats) use the classic
                                *gorm.DB chainable builder (Model/Select/Joins/Where/Group/Scan) instead, since
-                               gorm.G[T] assumes one row = one T; the one recursive-CTE query (category tree
-                               visibility) is the sole .Raw(...).Scan(...) case, since neither of the above can
-                               express recursion. migrate.go's AutoMigrate is cmd/migrate's single entry point: DDL,
+                               gorm.G[T] assumes one row = one T. There are exactly two .Raw(...).Scan(...) cases,
+                               both because neither API above can express the SQL: the recursive CTE for category
+                               tree visibility, and ProductRepo.ReserveItem — an `UPDATE ... WHERE id = (SELECT
+                               ... FOR UPDATE SKIP LOCKED) RETURNING *` that claims one stock item and marks it
+                               sold in a single statement. ReserveItem is the anti-overselling primitive of the
+                               whole shop and must only ever be called inside Transactor.WithinTransaction:
+                               outside one, the item is consumed even when the purchase then fails. migrate.go's AutoMigrate is cmd/migrate's single entry point: DDL,
                                two unexported one-time schema cleanups left over from earlier iterations
                                (backfillUserRoles, dropLegacyAdminTokenColumn — both no-ops once already run), then
                                bootstrapping the root admin (UserRepo.EnsureRootAdminExists) and the default
@@ -373,7 +377,7 @@ Reply-keyboard text handlers: `/admin`, `texts.{Help,Catalog,Profile,StartMenu,P
 
 `Handlers.botUsername` (fetched once via `b.GetMe(ctx)` in `bot.New`, after the `bot.Bot` exists but before handlers are built) is what `ReferralHandler` uses to build `t.me/<botUsername>?start=<telegramID>` links — there's no config env var for it, since the token already implies it and asking the API once at startup avoids the two ever drifting.
 
-The buy flow is stateful, backed by `internal/cache/redis.Cache` (which doubles as `domain/fsm.Store`): tap "buy" -> edit the product card into a quantity prompt (quick-pick 1–5 inline or type a number, both converge on the same confirmation step) -> stock is checked before showing confirmation (fast-fail if you ask for more than exists, rather than only finding out after confirming) -> confirmation screen -> only `BuyConfirmHandler` actually charges anything and marks items sold.
+The buy flow is stateful, backed by `internal/cache/redis.Cache` (which doubles as `domain/fsm.Store`): tap "buy" -> edit the product card into a quantity prompt (quick-pick 1–5 inline or type a number, both converge on the same confirmation step) -> stock is checked before showing confirmation (fast-fail if you ask for more than exists, rather than only finding out after confirming) -> confirmation screen -> only `BuyConfirmHandler` actually charges anything and marks items sold. Quantity is bounded by `service.MaxBuyQuantity` (the constant lives in `internal/domain/service` precisely because both `PurchaseSrv.Buy` and the bot's FSM need it — the bot rejects on input, the service has the last word). Inside the transaction `PurchaseSrv.Buy` re-reads the product before charging: the `IsActive`/price checks above it are a fast-fail for the user, not the authority, since an admin can deactivate or reprice between the two.
 
 ### Web admin panel
 

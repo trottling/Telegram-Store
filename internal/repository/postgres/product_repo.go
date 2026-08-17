@@ -9,7 +9,6 @@ import (
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type ProductRepo struct {
@@ -116,36 +115,46 @@ func (r *ProductRepo) AddItems(ctx context.Context, productID int64, contents []
 	return nil
 }
 
-// GetAvailableItem резервирует единицу товара под блокировкой (FOR UPDATE
-// SKIP LOCKED) — вызывать только внутри Transactor.WithinTransaction.
-func (r *ProductRepo) GetAvailableItem(ctx context.Context, productID int64) (*models.ProductItem, error) {
-	item, err := gorm.G[models.ProductItem](
-		dbFromCtx(ctx, r.db),
-		clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"},
-	).
-		Where("product_id = ? AND is_sold = ?", productID, false).
-		Order("id").
-		First(ctx)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, domainerrors.ErrProductOutOfStock
-		}
-		r.log.WithError(err).WithField("product_id", productID).Error("product_repo: get available item failed")
-		return nil, err
+// reserveItemSQL — забрать одну непроданную единицу и сразу пометить её
+// проданной, одним запросом. Подзапрос с FOR UPDATE SKIP LOCKED — та же защита
+// от overselling, что и раньше: параллельная покупка пропускает заблокированную
+// строку, а не ждёт её. Раздельные SELECT и UPDATE давали три запроса на
+// единицу (до 60 на покупку) внутри транзакции, удерживающей локи.
+//
+// Это второй в репозитории случай .Raw() (первый — рекурсивный CTE в
+// category_repo): ни gorm.G[T], ни chainable-билдер не выражают
+// UPDATE ... WHERE id = (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING.
+const reserveItemSQL = `
+UPDATE product_items
+SET is_sold = true, sold_at = ?
+WHERE id = (
+	SELECT id FROM product_items
+	WHERE product_id = ? AND is_sold = false
+	ORDER BY id
+	LIMIT 1
+	FOR UPDATE SKIP LOCKED
+)
+RETURNING *`
+
+// ReserveItem резервирует единицу товара и помечает её проданной — вызывать
+// только внутри Transactor.WithinTransaction: без охватывающей транзакции
+// единица окажется списанной даже при неудачной покупке.
+func (r *ProductRepo) ReserveItem(ctx context.Context, productID int64) (*models.ProductItem, error) {
+	var item models.ProductItem
+
+	result := dbFromCtx(ctx, r.db).WithContext(ctx).
+		Raw(reserveItemSQL, time.Now(), productID).
+		Scan(&item)
+	if result.Error != nil {
+		r.log.WithError(result.Error).WithField("product_id", productID).Error("product_repo: reserve item failed")
+		return nil, result.Error
+	}
+	// Подзапрос ничего не нашёл — свободных единиц не осталось. Raw+Scan не
+	// возвращает ErrRecordNotFound, поэтому смотрим на RowsAffected.
+	if result.RowsAffected == 0 {
+		return nil, domainerrors.ErrProductOutOfStock
 	}
 	return &item, nil
-}
-
-// MarkItemSold помечает единицу проданной; purchaseID нужен только для логов.
-func (r *ProductRepo) MarkItemSold(ctx context.Context, itemID int64, purchaseID int64) error {
-	now := time.Now()
-	_, err := gorm.G[models.ProductItem](dbFromCtx(ctx, r.db)).
-		Where("id = ?", itemID).
-		Updates(ctx, models.ProductItem{IsSold: true, SoldAt: &now})
-	if err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{"item_id": itemID, "purchase_id": purchaseID}).Error("product_repo: mark item sold failed")
-	}
-	return err
 }
 
 func (r *ProductRepo) CountAvailableItems(ctx context.Context, productID int64) (int, error) {

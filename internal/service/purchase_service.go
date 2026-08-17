@@ -100,7 +100,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		totalPrice = product.Price * float64(count)
 
 		for range count {
-			item, itemErr := s.productRepo.GetAvailableItem(ctx, productID)
+			item, itemErr := s.productRepo.ReserveItem(ctx, productID)
 			if itemErr != nil {
 				return itemErr
 			}
@@ -117,9 +117,6 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 			}
 			if createErr := s.purchaseRepo.Create(ctx, p); createErr != nil {
 				return createErr
-			}
-			if markErr := s.productRepo.MarkItemSold(ctx, item.ID, p.ID); markErr != nil {
-				return markErr
 			}
 
 			p.Item = item
