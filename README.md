@@ -22,26 +22,38 @@
 | Хранение данных  | PostgreSQL через [GORM](https://gorm.io)                           |
 | Кэш / состояние  | Redis (read-through кэш, состояние FSM, сессии админов)            |
 | UI панели        | React, Vite, TypeScript, [Ant Design](https://ant.design)          |
+| TLS / прод-деплой | [Caddy](https://caddyserver.com) (авто-TLS), ежедневный `pg_dump` + [rclone](https://rclone.org) в S3 |
 
 ## Быстрый старт (Docker Compose)
 
 Нужен Docker и токен телеграм-бота от [@BotFather](https://t.me/BotFather).
 
+`docker-compose.yml` — прод-стек: наружу торчит только `caddy` (80/443, авто-TLS
+через Let's Encrypt), `admin_backend`/`payments_backend`/`admin_frontend` портов
+на хост не публикуют. Нужен реальный домен с A-записями на `admin./api./pay.`
+поддоменами (`DOMAIN_NAME` в `.env`) — без них ACME не сможет выпустить
+сертификаты. Для локального запуска без домена используйте
+`docker compose -f docker-compose.debug.yml up --build` — там все порты
+опубликованы напрямую (`admin_backend` на `:8080`, `admin_frontend` на `:3000` и
+т.д.), `caddy` и `backup` в этом файле нет.
+
 ```bash
 cp .env.example .env
 # заполните TELEGRAM_BOT_TOKEN, TELEGRAM_ROOT_ADMIN_ID (свой Telegram user ID)
 # и сгенерируйте настоящий ADMIN_JWT_SECRET: openssl rand -base64 32
+# для прод-стека — ещё DOMAIN_NAME/ACME_EMAIL и https://-варианты
+# ADMIN_PANEL_BACKEND_URL/FRONTEND_URL/CORS_ORIGIN (см. комментарии в .env.example)
 
 docker compose up --build
 ```
 
-Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend` (admin API на `:8080`), `payments_backend` (вебхуки платежей на `:8081`) и `admin_frontend` (панель на `:3000`).
+Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend`, `payments_backend`, `admin_frontend`, `caddy` (TLS-терминатор) и `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`).
 
 После запуска:
 
 1. Откройте бота в Telegram, отправьте `/start`.
 2. Отправьте `/admin` — бот пришлёт ссылку на панель и 6-значный код (действует 30 секунд).
-3. Откройте `http://localhost:3000`, вставьте код.
+3. Откройте `https://admin.$DOMAIN_NAME` (или `http://localhost:3000` при запуске через `docker-compose.debug.yml`), вставьте код.
 
 Так входит любой админ, включая root — пароль настраивать не нужно.
 
@@ -94,6 +106,8 @@ admin_backend/          хендлеры, middleware, роутинг admin API
 payments_backend/       хендлеры, роутинг вебхуков платёжных мерчантов
 internal/               доменные интерфейсы + их реализации (hexagonal/ports-and-adapters)
 admin_frontend/         React-панель админа (отдельный npm-проект)
+backup/                 контейнер ежедневного pg_dump + выгрузки в S3 (rclone)
+Caddyfile               конфиг TLS-терминатора (docker-compose.yml, сервис caddy)
 ```
 
 Полный разбор архитектуры, пакет за пакетом — в [CLAUDE.md](CLAUDE.md).

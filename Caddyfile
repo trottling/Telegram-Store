@@ -1,0 +1,22 @@
+# TLS-терминатор перед admin_frontend/admin_backend/payments_backend.
+# Домен и почта ACME берутся из .env (DOMAIN_NAME/ACME_EMAIL). Поддомены
+# admin./api./pay. собираются из DOMAIN_NAME прямо тут, отдельных
+# env-переменных под каждый домен не заводим.
+#
+# {$VAR:default} — синтаксис дефолта у Caddy через одинарное двоеточие,
+# не через ":-" как в shell/docker-compose.
+{
+	email {$ACME_EMAIL}
+}
+
+admin.{$DOMAIN_NAME} {
+	reverse_proxy admin_frontend:80
+}
+
+api.{$DOMAIN_NAME} {
+	reverse_proxy admin_backend:{$ADMIN_PANEL_BACKEND_PORT:8080}
+}
+
+pay.{$DOMAIN_NAME} {
+	reverse_proxy payments_backend:{$PAYMENTS_BACKEND_PORT:8081}
+}

@@ -1,3 +1,10 @@
+x-logging: &default-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
 services:
   # Одноразовый прогон миграций + бутстрап root-admin, затем выход.
   migrate:
@@ -15,6 +22,7 @@ services:
     restart: "no"
     networks:
       - backend-network
+    <<: *default-logging
 
   bot:
     build:
@@ -36,6 +44,7 @@ services:
     networks:
       - public-network
       - backend-network
+    <<: *default-logging
 
   admin_backend:
     build:
@@ -46,9 +55,8 @@ services:
     env_file:
       - path: .env
         required: true
-    ports:
-      # фронтенд стучится в этот порт напрямую из браузера
-      - "${ADMIN_PANEL_BACKEND_PORT:-8080}:${ADMIN_PANEL_BACKEND_PORT:-8080}"
+    # порт наружу не пробрасываем — снаружи торчит только caddy, до admin_backend
+    # он достаёт по имени сервиса внутри public-network
     depends_on:
       db:
         condition: service_healthy
@@ -58,9 +66,9 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
     networks:
-      # без public-network опубликованный порт не достучится до хоста
       - public-network
       - backend-network
+    <<: *default-logging
 
   payments_backend:
     build:
@@ -71,9 +79,7 @@ services:
     env_file:
       - path: .env
         required: true
-    ports:
-      # сюда стучатся серверы CrystalPay/Tinkoff вебхуками — порт должен быть публичным
-      - "${PAYMENTS_BACKEND_PORT:-8081}:${PAYMENTS_BACKEND_PORT:-8081}"
+    # порт наружу не пробрасываем — вебхуки мерчантов идут через caddy (pay.$DOMAIN_NAME)
     depends_on:
       db:
         condition: service_healthy
@@ -83,9 +89,9 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
     networks:
-      # без public-network опубликованный порт не достучится до хоста
       - public-network
       - backend-network
+    <<: *default-logging
 
   admin_frontend:
     build:
@@ -94,17 +100,42 @@ services:
       args:
         VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
     container_name: telegram-store-admin-frontend
-    ports:
-      - "3000:80"
+    # порт наружу не пробрасываем — статику отдаёт caddy (admin.$DOMAIN_NAME)
     restart: unless-stopped
     networks:
-      # отдаёт статику браузеру, к admin_backend по docker-сети ходить не нужно
       - public-network
     depends_on:
       - admin_backend
+    <<: *default-logging
+
+  # TLS-терминатор: единственный сервис с портами наружу (80/443), автовыпуск
+  # сертификатов Let's Encrypt по ACME HTTP-01/TLS-ALPN. Домены и почта — из
+  # DOMAIN_NAME/ACME_EMAIL (см. .env, поддомены admin./api./pay. собираются
+  # из DOMAIN_NAME прямо в Caddyfile).
+  caddy:
+    image: caddy:2-alpine
+    container_name: telegram-store-caddy
+    env_file:
+      - path: .env
+        required: true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - admin_backend
+      - payments_backend
+      - admin_frontend
+    restart: unless-stopped
+    networks:
+      - public-network
+    <<: *default-logging
 
   db:
-    image: postgres:latest
+    image: postgres:18-alpine
     container_name: telegram-store-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -119,9 +150,10 @@ services:
       retries: 5
     networks:
       - backend-network
+    <<: *default-logging
 
   redis:
-    image: redis:latest
+    image: redis:8-alpine
     container_name: telegram-store-redis
     command: [ "redis-server", "--appendonly", "yes" ]
     volumes:
@@ -133,16 +165,45 @@ services:
       retries: 5
     networks:
       - backend-network
+    <<: *default-logging
+
+  # Ежедневный pg_dump + опциональная выгрузка в S3 (rclone), см. backup/.
+  # На public-network только ради исходящего трафика к S3-эндпоинту —
+  # backend-network (internal: true) наружу не роутит.
+  backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: telegram-store-backup
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      - backup_data:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - backend-network
+      - public-network
+    <<: *default-logging
 
 networks:
-  # db+redis видны только bot/admin_backend/payments_backend/migrate, без выхода наружу
+  # db+redis видны только bot/admin_backend/payments_backend/migrate/backup, без выхода наружу
   backend-network:
     driver: bridge
     internal: true
-  # нужна для исходящих к Telegram (bot) и для доступности опубликованных портов (admin_backend, payments_backend, admin_frontend)
+  # нужна для исходящих к Telegram (bot), к S3 (backup) и для caddy/admin_backend/
+  # payments_backend/admin_frontend, между которыми ходят проксируемые запросы
   public-network:
     driver: bridge
 
 volumes:
   postgres_data:
   redis_data:
+  caddy_data:
+  caddy_config:
+  backup_data:
