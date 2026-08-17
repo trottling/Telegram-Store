@@ -304,3 +304,23 @@ func (c *Cache) GetSession(ctx context.Context, sessionHash string) (int64, erro
 func (c *Cache) DeleteSession(ctx context.Context, sessionHash string) error {
 	return c.delete(ctx, adminSessionKey(sessionHash))
 }
+
+// IncrExchangeAttempts — фиксированное окно: EXPIRE ставится только на первом
+// INCR, иначе каждая новая попытка продлевала бы окно и оно никогда бы не
+// истекло. Точность окна тут не важна — задача сбить перебор на порядки, а не
+// отмерить ровный интервал.
+func (c *Cache) IncrExchangeAttempts(ctx context.Context, key string, window time.Duration) (int64, error) {
+	redisKey := adminExchangeAttemptsKey(key)
+
+	attempt, err := c.client.Incr(ctx, redisKey).Result()
+	if err != nil {
+		c.log.WithError(err).Error("cache: redis INCR failed (exchange attempts)")
+		return 0, err
+	}
+	if attempt == 1 {
+		if err = c.client.Expire(ctx, redisKey, window).Err(); err != nil {
+			c.log.WithError(err).Warn("cache: redis EXPIRE failed (exchange attempts)")
+		}
+	}
+	return attempt, nil
+}

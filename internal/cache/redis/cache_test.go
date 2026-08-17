@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -76,6 +77,63 @@ func TestConsumeFSMStateOnlyOnceUnderConcurrency(t *testing.T) {
 	}
 	if notFound != goroutines-1 {
 		t.Errorf("ErrNotFound получили %d горутин, ожидалось %d", notFound, goroutines-1)
+	}
+}
+
+// TestIncrExchangeAttemptsWindowDoesNotSlide — окно должно истекать. EXPIRE
+// ставится только на первом INCR: если продлевать его на каждой попытке, то у
+// того, кто уже упёрся в лимит, ключ будет жить вечно и админ окажется заперт
+// навсегда вместо минуты.
+func TestIncrExchangeAttemptsWindowDoesNotSlide(t *testing.T) {
+	server := miniredis.RunT(t)
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+	cache := NewRedisCache(redis.NewClient(&redis.Options{Addr: server.Addr()}), log)
+
+	ctx := context.Background()
+	const window = time.Minute
+
+	for i := int64(1); i <= 3; i++ {
+		attempt, err := cache.IncrExchangeAttempts(ctx, "10.0.0.1", window)
+		if err != nil {
+			t.Fatalf("попытка %d вернула ошибку: %v", i, err)
+		}
+		if attempt != i {
+			t.Errorf("номер попытки = %d, ожидался %d", attempt, i)
+		}
+		// Между попытками время идёт, но TTL не должен обновляться.
+		server.FastForward(20 * time.Second)
+	}
+
+	// 60 секунд прошло — счётчик обязан начаться заново.
+	server.FastForward(time.Second)
+	attempt, err := cache.IncrExchangeAttempts(ctx, "10.0.0.1", window)
+	if err != nil {
+		t.Fatalf("попытка после истечения окна вернула ошибку: %v", err)
+	}
+	if attempt != 1 {
+		t.Errorf("после истечения окна номер попытки = %d, ожидался 1 (окно не должно скользить)", attempt)
+	}
+}
+
+// TestIncrExchangeAttemptsIsPerKey — лимит считается по каждому IP отдельно,
+// иначе один атакующий закрывал бы вход всем админам.
+func TestIncrExchangeAttemptsIsPerKey(t *testing.T) {
+	cache := newTestCache(t)
+	ctx := context.Background()
+
+	for range 5 {
+		if _, err := cache.IncrExchangeAttempts(ctx, "10.0.0.1", time.Minute); err != nil {
+			t.Fatalf("неожиданная ошибка: %v", err)
+		}
+	}
+
+	attempt, err := cache.IncrExchangeAttempts(ctx, "10.0.0.2", time.Minute)
+	if err != nil {
+		t.Fatalf("неожиданная ошибка: %v", err)
+	}
+	if attempt != 1 {
+		t.Errorf("для другого IP номер попытки = %d, ожидался 1", attempt)
 	}
 }
 

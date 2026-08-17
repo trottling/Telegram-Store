@@ -34,7 +34,7 @@ func New(
 	log *logrus.Logger,
 ) *Server {
 	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, replenishmentService, adminAuthService, log)
-	router := newRouter(h, adminAuthService, cfg.CORSOrigin, log)
+	router := newRouter(h, adminAuthService, cfg.CORSOrigin, cfg.TrustedProxies, log)
 
 	return &Server{
 		httpServer: &http.Server{

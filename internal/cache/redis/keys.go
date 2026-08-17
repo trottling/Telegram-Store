@@ -33,3 +33,7 @@ func stateKey(telegramID int64) string { return fmt.Sprintf("fsm:%d", telegramID
 
 func adminLoginCodeKey(hash string) string { return fmt.Sprintf("admin_login_code:%s", hash) }
 func adminSessionKey(hash string) string   { return fmt.Sprintf("admin_session:%s", hash) }
+
+func adminExchangeAttemptsKey(key string) string {
+	return fmt.Sprintf("admin_exchange_attempts:%s", key)
+}

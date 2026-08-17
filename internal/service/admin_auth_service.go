@@ -19,6 +19,14 @@ const loginCodeTTL = 30 * time.Second
 // sessionTTL — срок жизни сессии панели после обмена кода.
 const sessionTTL = 24 * time.Hour
 
+// Лимит на обмен кода. Режет автоподбор, а не человека: код 6-значный и живёт
+// 30 секунд, живому админу хватает одной попытки на вход. Атакующему остаётся
+// порядка пяти догадок на срок жизни кода из миллиона возможных.
+const (
+	exchangeAttemptLimit  = 10
+	exchangeAttemptWindow = time.Minute
+)
+
 type AdminAuthSrv struct {
 	userRepo  repository.UserRepository
 	store     adminsession.Store
@@ -96,4 +104,12 @@ func (s *AdminAuthSrv) ValidateSession(ctx context.Context, sessionToken string)
 
 func (s *AdminAuthSrv) Logout(ctx context.Context, sessionToken string) error {
 	return s.store.DeleteSession(ctx, admintoken.Hash(sessionToken))
+}
+
+func (s *AdminAuthSrv) AllowExchangeAttempt(ctx context.Context, key string) (bool, error) {
+	attempt, err := s.store.IncrExchangeAttempts(ctx, key, exchangeAttemptWindow)
+	if err != nil {
+		return false, err
+	}
+	return attempt <= exchangeAttemptLimit, nil
 }

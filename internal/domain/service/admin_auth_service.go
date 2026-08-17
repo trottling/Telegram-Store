@@ -23,4 +23,8 @@ type AdminAuthService interface {
 	ValidateSession(ctx context.Context, sessionToken string) (*models.User, error)
 
 	Logout(ctx context.Context, sessionToken string) error
+
+	// AllowExchangeAttempt — можно ли клиенту key (IP) ещё раз попытаться
+	// обменять код. false — лимит исчерпан, ошибка — Redis недоступен.
+	AllowExchangeAttempt(ctx context.Context, key string) (bool, error)
 }

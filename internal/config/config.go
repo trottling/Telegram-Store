@@ -41,6 +41,11 @@ type AdminPanelConfig struct {
 	FrontendURL string
 	// CORSOrigin — разрешённые origin'ы через запятую.
 	CORSOrigin string
+	// TrustedProxies — CIDR/адреса через запятую, чьему X-Forwarded-For можно
+	// верить. Наружу admin_backend виден только через caddy, поэтому список —
+	// подсеть public-network. Без него gin доверяет заголовку от кого угодно,
+	// и rate-limit по IP перестаёт что-либо значить.
+	TrustedProxies string
 	// JWTSecret подписывает сессионные токены, обязателен.
 	JWTSecret []byte
 }
@@ -85,6 +90,8 @@ func New() (*Config, error) {
 	adminPanelFrontendURL := getEnv("ADMIN_PANEL_FRONTEND_URL", "http://localhost:3000")
 	// localhost и 127.0.0.1 разрешены оба — браузер считает их разными origin.
 	adminPanelCORSOrigin := getEnv("ADMIN_PANEL_CORS_ORIGIN", "http://localhost:3000,http://127.0.0.1:3000")
+	// Дефолт — подсеть public-network из docker-compose.yml.
+	adminPanelTrustedProxies := getEnv("ADMIN_PANEL_TRUSTED_PROXIES", "172.28.0.0/16")
 	adminJWTSecret := os.Getenv("ADMIN_JWT_SECRET")
 
 	paymentsPort, _ := strconv.Atoi(os.Getenv("PAYMENTS_BACKEND_PORT"))
@@ -117,10 +124,11 @@ func New() (*Config, error) {
 		},
 
 		AdminPanel: &AdminPanelConfig{
-			Port:        adminPanelPort,
-			FrontendURL: adminPanelFrontendURL,
-			CORSOrigin:  adminPanelCORSOrigin,
-			JWTSecret:   []byte(adminJWTSecret),
+			Port:           adminPanelPort,
+			FrontendURL:    adminPanelFrontendURL,
+			CORSOrigin:     adminPanelCORSOrigin,
+			TrustedProxies: adminPanelTrustedProxies,
+			JWTSecret:      []byte(adminJWTSecret),
 		},
 
 		Payments: &PaymentsConfig{

@@ -2,6 +2,7 @@ package adminbackend
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -13,13 +14,23 @@ import (
 // newRouter собирает таблицу маршрутов. Без Auth — только /api/auth/exchange
 // (там ещё нет сессии). Вебхуки мерчантов сюда не входят — они принимаются
 // отдельным бинарником, payments_backend (см. его router.go).
-func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, corsOrigin string, log *logrus.Logger) http.Handler {
+func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, corsOrigin, trustedProxies string, log *logrus.Logger) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
+
+	// Единственный, кто ходит в admin_backend снаружи — caddy. По умолчанию
+	// gin доверяет X-Forwarded-For от кого угодно, и тогда ClientIP() возвращает
+	// значение, которым управляет клиент: rate-limit на /api/auth/exchange
+	// обходился бы одним лишним заголовком.
+	if err := r.SetTrustedProxies(strings.Split(trustedProxies, ",")); err != nil {
+		log.WithError(err).WithField("trusted_proxies", trustedProxies).
+			Error("admin_backend: invalid trusted proxies, per-IP limits are not reliable")
+	}
+
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS(corsOrigin, log))
 
-	r.POST("/api/auth/exchange", h.Exchange)
+	r.POST("/api/auth/exchange", middleware.RateLimitExchange(adminAuthService, log), h.Exchange)
 
 	api := r.Group("/api")
 	api.Use(middleware.Auth(adminAuthService))
