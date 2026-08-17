@@ -7,10 +7,12 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 )
 
-// multiCache — композиция кэшей для AdminSrv и PurchaseSrv, которым нужно
+// MultiCache — композиция кэшей для AdminSrv и PurchaseSrv, которым нужно
 // инвалидировать сразу несколько сущностей за одно действие. Живёт здесь,
-// а не в internal/domain/cache — это удобство сервисного слоя, не доменный порт.
-type multiCache interface {
+// а не в internal/domain/cache — это удобство сервисного слоя, не доменный
+// порт. Экспортирован (не multiCache), чтобы cmd/*/main.go мог сослаться на
+// тип при связке через fx.Annotate(..., fx.As(new(service.MultiCache))).
+type MultiCache interface {
 	domaincache.UserCache
 	domaincache.ProductCache
 	domaincache.CategoryCache

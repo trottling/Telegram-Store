@@ -2,34 +2,58 @@
 // бутстрап root-admin и дефолтных настроек). Отдельный от cmd/bot и cmd/backend
 // бинарник, чтобы два долгоживущих сервиса не гоняли миграцию параллельно —
 // docker-compose ждёт его завершения перед стартом остальных.
+//
+// Не долгоживущее приложение — в отличие от cmd/bot и cmd/backend, тут нет
+// fx.Lifecycle/Run(): fx.New строит граф и сразу же (синхронно, во время
+// самого fx.New — Invoke-функции выполняются при построении графа, до
+// какого-либо Start) выполняет fx.Invoke(runMigrate), после чего процесс
+// просто завершается. app.Err() — ошибка сборки графа ИЛИ ошибка,
+// возвращённая runMigrate; при ошибке дублируем её в stderr напрямую (не
+// через настроенный логгер) — если сборка упала рано, самого логгера может
+// ещё не быть, а уровень LOG_LEVEL не должен скрывать фатальный сбой миграции.
 package main
 
 import (
 	"context"
+	"fmt"
+	"os"
+
+	"github.com/sirupsen/logrus"
+	"go.uber.org/fx"
+	"gorm.io/gorm"
 
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/logger"
 	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
 )
 
-func main() {
-	ctx := context.Background()
+func providePostgresConfig(cfg *config.Config) *config.PostgresConfig { return cfg.Postgres }
+func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return cfg.Logger }
 
-	cfg, err := config.New()
-	if err != nil {
-		panic(err)
-	}
-
-	log := logger.New(cfg.Logger)
+func runMigrate(cfg *config.Config, log *logrus.Logger, db *gorm.DB) error {
 	log.Info("migrate: config loaded")
-
-	db, err := pgdb.NewClient(cfg.Postgres)
-	if err != nil {
-		log.Fatalf("migrate: failed to connect to postgres: %v", err)
-	}
-
-	if err = pgdb.AutoMigrate(ctx, db, log, cfg.Telegram.RootAdminID); err != nil {
-		log.Fatalf("migrate: failed to run migrations: %v", err)
+	if err := pgdb.AutoMigrate(context.Background(), db, log, cfg.Telegram.RootAdminID); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
 	}
 	log.Info("migrate: done")
+	return nil
+}
+
+func main() {
+	app := fx.New(
+		fx.WithLogger(logger.NewFxLogger),
+		fx.Provide(
+			config.New,
+			logger.New,
+			providePostgresConfig,
+			provideLoggerConfig,
+			pgdb.NewClient,
+		),
+		fx.Invoke(runMigrate),
+	)
+
+	if err := app.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "migrate: failed: %v\n", err)
+		os.Exit(1)
+	}
 }

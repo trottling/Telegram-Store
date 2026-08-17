@@ -12,6 +12,7 @@ require (
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/rvinnie/yookassa-sdk-go v0.2.1
 	github.com/sirupsen/logrus v1.10.0
+	go.uber.org/fx v1.24.0
 	golang.org/x/sync v0.22.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.2
@@ -52,6 +53,9 @@ require (
 	github.com/ugorji/go/codec v1.3.2 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.8.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
+	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/arch v0.30.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/net v0.58.0 // indirect

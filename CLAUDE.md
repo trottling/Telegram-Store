@@ -42,7 +42,7 @@ Config is loaded from environment variables via [internal/config/config.go](inte
 
 ## Architecture
 
-**Ports-and-adapters (hexagonal)**: interfaces live under `internal/domain/`, concrete implementations live in parallel packages. When implementing a repository or service, put the interface in `internal/domain/...` (if not already defined) and the struct that satisfies it in the corresponding non-domain package — do not define new interfaces outside `internal/domain`. Both `bot/` and `backend/` depend only on `internal/domain/service` — never on `internal/domain/repository`, `internal/repository/postgres`, or a concrete `internal/service` implementation directly. `cmd/bot/main.go`, `cmd/backend/main.go`, and `cmd/migrate/main.go` are the three composition roots: each one is the only place in its binary that's allowed to import `internal/repository/postgres` and `internal/service`, wiring concrete repos/services and handing only the domain interfaces down.
+**Ports-and-adapters (hexagonal)**: interfaces live under `internal/domain/`, concrete implementations live in parallel packages. When implementing a repository or service, put the interface in `internal/domain/...` (if not already defined) and the struct that satisfies it in the corresponding non-domain package — do not define new interfaces outside `internal/domain`. Both `bot/` and `backend/` depend only on `internal/domain/service` — never on `internal/domain/repository`, `internal/repository/postgres`, or a concrete `internal/service` implementation directly. `cmd/bot/`, `cmd/backend/`, and `cmd/migrate/` are the three composition roots: each one is the only package allowed to import `internal/repository/postgres` and `internal/service`, wiring concrete repos/services and handing only the domain interfaces down — each is split across main.go/providers.go/lifecycle.go (see below), not a single file, but still one `package main` per binary, so the rule is unchanged, just no longer file-granular.
 
 ```
 internal/domain/models/       GORM entities (User, Category, Product, ProductItem, Purchase, AdminLog) — the
@@ -166,20 +166,56 @@ backend/router.go, server.go   route table + http.Server lifecycle (Start/Shutdo
                                caller is the merchant's server, not a logged-in admin, so there's no session to check
 
 internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Logger sub-configs)
-internal/logger/               logrus logger construction from config.LoggerConfig
-cmd/migrate/main.go            one-shot: config -> logger -> postgres -> pgdb.AutoMigrate(ctx, db, log,
-                               rootAdminID) -> exit — that single call does the DDL, legacy-column cleanups, and
-                               root-admin/Settings bootstrap (see internal/repository/postgres above); main.go
-                               itself has no migration logic of its own. Its own doc comment explains why this is a
-                               separate binary/container from cmd/bot and cmd/backend: two independent,
-                               concurrently-started long-running services can't both own "run AutoMigrate on
-                               startup" without racing
-cmd/bot/main.go                entrypoint: config -> logger -> redis client -> postgres (schema already migrated
-                               by cmd/migrate) -> repos -> services -> bot.New -> bot.Start (blocks) -> on
-                               ctx.Done(): redis close
-cmd/backend/main.go            entrypoint: config -> logger -> redis client -> postgres (schema already migrated
-                               by cmd/migrate) -> repos -> services -> backend.New -> web server goroutine -> on
-                               ctx.Done(): graceful web server shutdown -> redis close
+internal/logger/               logrus logger construction from config.LoggerConfig, plus fx.go's NewFxLogger
+                               (routes fx's own PROVIDE/INVOKE/START/STOP event log through the same logrus
+                               logger at Debug — quiet in prod, visible with LOG_LEVEL=debug); the only
+                               importers of this package are the three cmd/* binaries
+
+Each cmd/* binary wires its dependency graph with go.uber.org/fx, split into main.go (the fx.New(...) call —
+the actual list of what's wired, read this first) and lifecycle.go (fx.Lifecycle OnStart/OnStop for the
+long-running ones). Every repo/service constructor (pgdb.NewX, service.NewX) returns its own concrete type
+and stays completely unaware that fx exists — fx itself needs no annotation on a constructor to use it, any
+plain Go function works as an fx.Provide entry as-is. The only gap fx has to bridge is concrete-type-vs-
+interface (constructors return e.g. *pgdb.UserRepo, consumers want repository.UserRepository): main.go closes
+that with fx.Annotate(ctor, fx.As(new(Iface))) directly in the fx.Provide(...) list — fx's own purpose-built
+tool for exactly this, so there's no separate provideUserRepo-style wrapper function per repo/service to
+maintain. providers.go is deliberately small: only functions with actual logic fx.Annotate can't express —
+*config.Config sub-struct extractors (fx resolves by exact type, so each field needs its own provider),
+providePaymentProviders (assembles a map from three constructors, not a type cast), and
+provideAdminAuthService/provideReplenishmentService (pull a field out of a config struct, or hand-supply a
+literal nil — real argument-shaping, not interface-casting). Repos/services needed by more than one binary are
+NOT factored into a shared package — each binary's main.go re-declares its own fx.Annotate entries, same
+duplication the manual wiring already had; the point was translating the wiring mechanism, not merging the
+two binaries' composition roots into one. The one Redis-backed cache struct is wired once per binary via
+fx.Annotate(rdb.NewRedisCache, fx.As(new(X)), fx.As(new(Y)), ...) — multiple fx.As() on one constructor
+registers that single instance under every interface it implements (domaincache.UserCache/ProductCache/
+CategoryCache/SettingsCache, domain/fsm.Store [bot only, backend has no FSM], domain/adminsession.Store,
+service.MultiCache [exported specifically so cmd/*/main.go can name it in fx.As — see internal/service/cache.go]).
+bot.New/backend.New themselves also take no fx.Lifecycle param and know nothing about fx — lifecycle.go's
+runBot/runServer register the OnStart/OnStop hooks from outside, in cmd/*, the same "fx stays out of
+non-composition-root packages" principle applied one level up (an alternative, equally common fx idiom would
+have the constructor itself accept fx.Lifecycle and self-register — deliberately not used here, since that
+would mean bot/ and backend/ importing fx just to be constructed, which is exactly the coupling being avoided).
+cmd/migrate/main.go            one-shot, no fx.Lifecycle/Run(): fx.New(...) both builds the graph AND runs
+                               fx.Invoke(runMigrate) synchronously (Invoke functions execute during fx.New
+                               itself, before any Start) — runMigrate's single pgdb.AutoMigrate(ctx, db, log,
+                               rootAdminID) call does the DDL, legacy-column cleanups, and root-admin/Settings
+                               bootstrap (see internal/repository/postgres above). app.Err() (build error or
+                               runMigrate's returned error) is also printed straight to stderr before os.Exit(1)
+                               — LOG_LEVEL shouldn't get to hide a fatal migration failure, and if the graph
+                               failed to build at all there may be no working logger yet to report through.
+                               Its own doc comment explains why this is a separate binary/container from
+                               cmd/bot and cmd/backend: two independent, concurrently-started long-running
+                               services can't both own "run AutoMigrate on startup" without racing
+cmd/bot/main.go                fx.New(...).Run() — Run() itself blocks and listens for SIGINT/SIGTERM (no
+                               manual signal.NotifyContext anymore). lifecycle.go's runBot launches
+                               bt.Start(ctx) in a goroutine from OnStart (Start blocks on long-polling, so it
+                               can't run inline — OnStart hooks are expected to return quickly) and cancels
+                               that ctx from OnStop, then closes the redis client
+cmd/backend/main.go            fx.New(...).Run(), same signal handling as cmd/bot. lifecycle.go's runServer
+                               launches webServer.Start() in a goroutine from OnStart (it blocks until
+                               Shutdown) and calls webServer.Shutdown(ctx) (10s timeout) then closes the redis
+                               client from OnStop
 
 frontend/                      the web admin panel's UI — React + Vite + Ant Design, its own package.json/Dockerfile,
                                deployed as a separate container (nginx serving the built static bundle) that calls

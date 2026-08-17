@@ -24,7 +24,7 @@ type PurchaseSrv struct {
 	replenishmentRepo repository.ReplenishmentRepository
 	transactor        repository.Transactor
 	settingsService   domainservice.SettingsService
-	cache             multiCache
+	cache             MultiCache
 	log               *logrus.Logger
 }
 
@@ -36,7 +36,7 @@ func NewPurchaseSrv(
 	replenishmentRepo repository.ReplenishmentRepository,
 	transactor repository.Transactor,
 	settingsService domainservice.SettingsService,
-	cache multiCache,
+	cache MultiCache,
 	log *logrus.Logger,
 ) *PurchaseSrv {
 	return &PurchaseSrv{

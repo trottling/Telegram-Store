@@ -19,7 +19,7 @@ type AdminSrv struct {
 	purchaseRepo  repository.PurchaseRepository
 	adminLogRepo  repository.AdminLogRepository
 	settingsRepo  repository.SettingsRepository
-	cache         multiCache
+	cache         MultiCache
 	settingsCache domaincache.SettingsCache
 	log           *logrus.Logger
 }
@@ -31,7 +31,7 @@ func NewAdminSrv(
 	purchaseRepo repository.PurchaseRepository,
 	adminLogRepo repository.AdminLogRepository,
 	settingsRepo repository.SettingsRepository,
-	cache multiCache,
+	cache MultiCache,
 	settingsCache domaincache.SettingsCache,
 	log *logrus.Logger,
 ) *AdminSrv {
