@@ -112,7 +112,12 @@ internal/service/              implementations of internal/domain/service — ca
                                cache, miss -> repo, populate cache), explicit invalidation on every write; admin
                                listing methods (*Admin/*All suffix) deliberately skip the cache and always read
                                through to Postgres, since they're tuned for freshness over throughput, not the
-                               customer-facing catalog
+                               customer-facing catalog. The same "read straight through" rule covers anything the
+                               cache must not be allowed to stale-serve: UserSrv.IsBanned (a ban has to bite on
+                               the next update, not up to userTTL later) and AdminAuthSrv.ValidateSession (a
+                               demoted admin loses access on their next request). Cache-aside is for display —
+                               balances shown in the profile, catalog listings — never for a decision about
+                               money or rights
 internal/service/payment/     PaymentProvider implementations: StubProvider (always errors, unused now that real
                                providers exist), CrystalPayProvider (hand-rolled HTTP client, no official Go SDK),
                                YooKassaProvider (github.com/rvinnie/yookassa-sdk-go), TinkoffProvider

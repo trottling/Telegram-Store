@@ -120,16 +120,16 @@ func (s *UserSrv) ListReferrals(ctx context.Context, telegramID int64, offset, l
 	return s.userRepo.ListReferrals(ctx, telegramID, offset, limit)
 }
 
+// IsBanned намеренно читает Postgres напрямую, мимо кэша — так же, как
+// AdminAuthSrv.ValidateSession перепроверяет права админа. Бан вызывается
+// каждым update'ом, но это анти-абьюз: через кэш он вступал бы в силу с
+// задержкой до userTTL (10 минут), если инвалидация после BanUser не
+// сработала. Разбанивший себя таким образом пользователь стоит дороже, чем
+// один запрос к БД на update.
 func (s *UserSrv) IsBanned(ctx context.Context, telegramID int64) (bool, error) {
-	if user, err := s.cache.GetUser(ctx, telegramID); err == nil {
-		return user.IsBanned(), nil
-	}
-
 	user, err := s.userRepo.GetByID(ctx, telegramID)
 	if err != nil {
 		return false, err
 	}
-
-	_ = s.cache.SetUser(ctx, user)
 	return user.IsBanned(), nil
 }
