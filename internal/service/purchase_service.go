@@ -13,9 +13,6 @@ import (
 	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
-// maxBuyQuantity ограничивает покупку за один вызов.
-const maxBuyQuantity = 20
-
 type PurchaseSrv struct {
 	userRepo          repository.UserRepository
 	productRepo       repository.ProductRepository
@@ -59,7 +56,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	if count <= 0 {
 		return nil, nil, domainerrors.ErrInvalidQuantity
 	}
-	if count > maxBuyQuantity {
+	if count > domainservice.MaxBuyQuantity {
 		return nil, nil, domainerrors.ErrTooManyProducts
 	}
 

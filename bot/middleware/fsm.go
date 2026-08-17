@@ -14,6 +14,7 @@ import (
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	domain "github.com/trottling/Telegram-Store/internal/domain/models"
+	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
 // maxQuickPickQuantity дублирует handlers.maxQuickPickQuantity.
@@ -119,6 +120,13 @@ func (m *Middlewares) handleBuyQuantity(ctx context.Context, b *bot.Bot, chatID 
 		m.send(ctx, b, chatID, texts.T(lang, texts.InvalidQuantityMsg, nil), nil)
 		return
 	}
+	// Потолок проверяем здесь же, а не только в Buy: иначе пользователь видел
+	// экран подтверждения с суммой за 500 штук и получал отказ лишь после того,
+	// как нажмёт «Подтвердить».
+	if qty > domainservice.MaxBuyQuantity {
+		m.send(ctx, b, chatID, texts.T(lang, texts.ErrTooManyProductsMsg, nil), nil)
+		return
+	}
 
 	m.showBuyConfirmation(ctx, b, chatID, lang, st.MessageID, st.ProductID, qty)
 }
@@ -126,15 +134,19 @@ func (m *Middlewares) handleBuyQuantity(ctx context.Context, b *bot.Bot, chatID 
 // showBuyConfirmation дублирует handlers.Handlers.showBuyConfirmation —
 // пакеты Middlewares и Handlers связаны независимо, шарить смысла нет.
 func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID int64, lang string, messageID int, productID int64, qty int) {
+	// При ошибке отвечаем пользователю: он только что ввёл количество, и молчание
+	// в ответ выглядит как проглоченный ввод.
 	product, err := m.productService.GetByID(ctx, productID)
 	if err != nil {
 		m.log.WithError(err).WithField("product_id", productID).Error("fsm: failed to get product for confirmation")
+		m.send(ctx, b, chatID, texts.UserFacingError(lang, err), nil)
 		return
 	}
 
 	available, err := m.productService.GetAvailableCount(ctx, productID)
 	if err != nil {
 		m.log.WithError(err).WithField("product_id", productID).Error("fsm: failed to get available count for confirmation")
+		m.send(ctx, b, chatID, texts.UserFacingError(lang, err), nil)
 		return
 	}
 	if qty > available {

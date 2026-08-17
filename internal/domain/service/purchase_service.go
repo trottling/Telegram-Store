@@ -6,6 +6,12 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
+// MaxBuyQuantity — потолок количества за одну покупку. Живёт в домене, потому
+// что смотрят на него двое: PurchaseSrv.Buy (последнее слово, возвращает
+// ErrTooManyProducts) и бот, чтобы отказать сразу при вводе, а не после экрана
+// подтверждения. Значение упомянуто и в текстах ErrTooManyProductsMsg.
+const MaxBuyQuantity = 20
+
 // PurchaseService принимает Telegram ID покупателя, не внутренний ключ.
 type PurchaseService interface {
 	// Buy — count строк Purchase за одну транзакцию (одна Purchase на единицу
