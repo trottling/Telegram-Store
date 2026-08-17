@@ -53,7 +53,7 @@ func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID 
 	if len(items) > 0 {
 		lines := make([]string, len(items))
 		for i, r := range items {
-			lines[i] = fmt.Sprintf(texts.ReplenishmentLineMsg, r.Amount, utils.MerchantName(r.Merchant), utils.ReplenishmentStatusName(r.Status), r.CreatedAt.Format("02.01.2006 15:04"))
+			lines[i] = fmt.Sprintf(texts.ReplenishmentLineMsg, utils.FormatAmount(r.Amount), utils.MerchantName(r.Merchant), utils.ReplenishmentStatusName(r.Status), utils.FormatDate(r.CreatedAt))
 		}
 		text = texts.ReplenishmentsMsg + "\n\n" + strings.Join(lines, "\n")
 	}
@@ -64,7 +64,7 @@ func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID 
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
 			Text:        text,
-			ParseMode:   models.ParseModeMarkdownV1,
+			ParseMode:   models.ParseModeMarkdown,
 			ReplyMarkup: kb,
 		}); err != nil {
 			h.log.Errorf("renderReplenishments: failed to send message to %d: %v", chatID, err)
@@ -76,7 +76,7 @@ func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID 
 		ChatID:      chatID,
 		MessageID:   messageID,
 		Text:        text,
-		ParseMode:   models.ParseModeMarkdownV1,
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("renderReplenishments: failed to edit message %d in chat %d: %v", messageID, chatID, err)

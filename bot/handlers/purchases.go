@@ -57,7 +57,7 @@ func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID int64
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
 			Text:        text,
-			ParseMode:   models.ParseModeMarkdownV1,
+			ParseMode:   models.ParseModeMarkdown,
 			ReplyMarkup: kb,
 		}); err != nil {
 			h.log.Errorf("renderPurchases: failed to send message to %d: %v", chatID, err)
@@ -69,7 +69,7 @@ func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID int64
 		ChatID:      chatID,
 		MessageID:   messageID,
 		Text:        text,
-		ParseMode:   models.ParseModeMarkdownV1,
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("renderPurchases: failed to edit message %d in chat %d: %v", messageID, chatID, err)
@@ -105,7 +105,7 @@ func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update
 		if p.Item != nil {
 			content = p.Item.Content
 		}
-		contents[i] = fmt.Sprintf("`%s`", content)
+		contents[i] = fmt.Sprintf("`%s`", utils.EscapeMarkdownCode(content))
 		total += p.Amount
 	}
 
@@ -118,8 +118,8 @@ func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.PurchaseDetailMsg, purchases[0].Product.Name, total, len(purchases), purchases[0].CreatedAt.Format("02.01.2006 15:04"), purchases[0].Product.Description, strings.Join(contents, "\n")),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.PurchaseDetailMsg, utils.EscapeMarkdown(purchases[0].Product.Name), utils.FormatAmount(total), len(purchases), utils.FormatDate(purchases[0].CreatedAt), utils.EscapeMarkdown(purchases[0].Product.Description), strings.Join(contents, "\n")),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("PurchaseDetailHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)

@@ -8,6 +8,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/utils"
 )
 
 // AdminHandler отвечает на /admin ссылкой на панель и одноразовым кодом входа (30 секунд).
@@ -42,8 +43,8 @@ func (h *Handlers) AdminHandler(ctx context.Context, b *bot.Bot, update *models.
 	_, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ReplyMarkup: h.kb.AdminKb,
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.AdminMsg, code),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.AdminMsg, utils.EscapeMarkdownCode(code)),
+		ParseMode:   models.ParseModeMarkdown,
 	})
 
 	if err == nil {
@@ -58,8 +59,8 @@ func (h *Handlers) AdminHandler(ctx context.Context, b *bot.Bot, update *models.
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:    chatID,
-		Text:      fmt.Sprintf(texts.AdminMsgWithLink, code, h.adminPanelConfig.FrontendURL),
-		ParseMode: models.ParseModeMarkdownV1,
+		Text:      fmt.Sprintf(texts.AdminMsgWithLink, utils.EscapeMarkdownCode(code), utils.EscapeMarkdown(h.adminPanelConfig.FrontendURL)),
+		ParseMode: models.ParseModeMarkdown,
 	}); err != nil {
 		h.log.Errorf("AdminHandler: failed to send message to %d: %v", chatID, err)
 		return

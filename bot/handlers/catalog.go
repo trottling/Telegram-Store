@@ -65,7 +65,7 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 			return
 		}
 
-		text = fmt.Sprintf(texts.CategoryMsg, category.Name, category.Description, user.Balance)
+		text = fmt.Sprintf(texts.CategoryMsg, utils.EscapeMarkdown(category.Name), utils.EscapeMarkdown(category.Description), utils.FormatAmount(user.Balance))
 		if category.ParentID != nil {
 			backCallback = utils.BuildCategoryCallback(*category.ParentID)
 		} else {
@@ -83,7 +83,7 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
 			Text:        text,
-			ParseMode:   models.ParseModeMarkdownV1,
+			ParseMode:   models.ParseModeMarkdown,
 			ReplyMarkup: kb,
 		}); err != nil {
 			h.log.Errorf("renderCatalog: failed to send message to %d: %v", chatID, err)
@@ -95,7 +95,7 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 		ChatID:      chatID,
 		MessageID:   messageID,
 		Text:        text,
-		ParseMode:   models.ParseModeMarkdownV1,
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("renderCatalog: failed to edit message %d in chat %d: %v", messageID, chatID, err)
@@ -151,13 +151,13 @@ func (h *Handlers) renderProductDetail(ctx context.Context, b *bot.Bot, chatID i
 			{{Text: texts.BackBtn, CallbackData: backCallback}},
 		},
 	}
-	text := fmt.Sprintf(texts.ProductMsg, product.Name, product.Price, utils.StockIndicator(available), available, product.Description, user.Balance)
+	text := fmt.Sprintf(texts.ProductMsg, utils.EscapeMarkdown(product.Name), utils.FormatAmount(product.Price), utils.StockIndicator(available), available, utils.EscapeMarkdown(product.Description), utils.FormatAmount(user.Balance))
 
 	if messageID == 0 {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
 			Text:        text,
-			ParseMode:   models.ParseModeMarkdownV1,
+			ParseMode:   models.ParseModeMarkdown,
 			ReplyMarkup: kb,
 		}); err != nil {
 			h.log.Errorf("renderProductDetail: failed to send message to %d: %v", chatID, err)
@@ -169,7 +169,7 @@ func (h *Handlers) renderProductDetail(ctx context.Context, b *bot.Bot, chatID i
 		ChatID:      chatID,
 		MessageID:   messageID,
 		Text:        text,
-		ParseMode:   models.ParseModeMarkdownV1,
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("renderProductDetail: failed to edit message %d in chat %d: %v", messageID, chatID, err)

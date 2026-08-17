@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -15,7 +16,10 @@ import (
 // стоп (fail closed).
 func (m *Middlewares) BanCheck(next bot.HandlerFunc) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		if update.Message != nil && update.Message.Text == "/start" {
+		// HasPrefix, не точное совпадение — "/start" пропускает и
+		// "/start <id>" (payload реф-ссылки), иначе новый приглашённый
+		// пользователь никогда не доходит до StartHandler.
+		if update.Message != nil && strings.HasPrefix(update.Message.Text, "/start") {
 			next(ctx, b, update)
 			return
 		}

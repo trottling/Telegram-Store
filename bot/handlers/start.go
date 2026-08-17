@@ -9,6 +9,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/utils"
 )
 
 // StartHandler — единственное место, где создаётся запись пользователя.
@@ -24,8 +25,8 @@ func (h *Handlers) StartHandler(ctx context.Context, b *bot.Bot, update *models.
 
 	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.StartMsg, update.Message.From.FirstName),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.StartMsg, utils.EscapeMarkdown(update.Message.From.FirstName)),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {
 		h.log.Errorf("StartHandler: failed to send message: %v", err)
@@ -53,8 +54,8 @@ func (h *Handlers) StartMenuHandler(ctx context.Context, b *bot.Bot, update *mod
 
 	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.StartMsg, update.Message.From.FirstName),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.StartMsg, utils.EscapeMarkdown(update.Message.From.FirstName)),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {
 		h.log.Errorf("StartMenuHandler: failed to send message to %d: %v", chatID, err)
@@ -67,8 +68,8 @@ func (h *Handlers) MainMenuHandler(ctx context.Context, b *bot.Bot, update *mode
 
 	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.StartMsg, update.CallbackQuery.From.FirstName),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.StartMsg, utils.EscapeMarkdown(update.CallbackQuery.From.FirstName)),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {
 		h.log.Errorf("MainMenuHandler: failed to send message to %d: %v", chatID, err)
@@ -87,8 +88,8 @@ func (h *Handlers) HelpHandler(ctx context.Context, b *bot.Bot, update *models.U
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.HelpMsg, settings.SupportUsername),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.HelpMsg, utils.EscapeMarkdown(settings.SupportUsername)),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {
 		h.log.Errorf("HelpHandler: failed to send message to %d: %v", chatID, err)

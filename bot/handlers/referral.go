@@ -53,10 +53,12 @@ func (h *Handlers) ReferralHandler(ctx context.Context, b *bot.Bot, update *mode
 		},
 	}
 
+	// Без ParseMode: в link (username бота) может быть "_", а MarkdownV1 читает
+	// одиночное подчёркивание как начало italic-сущности — нечётное количество
+	// ломает парсинг ("can't find end of the entity"). Сам текст форматирования не требует.
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        fmt.Sprintf(texts.ReferralMsg, settings.Referral.Percent, link, invited, totalCredited),
-		ParseMode:   models.ParseModeMarkdownV1,
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("ReferralHandler: failed to send message to %d: %v", chatID, err)

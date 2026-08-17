@@ -11,6 +11,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/keyboards"
 	"github.com/trottling/Telegram-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/utils"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	domain "github.com/trottling/Telegram-Store/internal/domain/models"
@@ -80,7 +81,7 @@ func (m *Middlewares) send(ctx context.Context, b *bot.Bot, chatID int64, text s
 	params := &bot.SendMessageParams{
 		ChatID:    chatID,
 		Text:      text,
-		ParseMode: models.ParseModeMarkdownV1,
+		ParseMode: models.ParseModeMarkdown,
 	}
 	if kb != nil {
 		params.ReplyMarkup = kb
@@ -121,7 +122,7 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 			ChatID:      chatID,
 			MessageID:   messageID,
 			Text:        fmt.Sprintf(texts.InsufficientStockMsg, available),
-			ParseMode:   models.ParseModeMarkdownV1,
+			ParseMode:   models.ParseModeMarkdown,
 			ReplyMarkup: keyboards.BuildQuantityKb(maxQuickPickQuantity),
 		}); err != nil {
 			m.log.Errorf("fsm: failed to edit message %d in chat %d: %v", messageID, chatID, err)
@@ -138,8 +139,8 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.ConfirmPurchaseMsg, product.Name, qty, product.Price*float64(qty)),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.ConfirmPurchaseMsg, utils.EscapeMarkdown(product.Name), qty, utils.FormatAmount(product.Price*float64(qty))),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: keyboards.BuildBuyConfirmKb(),
 	}); err != nil {
 		m.log.Errorf("fsm: failed to edit message %d in chat %d: %v", messageID, chatID, err)
@@ -176,5 +177,5 @@ func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: texts.PayBtn, URL: paymentURL}}},
 	}
-	m.send(ctx, b, chatID, fmt.Sprintf(texts.RefillInvoiceMsg, amount), kb)
+	m.send(ctx, b, chatID, fmt.Sprintf(texts.RefillInvoiceMsg, utils.FormatAmount(amount)), kb)
 }

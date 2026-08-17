@@ -7,6 +7,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
+	"github.com/trottling/Telegram-Store/bot/utils"
 	domain "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
@@ -46,8 +47,8 @@ func (h *Handlers) sendProfile(ctx context.Context, b *bot.Bot, chatID int64, by
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.ProfileMsg, user.Username, user.TelegramID, user.Balance, count, spent),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.ProfileMsg, utils.EscapeMarkdown(user.Username), user.TelegramID, utils.FormatAmount(user.Balance), count, utils.FormatAmount(spent)),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: h.kb.ProfileKb,
 	}); err != nil {
 		h.log.Errorf("sendProfile: failed to send message to %d: %v", chatID, err)

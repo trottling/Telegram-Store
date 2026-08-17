@@ -45,8 +45,8 @@ func (h *Handlers) BuyHandler(ctx context.Context, b *bot.Bot, update *models.Up
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.AskQuantityMsg, product.Name),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.AskQuantityMsg, utils.EscapeMarkdown(product.Name)),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: keyboards.BuildQuantityKb(maxQuickPickQuantity),
 	}); err != nil {
 		h.log.Errorf("BuyHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
@@ -92,7 +92,7 @@ func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID i
 			ChatID:      chatID,
 			MessageID:   messageID,
 			Text:        fmt.Sprintf(texts.InsufficientStockMsg, available),
-			ParseMode:   models.ParseModeMarkdownV1,
+			ParseMode:   models.ParseModeMarkdown,
 			ReplyMarkup: keyboards.BuildQuantityKb(maxQuickPickQuantity),
 		}); err != nil {
 			h.log.Errorf("showBuyConfirmation: failed to edit message %d in chat %d: %v", messageID, chatID, err)
@@ -109,8 +109,8 @@ func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID i
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        fmt.Sprintf(texts.ConfirmPurchaseMsg, product.Name, qty, product.Price*float64(qty)),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.ConfirmPurchaseMsg, utils.EscapeMarkdown(product.Name), qty, utils.FormatAmount(product.Price*float64(qty))),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: keyboards.BuildBuyConfirmKb(),
 	}); err != nil {
 		h.log.Errorf("showBuyConfirmation: failed to edit message %d in chat %d: %v", messageID, chatID, err)
@@ -165,13 +165,13 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 		if p.Item != nil {
 			content = p.Item.Content
 		}
-		contents[i] = fmt.Sprintf("`%s`", content)
+		contents[i] = fmt.Sprintf("`%s`", utils.EscapeMarkdownCode(content))
 	}
 
 	if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        fmt.Sprintf(texts.ProductBoughtMsg, len(purchases), purchases[0].Product.Description, strings.Join(contents, "\n")),
-		ParseMode:   models.ParseModeMarkdownV1,
+		Text:        fmt.Sprintf(texts.ProductBoughtMsg, len(purchases), utils.EscapeMarkdown(purchases[0].Product.Description), strings.Join(contents, "\n")),
+		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: h.kb.MainMenuKb,
 	}); err != nil {
 		h.log.Errorf("BuyConfirmHandler: failed to send message to %d: %v", chatID, err)
@@ -180,8 +180,8 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 	if credit != nil {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    credit.ReferrerID,
-			Text:      fmt.Sprintf(texts.ReferralCreditMsg, credit.Amount),
-			ParseMode: models.ParseModeMarkdownV1,
+			Text:      fmt.Sprintf(texts.ReferralCreditMsg, utils.FormatAmount(credit.Amount)),
+			ParseMode: models.ParseModeMarkdown,
 		}); err != nil {
 			h.log.Errorf("BuyConfirmHandler: failed to notify referrer %d: %v", credit.ReferrerID, err)
 		}
