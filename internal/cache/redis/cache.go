@@ -207,6 +207,26 @@ func (c *Cache) GetFSMState(ctx context.Context, telegramID int64) (*domainfsm.S
 	return &st, nil
 }
 
+// ConsumeFSMState — GETDEL, чтобы два параллельных тапа по одной кнопке не
+// прочитали одно состояние дважды (ср. ConsumeLoginCode).
+func (c *Cache) ConsumeFSMState(ctx context.Context, telegramID int64) (*domainfsm.State, error) {
+	raw, err := c.client.GetDel(ctx, stateKey(telegramID)).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, domainfsm.ErrNotFound
+	}
+	if err != nil {
+		c.log.WithError(err).WithField("telegram_id", telegramID).Error("cache: redis GETDEL failed (fsm state)")
+		return nil, err
+	}
+
+	var st domainfsm.State
+	if err = json.Unmarshal(raw, &st); err != nil {
+		c.log.WithError(err).WithField("telegram_id", telegramID).Warn("cache: stored fsm state failed to unmarshal, treating as absent")
+		return nil, domainfsm.ErrNotFound
+	}
+	return &st, nil
+}
+
 func (c *Cache) SetFSMState(ctx context.Context, telegramID int64, st *domainfsm.State) error {
 	raw, err := json.Marshal(st)
 	if err != nil {

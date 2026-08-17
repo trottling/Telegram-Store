@@ -154,17 +154,23 @@ func (h *Handlers) BuyCancelHandler(ctx context.Context, b *bot.Bot, update *mod
 }
 
 // BuyConfirmHandler — единственное место, где реально происходит покупка.
+//
+// Состояние снимается атомарно (ConsumeFSMState): каждый update обрабатывается
+// своей горутиной, и чтение с последующей очисткой двумя вызовами позволяло
+// двум быстрым тапам пройти проверку дважды — то есть списать деньги дважды.
+// Состояние с неподходящим шагом при этом тоже снимается (пользователь просто
+// нажимает нужную кнопку заново): переустанавливать его обратно нельзя, это
+// вернуло бы ту же гонку.
 func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID, messageID, ok := utils.CallbackTarget(update)
 	if !ok {
 		return
 	}
 
-	st, err := h.stateStore.GetFSMState(ctx, chatID)
+	st, err := h.stateStore.ConsumeFSMState(ctx, chatID)
 	if err != nil || st.Step != domainfsm.StepAwaitingBuyConfirmation {
 		return
 	}
-	_ = h.stateStore.ClearFSMState(ctx, chatID)
 
 	if _, err = b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{ChatID: chatID, MessageID: messageID}); err != nil {
 		h.log.Errorf("BuyConfirmHandler: failed to strip keyboard from message %d in chat %d: %v", messageID, chatID, err)

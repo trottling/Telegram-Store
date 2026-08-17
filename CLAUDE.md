@@ -24,11 +24,24 @@ go run ./cmd/bot                                  # run the bot locally (needs .
 go run ./cmd/admin_backend                        # run the admin API locally
 go run ./cmd/payments_backend                     # run the payment-webhooks API locally
 go vet ./...                                       # static checks
-go test ./...                                      # run tests (no test files exist yet)
+go test ./...                                      # run tests (see the testing note below)
 docker compose up --build   # run migrate + bot + admin_backend + payments_backend + Postgres + Redis + admin_frontend + caddy + backup together (reads .env)
 ```
 
 There is no Makefile or linter config in the repo — use the `go` toolchain directly.
+
+**Testing**: coverage is deliberately narrow, not aspirational. Tests exist only where a bug is invisible to
+review and to manual clicking — concurrency, transaction rollback, and one library behaviour the whole design
+leans on. Three files, and each one is a regression test for a specific incident: `internal/service/
+replenishment_service_test.go` (a webhook credit that fails mid-way must roll the status back, or the retry
+silently succeeds and the money is gone — hand-written fakes over the `domain/repository` interfaces, whose
+fake transactor models Postgres rollback), `internal/cache/redis/cache_test.go` (`ConsumeFSMState` hands the
+state to exactly one of N concurrent callers — needs a real Redis command surface, hence `miniredis`, the only
+test-only dependency), `bot/utils/update_test.go` (`CallbackQuery.Message.Message` really is nil for an
+inaccessible message — builds the `Update` from raw JSON on purpose, since that nil comes out of
+`MaybeInaccessibleMessage.UnmarshalJSON` and a struct literal would not reproduce it). Do not add breadth for
+its own sake; do add a test when a fix's correctness cannot be seen by reading the diff. `-race` needs
+`CGO_ENABLED=1` and a C compiler, which this dev machine does not have.
 
 Frontend (`admin_frontend/`, separate npm project, not part of the Go module):
 
@@ -64,8 +77,16 @@ internal/domain/cache/        read-through cache ports, one interface per cached
                                on only the entity interface(s) it actually uses, composing more than one locally
                                (e.g. internal/service's unexported multiCache) only when it genuinely needs to
 internal/domain/fsm/          Store interface — per-chat FSM conversation state (GetFSMState/SetFSMState/
-                               ClearFSMState — spelled out, not bare Get/Set/Clear, since the same Redis-backed
-                               struct also implements domain/cache's per-entity interfaces)
+                               ClearFSMState/ConsumeFSMState — spelled out, not bare Get/Set/Clear, since the same
+                               Redis-backed struct also implements domain/cache's per-entity interfaces).
+                               **ConsumeFSMState (GETDEL) is the one to use whenever the state gates something
+                               that must happen at most once** — go-telegram/bot handles every update in its own
+                               goroutine (ProcessUpdate: `go r(...)`, and WithNotAsyncHandlers is not set), so a
+                               separate Get-then-Clear lets two fast taps on the same button both pass the step
+                               check. BuyConfirmHandler charges money, so it consumes; BuyCancelHandler
+                               deliberately still uses Get+Clear, since losing that race is the harmless
+                               direction. A consumed state is gone even if its Step turns out to be wrong —
+                               re-setting it would reintroduce exactly the race being closed
 internal/domain/adminsession/ Store interface — web-panel one-time login codes + sessions (Redis-backed, nothing
                                in Postgres); a distinct bounded concern from domain/cache and domain/fsm, just
                                implemented by the same Redis-backed struct
