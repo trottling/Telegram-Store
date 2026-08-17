@@ -11,6 +11,8 @@ func New(c *config.LoggerConfig) *logrus.Logger {
 	l := logrus.New()
 	l.SetOutput(os.Stdout)
 
+	var unknownLevel bool
+
 	var level logrus.Level
 	switch c.Level {
 	case "debug":
@@ -27,7 +29,7 @@ func New(c *config.LoggerConfig) *logrus.Logger {
 		level = logrus.PanicLevel
 	default:
 		level = logrus.InfoLevel
-
+		unknownLevel = c.Level != ""
 	}
 
 	l.SetLevel(level)
@@ -39,6 +41,13 @@ func New(c *config.LoggerConfig) *logrus.Logger {
 		DisableLevelTruncation: true,
 		FullTimestamp:          true,
 	})
+
+	// Предупреждаем уже настроенным логгером: молчаливый откат на info означал,
+	// что опечатка вроде LOG_LEVEL=warning даёт уровень болтливее ожидаемого, и
+	// заметить это можно только по объёму логов.
+	if unknownLevel {
+		l.WithField("log_level", c.Level).Warn("logger: unrecognized log level, falling back to info")
+	}
 
 	return l
 }

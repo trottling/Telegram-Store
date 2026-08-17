@@ -40,7 +40,10 @@ func (c *Cache) getJSON(ctx context.Context, key string, dest any) error {
 		return err
 	}
 	if err = json.Unmarshal(raw, dest); err != nil {
-		c.log.WithError(err).WithField("key", key).Warn("cache: stored value failed to unmarshal, treating as miss")
+		// Битое значение удаляем сразу: иначе каждое чтение до истечения TTL
+		// снова падает и снова пишет в лог, хотя чинится это одним DEL.
+		c.log.WithError(err).WithField("key", key).Warn("cache: stored value failed to unmarshal, dropping key")
+		_ = c.delete(ctx, key)
 		return domaincache.ErrMiss
 	}
 	return nil
@@ -133,7 +136,8 @@ func (c *Cache) GetProductAvailableCount(ctx context.Context, productID int64) (
 	}
 	count, err := strconv.Atoi(raw)
 	if err != nil {
-		c.log.WithError(err).WithField("product_id", productID).Warn("cache: stored count is not an int, treating as miss")
+		c.log.WithError(err).WithField("product_id", productID).Warn("cache: stored count is not an int, dropping key")
+		_ = c.delete(ctx, productCountKey(productID))
 		return 0, domaincache.ErrMiss
 	}
 	return count, nil

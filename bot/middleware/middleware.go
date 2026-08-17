@@ -52,7 +52,10 @@ func (m *Middlewares) Logging(next bot.HandlerFunc) bot.HandlerFunc {
 		switch {
 		case update.Message != nil:
 			fields["kind"] = "message"
-			fields["text"] = update.Message.Text
+			// Только длина, не сам текст: на Debug сюда попадало всё, что пишут
+			// пользователи, включая пересланный им же код входа. Для отладки
+			// хватает связки update_id + шаг FSM.
+			fields["text_len"] = len(update.Message.Text)
 		case update.CallbackQuery != nil:
 			fields["kind"] = "callback_query"
 			fields["data"] = update.CallbackQuery.Data

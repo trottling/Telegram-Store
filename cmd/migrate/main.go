@@ -18,6 +18,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"go.uber.org/fx"
@@ -31,9 +32,19 @@ import (
 func providePostgresConfig(cfg *config.Config) *config.PostgresConfig { return cfg.Postgres }
 func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return cfg.Logger }
 
+// migrateTimeout — потолок на всю миграцию. Без дедлайна AutoMigrate, упёршийся
+// в блокировку на занятой таблице, висел бы вечно, а вместе с ним и весь стек:
+// bot/admin_backend/payments_backend ждут этот контейнер через
+// service_completed_successfully и без диагностики просто не стартуют.
+const migrateTimeout = 5 * time.Minute
+
 func runMigrate(cfg *config.Config, log *logrus.Logger, db *gorm.DB) error {
 	log.Info("migrate: config loaded")
-	if err := pgdb.AutoMigrate(context.Background(), db, log, cfg.Telegram.RootAdminID); err != nil {
+
+	ctx, cancel := context.WithTimeout(context.Background(), migrateTimeout)
+	defer cancel()
+
+	if err := pgdb.AutoMigrate(ctx, db, log, cfg.Telegram.RootAdminID); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	log.Info("migrate: done")
