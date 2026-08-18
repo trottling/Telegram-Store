@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -154,10 +155,16 @@ func New() (*Config, error) {
 	}
 
 	if cfg.Telegram.Token == "" {
-		return nil, fmt.Errorf("BOT_TOKEN is required")
+		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is required")
+	}
+	// Telegram ID всегда положительный. Ноль проходил проверку выше, а
+	// cmd/migrate бутстрапил root-админа на несуществующего пользователя —
+	// и выдать права дальше становилось некому.
+	if cfg.Telegram.RootAdminID <= 0 {
+		return nil, fmt.Errorf("TELEGRAM_ROOT_ADMIN_ID must be a positive Telegram user ID, got %d", cfg.Telegram.RootAdminID)
 	}
 	if cfg.Postgres.DBUser == "" || cfg.Postgres.DBPassword == "" || cfg.Postgres.DBName == "" {
-		return nil, fmt.Errorf("DB_USER, DB_PASSWORD and DB_NAME are required")
+		return nil, fmt.Errorf("POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_NAME are required")
 	}
 	if len(cfg.AdminPanel.JWTSecret) == 0 {
 		return nil, fmt.Errorf("ADMIN_JWT_SECRET is required")
@@ -170,10 +177,39 @@ func New() (*Config, error) {
 	if len(cfg.AdminPanel.JWTSecret) < minJWTSecretLen {
 		return nil, fmt.Errorf("ADMIN_JWT_SECRET must be at least %d characters, got %d", minJWTSecretLen, len(cfg.AdminPanel.JWTSecret))
 	}
+
+	for _, p := range []struct {
+		key   string
+		value int
+	}{
+		{"POSTGRES_PORT", cfg.Postgres.DBPort},
+		{"ADMIN_PANEL_BACKEND_PORT", cfg.AdminPanel.Port},
+		{"PAYMENTS_BACKEND_PORT", cfg.Payments.Port},
+	} {
+		if err = validatePort(p.key, p.value); err != nil {
+			return nil, err
+		}
+	}
+	// Локально и в docker-compose.debug.yml оба сервера слушают один хост, так
+	// что совпадение портов вылезало бы только в рантайме как "address in use".
+	if cfg.AdminPanel.Port == cfg.Payments.Port {
+		return nil, fmt.Errorf("ADMIN_PANEL_BACKEND_PORT and PAYMENTS_BACKEND_PORT must differ, both are %d", cfg.AdminPanel.Port)
+	}
+	// Верхнюю границу не проверяем: число баз задаётся конфигом самого Redis.
+	if cfg.Redis.RedisDB < 0 {
+		return nil, fmt.Errorf("invalid REDIS_DB: %d must not be negative", cfg.Redis.RedisDB)
+	}
+
 	if err = validateURL("PAYMENTS_BACKEND_URL", cfg.Payments.URL); err != nil {
 		return nil, err
 	}
 	if err = validateURL("ADMIN_PANEL_FRONTEND_URL", cfg.AdminPanel.FrontendURL); err != nil {
+		return nil, err
+	}
+	if err = validateOriginList("ADMIN_PANEL_CORS_ORIGIN", cfg.AdminPanel.CORSOrigin); err != nil {
+		return nil, err
+	}
+	if err = validateProxyList("ADMIN_PANEL_TRUSTED_PROXIES", cfg.AdminPanel.TrustedProxies); err != nil {
 		return nil, err
 	}
 
@@ -227,6 +263,61 @@ func (c *PaymentsConfig) IsLoopbackURL() bool {
 		return ip.IsLoopback()
 	}
 	return false
+}
+
+// validatePort — порт вне допустимого диапазона раньше доезжал до рантайма и
+// падал там невнятной ошибкой драйвера или листенера.
+func validatePort(key string, port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("invalid %s: %d is out of range 1-65535", key, port)
+	}
+	return nil
+}
+
+// validateOriginList — middleware.CORS сравнивает Origin посимвольно, а браузер
+// присылает его без пути и без слеша на конце. Поэтому "http://localhost:3000/"
+// не совпадёт никогда: панель молча упрётся в CORS, притом что переменная
+// выглядит правильно. Ловим здесь, а не по жалобе в консоли браузера.
+func validateOriginList(key, raw string) error {
+	for _, origin := range strings.Split(raw, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+
+		parsed, err := url.Parse(origin)
+		if err != nil {
+			return fmt.Errorf("invalid %s: %q: %w", key, origin, err)
+		}
+		if parsed.Scheme == "" || parsed.Host == "" {
+			return fmt.Errorf("invalid %s: %q must include scheme and host", key, origin)
+		}
+		if parsed.Path != "" || parsed.RawQuery != "" {
+			return fmt.Errorf("invalid %s: %q must be a bare origin, without path or trailing slash", key, origin)
+		}
+	}
+	return nil
+}
+
+// validateProxyList — это security-контроль, а не косметика: на кривом списке
+// gin.SetTrustedProxies лишь возвращает ошибку, которую router.go может только
+// записать в лог, и сервис продолжает работать с недостоверным ClientIP —
+// то есть с обходимым лимитом попыток входа. Падать сразу честнее.
+func validateProxyList(key, raw string) error {
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(entry); err == nil {
+			continue
+		}
+		if net.ParseIP(entry) != nil {
+			continue
+		}
+		return fmt.Errorf("invalid %s: %q is neither an IP address nor a CIDR block", key, entry)
+	}
+	return nil
 }
 
 func getEnv(key, fallback string) string {
