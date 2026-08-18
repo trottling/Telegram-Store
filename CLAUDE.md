@@ -281,11 +281,7 @@ payments_backend/middleware/   detach.go (Detach) — the only middleware here, 
 internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Payments/Logger sub-configs)
 internal/logger/               logrus logger construction from config.LoggerConfig, plus fx.go's NewFxLogger
                                (routes fx's own PROVIDE/INVOKE/START/STOP event log through the same logrus
-                               logger at Debug — quiet in prod, visible with LOG_LEVEL=debug — **but any event carrying
-                               an Err is raised to Error**, because otherwise a failed startup exited 1 with no
-                               log line at all and the container just crash-looped. Config errors happened to
-                               stay visible by accident: logrus itself depends on *config.Config, so a bad config
-                               means no logger, and fx falls back to its own stderr logger); the only
+                               logger at Debug — quiet in prod, visible with LOG_LEVEL=debug); the only
                                importers of this package are the four cmd/* binaries.
                                **Everything logs through this one logrus instance, and nothing should print
                                ANSI**: these binaries always run with stdout as a pipe (docker json-file), so
@@ -338,6 +334,11 @@ cmd/migrate/main.go            one-shot, no fx.Lifecycle/Run(): fx.New(...) both
                                Its own doc comment explains why this is a separate binary/container from
                                cmd/bot, cmd/admin_backend, and cmd/payments_backend: independent, concurrently-
                                started long-running services can't both own "run AutoMigrate on startup" without racing
+cmd/*/main.go (bot,          every long-running binary checks app.Err() before Run() and prints it to stderr,
+  admin_backend,             mirroring cmd/migrate: fx.New executes Invoke functions itself, so a graph or
+  payments_backend)          constructor failure (unreachable Postgres, bad config) lands there — while Run()
+                             alone would only exit 1 and route the reason to the fx logger at Debug, leaving a
+                             container crash-looping with an empty log at the default LOG_LEVEL
 cmd/bot/main.go                fx.New(...).Run() — Run() itself blocks and listens for SIGINT/SIGTERM (no
                                manual signal.NotifyContext anymore). lifecycle.go's runBot launches
                                bt.Start(ctx) in a goroutine from OnStart (Start blocks on long-polling, so it

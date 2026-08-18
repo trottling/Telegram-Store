@@ -18,6 +18,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"go.uber.org/fx"
 
 	"github.com/trottling/Telegram-Store/bot"
@@ -34,7 +37,7 @@ import (
 )
 
 func main() {
-	fx.New(
+	app := fx.New(
 		fx.WithLogger(logger.NewFxLogger),
 		fx.Provide(
 			config.New,
@@ -83,5 +86,16 @@ func main() {
 			bot.New,
 		),
 		fx.Invoke(runBot),
-	).Run()
+	)
+
+	// Ошибку сборки графа и упавшего Invoke (например, недоступный Postgres)
+	// fx.New отдаёт через app.Err(), а Run() о ней только молча выходит с
+	// кодом 1. Пишем прямо в stderr: LOG_LEVEL не должен скрывать фатальный
+	// сбой старта — та же причина, что и в cmd/migrate.
+	if err := app.Err(); err != nil {
+		fmt.Fprintf(os.Stderr, "bot: failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	app.Run()
 }
