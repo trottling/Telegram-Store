@@ -12,8 +12,9 @@ import (
 const (
 	// minJWTSecretLen — HS256, поэтому секрет короче 32 байт ослабляет подпись.
 	minJWTSecretLen = 32
-	// jwtSecretPlaceholder — значение из .env.example, его нельзя пускать в работу.
-	jwtSecretPlaceholder = "change_me_generate_with_openssl_rand_base64_32"
+	// secretPlaceholder — значение из .env.example (JWT_SECRET, REDIS_USERNAME/
+	// PASSWORD), его нельзя пускать в работу: оно лежит в git, то есть известно всем.
+	secretPlaceholder = "change_me_generate_with_openssl_rand_base64_32"
 )
 
 type Config struct {
@@ -40,7 +41,11 @@ type PostgresConfig struct {
 }
 
 type RedisConfig struct {
-	RedisAddr     string
+	RedisAddr string
+	// RedisUsername/RedisPassword — ACL-пользователь (Redis 6+), обязательны:
+	// bundled redis-сервис в docker-compose отключает user default и пускает
+	// только по этой паре (см. docker-compose.yml).
+	RedisUsername string
 	RedisPassword string
 	RedisDB       int
 }
@@ -90,6 +95,7 @@ func New() (*Config, error) {
 	pgSSLMode := getEnv("POSTGRES_SSLMODE", "disable")
 
 	redisAddr := getEnv("REDIS_ADDR", "localhost:6379")
+	redisUsername := os.Getenv("REDIS_USERNAME")
 	redisPassword := os.Getenv("REDIS_PASSWORD")
 	redisDB, err := getEnvInt("REDIS_DB", 0)
 	if err != nil {
@@ -132,6 +138,7 @@ func New() (*Config, error) {
 
 		Redis: &RedisConfig{
 			RedisAddr:     redisAddr,
+			RedisUsername: redisUsername,
 			RedisPassword: redisPassword,
 			RedisDB:       redisDB,
 		},
@@ -166,12 +173,19 @@ func New() (*Config, error) {
 	if cfg.Postgres.DBUser == "" || cfg.Postgres.DBPassword == "" || cfg.Postgres.DBName == "" {
 		return nil, fmt.Errorf("POSTGRES_USER, POSTGRES_PASSWORD and POSTGRES_NAME are required")
 	}
+	// bundled redis-сервис в docker-compose поднимает ACL-пользователя из этих
+	// двух переменных и отключает default (см. docker-compose.yml) — пустое
+	// или дефолтное значение означает, что подключиться к нему нечем.
+	if cfg.Redis.RedisUsername == "" || cfg.Redis.RedisPassword == "" {
+		return nil, fmt.Errorf("REDIS_USERNAME and REDIS_PASSWORD are required")
+	}
+	if cfg.Redis.RedisUsername == secretPlaceholder || cfg.Redis.RedisPassword == secretPlaceholder {
+		return nil, fmt.Errorf("REDIS_USERNAME/REDIS_PASSWORD are still the .env.example placeholder, generate real ones: openssl rand -base64 32")
+	}
 	if len(cfg.AdminPanel.JWTSecret) == 0 {
 		return nil, fmt.Errorf("ADMIN_JWT_SECRET is required")
 	}
-	// Плейсхолдер из .env.example лежит в git, то есть известен всем: проверку
-	// "не пустой" он проходил, а секретом при этом не является.
-	if adminJWTSecret == jwtSecretPlaceholder {
+	if adminJWTSecret == secretPlaceholder {
 		return nil, fmt.Errorf("ADMIN_JWT_SECRET is still the .env.example placeholder, generate a real one: openssl rand -base64 32")
 	}
 	if len(cfg.AdminPanel.JWTSecret) < minJWTSecretLen {

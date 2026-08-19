@@ -10,6 +10,7 @@ import (
 func NewClient(cfg *config.RedisConfig) (*redis.Client, error) {
 	redisClient := redis.NewClient(&redis.Options{
 		Addr:     cfg.RedisAddr,
+		Username: cfg.RedisUsername,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
 	})

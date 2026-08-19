@@ -118,11 +118,15 @@ services:
     container_name: telegram-store-redis
     ports:
       - "6379:6379"
-    command: [ "redis-server", "--appendonly", "yes" ]
+    command: [
+      "redis-server", "--appendonly", "yes",
+      "--user", "default", "off",
+      "--user", "${REDIS_USERNAME}", "on", ">${REDIS_PASSWORD}", "allcommands", "allkeys", "allchannels"
+    ]
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: [ "CMD", "redis-cli", "--user", "${REDIS_USERNAME}", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping" ]
       interval: 5s
       timeout: 5s
       retries: 5
