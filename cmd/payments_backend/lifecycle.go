@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 
 	paymentsbackend "github.com/trottling/Telegram-Store/payments_backend"
 )
@@ -14,7 +14,7 @@ import (
 // runServer регистрирует старт/стоп webhooks-сервера в fx.Lifecycle.
 // webServer.Start блокируется до Shutdown — запускается в горутине, ошибку
 // логируем сами (fx.Lifecycle.OnStart не место для долгоживущего листенера).
-func runServer(lc fx.Lifecycle, webServer *paymentsbackend.Server, redisClient *redis.Client, log *logrus.Logger) {
+func runServer(lc fx.Lifecycle, webServer *paymentsbackend.Server, redisClient *redis.Client, log *zap.SugaredLogger) {
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			go func() {

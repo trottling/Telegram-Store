@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 
 	"github.com/trottling/Telegram-Store/bot"
 )
@@ -17,7 +17,7 @@ const drainTimeout = 15 * time.Second
 // runBot регистрирует старт/стоп бота в fx.Lifecycle. bt.Start блокируется
 // до отмены ctx (long-polling), поэтому запускается в горутине — OnStart
 // должен вернуться быстро, иначе fx посчитает старт приложения не завершённым.
-func runBot(lc fx.Lifecycle, bt *bot.TelegramBot, redisClient *redis.Client, log *logrus.Logger) {
+func runBot(lc fx.Lifecycle, bt *bot.TelegramBot, redisClient *redis.Client, log *zap.SugaredLogger) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	lc.Append(fx.Hook{

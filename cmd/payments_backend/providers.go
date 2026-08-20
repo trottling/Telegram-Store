@@ -1,8 +1,6 @@
 package main
 
 import (
-	"github.com/sirupsen/logrus"
-
 	"github.com/trottling/Telegram-Store/internal/config"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
@@ -10,6 +8,7 @@ import (
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
 	svc "github.com/trottling/Telegram-Store/internal/service"
 	"github.com/trottling/Telegram-Store/internal/service/payment"
+	"go.uber.org/zap"
 )
 
 // Сабконфиги *config.Config — см. cmd/admin_backend/providers.go, тот же
@@ -33,6 +32,6 @@ func provideCrystalPayProvider(settingsService service.SettingsService, payments
 // nil): payments_backend счета не создаёт (только принимает вебхуки),
 // CreateInvoice отсюда не вызывается. fx.Annotate тут не подходит — это не
 // просто приведение типа, а реальный "пустой" аргумент.
-func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *logrus.Logger) service.ReplenishmentService {
+func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *zap.SugaredLogger) service.ReplenishmentService {
 	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, log)
 }

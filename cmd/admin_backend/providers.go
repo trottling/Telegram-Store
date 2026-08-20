@@ -1,14 +1,13 @@
 package main
 
 import (
-	"github.com/sirupsen/logrus"
-
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	svc "github.com/trottling/Telegram-Store/internal/service"
+	"go.uber.org/zap"
 )
 
 // Сабконфиги *config.Config — на fx-графе значение отдаётся ровно одного
@@ -27,13 +26,13 @@ func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { retu
 // payments_backend), только отдаёт листинг — CreateInvoice отсюда не
 // вызывается. fx.Annotate тут не подходит — это не просто приведение типа,
 // а реальный "пустой" аргумент.
-func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *logrus.Logger) service.ReplenishmentService {
+func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *zap.SugaredLogger) service.ReplenishmentService {
 	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, log)
 }
 
 // provideAdminAuthService — тоже не просто приведение к интерфейсу: JWT-секрет
 // достаётся из подконфига, а не приходит отдельным типом из графа. Коды
 // выдаёт бот (/admin), этот процесс их только обменивает/проверяет.
-func provideAdminAuthService(userRepo repository.UserRepository, store adminsession.Store, adminPanelCfg *config.AdminPanelConfig, log *logrus.Logger) service.AdminAuthService {
+func provideAdminAuthService(userRepo repository.UserRepository, store adminsession.Store, adminPanelCfg *config.AdminPanelConfig, log *zap.SugaredLogger) service.AdminAuthService {
 	return svc.NewAdminAuthSrv(userRepo, store, adminPanelCfg.JWTSecret, log)
 }

@@ -20,8 +20,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"go.uber.org/fx"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"github.com/trottling/Telegram-Store/internal/config"
@@ -38,7 +38,7 @@ func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return c
 // service_completed_successfully и без диагностики просто не стартуют.
 const migrateTimeout = 5 * time.Minute
 
-func runMigrate(cfg *config.Config, log *logrus.Logger, db *gorm.DB) error {
+func runMigrate(cfg *config.Config, log *zap.SugaredLogger, db *gorm.DB) error {
 	log.Info("migrate: config loaded")
 
 	ctx, cancel := context.WithTimeout(context.Background(), migrateTimeout)
