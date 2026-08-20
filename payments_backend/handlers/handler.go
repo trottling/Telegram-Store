@@ -4,9 +4,9 @@
 package handlers
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
+	"go.uber.org/zap"
 )
 
 type Handlers struct {
@@ -19,14 +19,14 @@ type Handlers struct {
 	// перезапрашивается своим SDK прямо в хендлере).
 	crystalPayProvider payment.PaymentProvider
 
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
 func New(
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
 	crystalPayProvider payment.PaymentProvider,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *Handlers {
 	return &Handlers{
 		settingsService:      settingsService,

@@ -8,16 +8,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
 	"github.com/trottling/Telegram-Store/payments_backend/handlers"
+	"go.uber.org/zap"
 )
 
 type Server struct {
 	httpServer *http.Server
-	log        *logrus.Logger
+	log        *zap.SugaredLogger
 }
 
 func New(
@@ -25,7 +25,7 @@ func New(
 	replenishmentService service.ReplenishmentService,
 	crystalPayProvider payment.PaymentProvider,
 	cfg *config.PaymentsConfig,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *Server {
 	h := handlers.New(settingsService, replenishmentService, crystalPayProvider, log)
 	router := newRouter(h)
@@ -40,7 +40,7 @@ func New(
 }
 
 func (s *Server) Start() error {
-	s.log.WithField("addr", s.httpServer.Addr).Info("payments_backend: starting webhooks server")
+	s.log.Infow("payments_backend: starting webhooks server", "addr", s.httpServer.Addr)
 	err := s.httpServer.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil

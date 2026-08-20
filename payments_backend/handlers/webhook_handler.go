@@ -16,7 +16,6 @@ import (
 	"github.com/rvinnie/yookassa-sdk-go/yookassa"
 	yoopayment "github.com/rvinnie/yookassa-sdk-go/yookassa/payment"
 	yoowebhook "github.com/rvinnie/yookassa-sdk-go/yookassa/webhook"
-	"github.com/sirupsen/logrus"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
@@ -34,13 +33,12 @@ func (h *Handlers) replenishmentOK(merchant models.Merchant, invoiceID string, e
 		return true
 	}
 
-	fields := logrus.Fields{"merchant": merchant, "invoice_id": invoiceID}
 	if errors.Is(err, domainerrors.ErrReplenishmentNotFound) {
-		h.log.WithFields(fields).Warn("handlers: webhook for unknown invoice, acknowledged without retry")
+		h.log.Warnw("handlers: webhook for unknown invoice, acknowledged without retry", "merchant", merchant, "invoice_id", invoiceID)
 		return true
 	}
 
-	h.log.WithError(err).WithFields(fields).Error("handlers: webhook processing failed")
+	h.log.Errorw("handlers: webhook processing failed", "error", err, "merchant", merchant, "invoice_id", invoiceID)
 	return false
 }
 
@@ -66,7 +64,7 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 
 	settings, err := h.settingsService.Get(c.Request.Context())
 	if err != nil {
-		h.log.WithError(err).Error("handlers: crystalpay webhook failed to get settings")
+		h.log.Errorw("handlers: crystalpay webhook failed to get settings", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -81,7 +79,7 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 
 	status, err := h.crystalPayProvider.CheckStatus(c.Request.Context(), payload.ID)
 	if err != nil {
-		h.log.WithError(err).Warn("handlers: crystalpay webhook status re-check failed")
+		h.log.Warnw("handlers: crystalpay webhook status re-check failed", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -106,7 +104,7 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 func (h *Handlers) TinkoffWebhook(c *gin.Context) {
 	settings, err := h.settingsService.Get(c.Request.Context())
 	if err != nil {
-		h.log.WithError(err).Error("handlers: tinkoff webhook failed to get settings")
+		h.log.Errorw("handlers: tinkoff webhook failed to get settings", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -114,7 +112,7 @@ func (h *Handlers) TinkoffWebhook(c *gin.Context) {
 	client := tinkoff.NewClient(settings.Tinkoff.TerminalKey, settings.Tinkoff.Password)
 	notification, err := client.ParseNotification(c.Request.Body)
 	if err != nil {
-		h.log.WithError(err).Warn("handlers: tinkoff webhook verification failed")
+		h.log.Warnw("handlers: tinkoff webhook verification failed", "error", err)
 		c.Status(http.StatusForbidden)
 		return
 	}
@@ -146,7 +144,7 @@ func (h *Handlers) YooKassaWebhook(c *gin.Context) {
 
 	settings, err := h.settingsService.Get(c.Request.Context())
 	if err != nil {
-		h.log.WithError(err).Error("handlers: yookassa webhook failed to get settings")
+		h.log.Errorw("handlers: yookassa webhook failed to get settings", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
 	}
@@ -154,7 +152,7 @@ func (h *Handlers) YooKassaWebhook(c *gin.Context) {
 	handler := yookassa.NewPaymentHandler(yookassa.NewClient(settings.YooKassa.ShopID, settings.YooKassa.SecretKey))
 	pay, err := handler.FindPayment(c.Request.Context(), event.Object.ID)
 	if err != nil {
-		h.log.WithError(err).Warn("handlers: yookassa webhook re-fetch failed")
+		h.log.Warnw("handlers: yookassa webhook re-fetch failed", "error", err)
 		c.Status(http.StatusInternalServerError)
 		return
 	}
