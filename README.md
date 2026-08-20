@@ -17,6 +17,7 @@
 - 🚫 Управление пользователями — бан/разбан, начисление баланса, выдача/снятие прав админа
 - 📜 Аудит-лог всех административных действий — кто, что и когда поменял
 - 📊 Дашборд статистики продаж
+- 📈 Логи и метрики всего стека в Grafana (`stats.$DOMAIN_NAME`) — вход тем же кодом из `/admin`, отдельного логина нет
 
 ---
 
@@ -29,6 +30,7 @@
 | Хранение данных              | PostgreSQL через [GORM](https://gorm.io)                                                              |
 | Кэш / состояние              | Redis (read-through кэш, состояние FSM, сессии админов)                                               |
 | UI панели                    | React, Vite, TypeScript, [Ant Design](https://ant.design)                                             |
+| Логи и метрики               | [Prometheus](https://prometheus.io) + [Loki](https://grafana.com/oss/loki/)/[Promtail](https://grafana.com/docs/loki/latest/send-data/promtail/) + [Grafana](https://grafana.com) |
 | TLS / прод-деплой            | [Caddy](https://caddyserver.com) (авто-TLS), ежедневный `pg_dump` + [rclone](https://rclone.org) в S3 |
 
 Архитектура — hexagonal/ports-and-adapters: четыре независимых Go-бинарника (`bot`, `admin_backend`, `payments_backend`, `migrate`) вокруг общих Postgres и Redis
@@ -38,13 +40,14 @@
 Нужен Docker и токен телеграм-бота от [@BotFather](https://t.me/BotFather).
 
 `docker-compose.yml` — прод-стек: наружу торчит только `caddy` (80/443, авто-TLS
-через Let's Encrypt), `admin_backend`/`payments_backend`/`admin_frontend` портов
-на хост не публикуют. Нужен реальный домен с A-записями на `admin./api./pay.`
+через Let's Encrypt), остальные сервисы (включая Grafana) портов на хост не
+публикуют. Нужен реальный домен с A-записями на `admin./api./pay./stats.`
 поддоменами (`DOMAIN_NAME` в `.env`) — без них ACME не сможет выпустить
 сертификаты. Для локального запуска без домена используйте
 `docker compose -f docker-compose.debug.yml up --build` — там все порты
 опубликованы напрямую (`admin_backend` на `:8080`, `admin_frontend` на `:3000` и
-т.д.), `caddy` и `backup` в этом файле нет. Порты БД и кеша так-же открыты наружу.
+т.д.), `caddy`/`backup` и стек логов/метрик (Prometheus/Loki/Promtail/Grafana) в
+этом файле нет. Порты БД и кеша так-же открыты наружу.
 
 ```bash
 cp .env.example .env
@@ -56,7 +59,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend`, `payments_backend`, `admin_frontend`, `caddy` (TLS-терминатор) и `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`).
+Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend`, `payments_backend`, `admin_frontend`, `caddy` (TLS-терминатор), `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`) и стек наблюдаемости — `prometheus`/`loki`/`promtail`/`grafana` (конфиги — в `monitoring/`).
 
 После запуска:
 
@@ -64,7 +67,7 @@ docker compose up --build
 2. Отправьте `/admin` — бот пришлёт ссылку на панель и 6-значный код (действует 30 секунд).
 3. Откройте `https://admin.$DOMAIN_NAME` (или `http://localhost:3000` при запуске через `docker-compose.debug.yml`), вставьте код.
 
-Так входит любой админ, включая root — пароль настраивать не нужно.
+Так входит любой админ, включая root — пароль настраивать не нужно. Тем же кодом открывается и `https://stats.$DOMAIN_NAME` (Grafana с логами и метриками всего стека) — своей формы входа у неё нет, она просто доверяет уже залогиненной сессии панели.
 
 ## 🛠️ Локальная разработка
 
@@ -101,7 +104,7 @@ npm run dev      # Vite dev-сервер на :3000
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_NAME` | доступы к базе данных                                                                                        |
 | `ADMIN_JWT_SECRET`                                      | подписывает сессионные токены админов — сгенерировать `openssl rand -base64 32`, плейсхолдер не использовать |
 
-Всё остальное (`POSTGRES_HOST/PORT/SSLMODE`, `REDIS_*`, `ADMIN_PANEL_*`, `PAYMENTS_BACKEND_PORT/URL`, `LOG_LEVEL`) имеет разумные значения по умолчанию для локальной разработки и Docker — что делает каждая переменная и когда её нужно менять, смотрите в комментариях `.env.example` (например, `ADMIN_PANEL_FRONTEND_URL` в продакшене должен быть настоящим `https://`-доменом, так как Telegram отклоняет `localhost`-ссылки в инлайн-кнопках; `PAYMENTS_BACKEND_URL` — внешний адрес, на который платёжные провайдеры шлют вебхуки).
+Всё остальное (`POSTGRES_HOST/PORT/SSLMODE`, `REDIS_*`, `ADMIN_PANEL_*`, `PAYMENTS_BACKEND_PORT/URL`, `BOT_METRICS_PORT`, `LOKI_RETENTION_DAYS`, `GRAFANA_ADMIN_USER/PASSWORD`, `LOG_LEVEL`) имеет разумные значения по умолчанию для локальной разработки и Docker — что делает каждая переменная и когда её нужно менять, смотрите в комментариях `.env.example` (например, `ADMIN_PANEL_FRONTEND_URL` в продакшене должен быть настоящим `https://`-доменом, так как Telegram отклоняет `localhost`-ссылки в инлайн-кнопках; `PAYMENTS_BACKEND_URL` — внешний адрес, на который платёжные провайдеры шлют вебхуки; `GRAFANA_ADMIN_USER/PASSWORD` — не основной вход в Grafana, а break-glass доступ изнутри docker-сети, публично вход туда идёт кодом из `/admin`, см. выше).
 
 ## 📁 Структура проекта
 
@@ -116,5 +119,6 @@ payments_backend/       хендлеры, роутинг вебхуков пла
 internal/               доменные интерфейсы + их реализации (hexagonal/ports-and-adapters)
 admin_frontend/         React-панель админа (отдельный npm-проект)
 backup/                 контейнер ежедневного pg_dump + выгрузки в S3 (rclone)
+monitoring/             конфиги Prometheus/Loki/Promtail/Grafana (логи и метрики)
 Caddyfile               конфиг TLS-терминатора (docker-compose.yml, сервис caddy)
 ```

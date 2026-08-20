@@ -288,12 +288,13 @@ services:
     <<: *default-logging
 
 networks:
-  # db+redis видны только bot/admin_backend/payments_backend/migrate/backup, без выхода наружу
+  # db+redis видны только bot/admin_backend/payments_backend/migrate/backup/
+  # prometheus/loki/promtail/grafana, без выхода наружу
   backend-network:
     driver: bridge
     internal: true
   # нужна для исходящих к Telegram (bot), к S3 (backup) и для caddy/admin_backend/
-  # payments_backend/admin_frontend, между которыми ходят проксируемые запросы.
+  # payments_backend/admin_frontend/grafana, между которыми ходят проксируемые запросы.
   # Подсеть закреплена, потому что admin_backend доверяет X-Forwarded-For только
   # от неё (ADMIN_PANEL_TRUSTED_PROXIES) — на плавающем адресе из дефолтного
   # пула Docker это доверие пришлось бы выдавать вслепую.
