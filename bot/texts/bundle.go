@@ -5,7 +5,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/nicksnyder/go-i18n/v2/i18n"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"golang.org/x/text/language"
 )
 
@@ -77,7 +77,7 @@ func T(lang, messageID string, data map[string]any) string {
 	loc := localizers[Normalize(lang)]
 	s, err := loc.Localize(&i18n.LocalizeConfig{MessageID: messageID, TemplateData: data})
 	if err != nil {
-		logrus.StandardLogger().WithError(err).WithField("message_id", messageID).Error("texts: localize failed")
+		zap.S().Errorw("texts: localize failed", "error", err, "message_id", messageID)
 		return messageID
 	}
 	return s

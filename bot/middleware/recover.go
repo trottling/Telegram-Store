@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/sirupsen/logrus"
 )
 
 // Recover ловит панику в обработке update. go-telegram/bot запускает каждый
@@ -19,12 +18,12 @@ func (m *Middlewares) Recover(next bot.HandlerFunc) bot.HandlerFunc {
 		defer func() {
 			if r := recover(); r != nil {
 				chatID, _ := extractChatID(update)
-				m.log.WithFields(logrus.Fields{
-					"telegram_id": chatID,
-					"update_id":   update.ID,
-					"panic":       r,
-					"stack":       string(debug.Stack()),
-				}).Error("middleware: panic recovered")
+				m.log.Errorw("middleware: panic recovered",
+					"telegram_id", chatID,
+					"update_id", update.ID,
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
 			}
 		}()
 		next(ctx, b, update)

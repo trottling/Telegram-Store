@@ -37,7 +37,7 @@ func (m *Middlewares) BanCheck(next bot.HandlerFunc) bot.HandlerFunc {
 				m.reply(ctx, b, chatID, texts.T(lang, texts.PleaseStartMsg, nil))
 				return
 			}
-			m.log.WithError(err).WithField("telegram_id", chatID).Error("ban_check: failed to check ban status")
+			m.log.Errorw("ban_check: failed to check ban status", "error", err, "telegram_id", chatID)
 			return
 		}
 

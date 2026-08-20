@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/bot/utils"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	"go.uber.org/zap"
 
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
@@ -19,7 +19,7 @@ type Middlewares struct {
 	productService       service.ProductService
 	replenishmentService service.ReplenishmentService
 	stateStore           domainfsm.Store
-	log                  *logrus.Logger
+	log                  *zap.SugaredLogger
 	// inFlight — update'ы в обработке, см. Track/WaitInFlight.
 	inFlight sync.WaitGroup
 }
@@ -30,7 +30,7 @@ func New(
 	productService service.ProductService,
 	replenishmentService service.ReplenishmentService,
 	stateStore domainfsm.Store,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *Middlewares {
 	return &Middlewares{
 		userService:          userService,
@@ -47,23 +47,23 @@ func New(
 func (m *Middlewares) Logging(next bot.HandlerFunc) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		chatID, _ := extractChatID(update)
-		fields := logrus.Fields{"telegram_id": chatID, "update_id": update.ID}
+		fields := []any{"telegram_id", chatID, "update_id", update.ID}
 
 		switch {
 		case update.Message != nil:
-			fields["kind"] = "message"
+			fields = append(fields, "kind", "message")
 			// Только длина, не сам текст: на Debug сюда попадало всё, что пишут
 			// пользователи, включая пересланный им же код входа. Для отладки
 			// хватает связки update_id + шаг FSM.
-			fields["text_len"] = len(update.Message.Text)
+			fields = append(fields, "text_len", len(update.Message.Text))
 		case update.CallbackQuery != nil:
-			fields["kind"] = "callback_query"
-			fields["data"] = update.CallbackQuery.Data
+			fields = append(fields, "kind", "callback_query")
+			fields = append(fields, "data", update.CallbackQuery.Data)
 		default:
-			fields["kind"] = "other"
+			fields = append(fields, "kind", "other")
 		}
 
-		m.log.WithFields(fields).Debug("middleware: update received")
+		m.log.Debugw("middleware: update received", fields...)
 		next(ctx, b, update)
 	}
 }

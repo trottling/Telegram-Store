@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/bot/handlers"
 	"github.com/trottling/Telegram-Store/bot/keyboards"
 	"github.com/trottling/Telegram-Store/bot/middleware"
@@ -15,6 +14,7 @@ import (
 	"github.com/trottling/Telegram-Store/internal/config"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"go.uber.org/zap"
 )
 
 // matchAnyLang матчит текст сообщения с подписью кнопки messageID на любом
@@ -37,7 +37,7 @@ type TelegramBot struct {
 	bot                  *bot.Bot
 	middlewares          *middleware.Middlewares
 	config               *config.Config
-	log                  *logrus.Logger
+	log                  *zap.SugaredLogger
 	userService          service.UserService
 	productService       service.ProductService
 	purchaseService      service.PurchaseService
@@ -57,7 +57,7 @@ func New(
 	stateStore domainfsm.Store,
 	telegramConfig *config.TelegramConfig,
 	adminPanelConfig *config.AdminPanelConfig,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) (*TelegramBot, error) {
 
 	log.Info("initializing bot")

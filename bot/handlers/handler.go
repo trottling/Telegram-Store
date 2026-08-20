@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/bot/keyboards"
 	"github.com/trottling/Telegram-Store/internal/config"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	"go.uber.org/zap"
 
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 )
@@ -19,7 +19,7 @@ type Handlers struct {
 	adminAuthService     service.AdminAuthService
 	stateStore           domainfsm.Store
 	kb                   *keyboards.Keyboards
-	log                  *logrus.Logger
+	log                  *zap.SugaredLogger
 	adminPanelConfig     *config.AdminPanelConfig
 	// botUsername — для реф-ссылок (t.me/<botUsername>?start=<id>), см. bot.New.
 	botUsername string
@@ -35,7 +35,7 @@ func New(
 	adminAuthService service.AdminAuthService,
 	stateStore domainfsm.Store,
 	kb *keyboards.Keyboards,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 	adminPanelConfig *config.AdminPanelConfig,
 	botUsername string,
 ) *Handlers {

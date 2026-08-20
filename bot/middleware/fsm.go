@@ -59,7 +59,7 @@ func (m *Middlewares) FSM(next bot.HandlerFunc) bot.HandlerFunc {
 		if err != nil {
 			// ErrNotFound — обычный случай (нет ожидаемого шага), остальные ошибки просто логируем.
 			if !errors.Is(err, domainfsm.ErrNotFound) {
-				m.log.WithError(err).WithField("telegram_id", chatID).Error("fsm: failed to read state")
+				m.log.Errorw("fsm: failed to read state", "error", err, "telegram_id", chatID)
 			}
 			next(ctx, b, update)
 			return
@@ -138,14 +138,14 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 	// в ответ выглядит как проглоченный ввод.
 	product, err := m.productService.GetByID(ctx, productID)
 	if err != nil {
-		m.log.WithError(err).WithField("product_id", productID).Error("fsm: failed to get product for confirmation")
+		m.log.Errorw("fsm: failed to get product for confirmation", "error", err, "product_id", productID)
 		m.send(ctx, b, chatID, texts.UserFacingError(lang, err), nil)
 		return
 	}
 
 	available, err := m.productService.GetAvailableCount(ctx, productID)
 	if err != nil {
-		m.log.WithError(err).WithField("product_id", productID).Error("fsm: failed to get available count for confirmation")
+		m.log.Errorw("fsm: failed to get available count for confirmation", "error", err, "product_id", productID)
 		m.send(ctx, b, chatID, texts.UserFacingError(lang, err), nil)
 		return
 	}
@@ -164,7 +164,7 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 
 	st := &domainfsm.State{Step: domainfsm.StepAwaitingBuyConfirmation, ProductID: productID, Quantity: qty, MessageID: messageID}
 	if err = m.stateStore.SetFSMState(ctx, chatID, st); err != nil {
-		m.log.WithError(err).WithField("telegram_id", chatID).Error("fsm: failed to set buy-confirmation state")
+		m.log.Errorw("fsm: failed to set buy-confirmation state", "error", err, "telegram_id", chatID)
 		return
 	}
 
@@ -202,7 +202,7 @@ func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID
 			m.send(ctx, b, chatID, texts.T(lang, texts.InvalidAmountMsg, nil), nil)
 			return
 		}
-		m.log.WithError(err).WithField("telegram_id", chatID).Info("fsm: refill invoice unavailable")
+		m.log.Infow("fsm: refill invoice unavailable", "error", err, "telegram_id", chatID)
 		_ = m.stateStore.ClearFSMState(ctx, chatID)
 		m.send(ctx, b, chatID, texts.T(lang, texts.RefillMsg, nil), nil)
 		return
