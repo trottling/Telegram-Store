@@ -1,9 +1,12 @@
 # Авто-провижининг датасорсов — после первого деплоя оба уже настроены,
-# ничего не нужно тыкать руками в UI.
+# ничего не нужно тыкать руками в UI. uid зафиксирован явно (иначе Grafana
+# сгенерировала бы свой на каждый инстанс) — на него ссылаются панели в
+# monitoring/grafana/provisioning/dashboards/bot-overview.json.
 apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -11,6 +14,7 @@ datasources:
     editable: false
 
   - name: Loki
+    uid: loki
     type: loki
     access: proxy
     url: http://loki:3100
