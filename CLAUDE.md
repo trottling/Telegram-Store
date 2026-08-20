@@ -281,18 +281,20 @@ payments_backend/middleware/   detach.go (Detach) — the only middleware here, 
                                row stays pending, the merchant's retry still credits)
 
 internal/config/               env-var config loader (Telegram/Postgres/Redis/AdminPanel/Payments/Logger sub-configs)
-internal/logger/               logrus logger construction from config.LoggerConfig, plus fx.go's NewFxLogger
-                               (routes fx's own PROVIDE/INVOKE/START/STOP event log through the same logrus
-                               logger at Debug — quiet in prod, visible with LOG_LEVEL=debug); the only
-                               importers of this package are the four cmd/* binaries.
-                               **Everything logs through this one logrus instance, and nothing should print
-                               ANSI**: these binaries always run with stdout as a pipe (docker json-file), so
-                               escape codes end up inside the stored log field and break both `docker logs` and
-                               any aggregator. That is why TextFormatter does NOT set ForceColors (logrus then
-                               colors only a real TTY), and why postgres.NewClient hands GORM its own
-                               gormlogger with Colorful:false whose Writer forwards into logrus — GORM otherwise
-                               writes coloured lines straight to stderr via the standard log package, ignoring
-                               LOG_LEVEL entirely
+internal/logger/               zap.SugaredLogger construction from config.LoggerConfig (explicit zap.Config, not
+                               NewProduction()/NewDevelopment() as-is — both need customizing for a container),
+                               plus fx.go's NewFxLogger (fx's own fxevent.ZapLogger, UseLogLevel(Debug) — quiet
+                               in prod, visible with LOG_LEVEL=debug); the only importers of this package are the
+                               four cmd/* binaries. Output is always JSON (Loki/Grafana query on it via `| json`,
+                               see the observability-stack paragraph above) — no ForceColors/Colorful toggle to
+                               worry about the way logrus needed one, JSON never carries ANSI. New() also calls
+                               zap.ReplaceGlobals(l): the only caller of the package-level zap.S()/zap.L() is
+                               bot/texts.T's error-logging fallback (a package-level function with no DI'd
+                               logger to take as a param), and those globals are a silent no-op otherwise —
+                               unlike logrus.StandardLogger(), which always worked out of the box.
+                               postgres.NewClient hands GORM its own gormlogger whose Writer forwards into this
+                               same SugaredLogger via Warnf — GORM otherwise writes straight to stderr via the
+                               standard log package, ignoring LOG_LEVEL entirely
 
 Each cmd/* binary wires its dependency graph with go.uber.org/fx, split into main.go (the fx.New(...) call —
 the actual list of what's wired, read this first) and lifecycle.go (fx.Lifecycle OnStart/OnStop for the
@@ -373,7 +375,7 @@ admin_frontend/                the web admin panel's UI — React + Vite + Ant D
                                block loading the login screen or any other page
 ```
 
-All repositories and services are fully implemented (not stubs) and logging (`*logrus.Logger`, threaded in from each `main.go`) is wired through every repo/cache/service constructor.
+All repositories and services are fully implemented (not stubs) and logging (`*zap.SugaredLogger`, threaded in from each `main.go`) is wired through every repo/cache/service constructor.
 
 ### Data model
 
