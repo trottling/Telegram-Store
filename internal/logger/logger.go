@@ -1,53 +1,81 @@
 package logger
 
 import (
-	"os"
-
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/config"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-func New(c *config.LoggerConfig) *logrus.Logger {
-	l := logrus.New()
-	l.SetOutput(os.Stdout)
-
+// New — SugaredLogger, не строгий *zap.Logger: у него есть и Infow(msg, "k", v)
+// под структурные вызовы, и Infof(fmt, args...) под printf-стиль — обе формы
+// используются по всему репо, а имена методов совпадают буква в букву с
+// прежними logrus-вызовами там, где формат уже был printf-style.
+func New(c *config.LoggerConfig) *zap.SugaredLogger {
 	var unknownLevel bool
 
-	var level logrus.Level
+	var level zapcore.Level
 	switch c.Level {
 	case "debug":
-		level = logrus.DebugLevel
+		level = zapcore.DebugLevel
 	case "info":
-		level = logrus.InfoLevel
+		level = zapcore.InfoLevel
 	case "warn":
-		level = logrus.WarnLevel
+		level = zapcore.WarnLevel
 	case "error":
-		level = logrus.ErrorLevel
+		level = zapcore.ErrorLevel
 	case "fatal":
-		level = logrus.FatalLevel
+		level = zapcore.FatalLevel
 	case "panic":
-		level = logrus.PanicLevel
+		level = zapcore.PanicLevel
 	default:
-		level = logrus.InfoLevel
+		level = zapcore.InfoLevel
 		unknownLevel = c.Level != ""
 	}
 
-	l.SetLevel(level)
-	// ForceColors намеренно не выставляем: logrus сам включит цвета, только
-	// если stdout — терминал. В контейнере это pipe, и escape-последовательности
-	// уходили бы в json-file прямо в поле log, отравляя и `docker logs`, и
-	// любой агрегатор.
-	l.SetFormatter(&logrus.TextFormatter{
-		DisableLevelTruncation: true,
-		FullTimestamp:          true,
-	})
+	// Явный zap.Config, а не NewProduction()/NewDevelopment() "как есть":
+	// Production по умолчанию тащит caller+stacktrace на Error, Development
+	// заточен под локальную отладку — обоим нужна кастомизация под контейнер.
+	// Caller/stacktrace отключены, чтобы не добавлять в лог поля, которых не
+	// было у logrus и никто не просил.
+	cfg := zap.Config{
+		Level:             zap.NewAtomicLevelAt(level),
+		DisableCaller:     true,
+		DisableStacktrace: true,
+		Encoding:          "json",
+		EncoderConfig: zapcore.EncoderConfig{
+			TimeKey:        "ts",
+			LevelKey:       "level",
+			MessageKey:     "msg",
+			LineEnding:     zapcore.DefaultLineEnding,
+			EncodeLevel:    zapcore.CapitalLevelEncoder,
+			EncodeTime:     zapcore.ISO8601TimeEncoder,
+			EncodeDuration: zapcore.SecondsDurationEncoder,
+		},
+		OutputPaths:      []string{"stdout"},
+		ErrorOutputPaths: []string{"stderr"},
+	}
+
+	// Ошибка тут — по сути только кривой OutputPaths, которого нет: конфиг
+	// собирается из констант выше, а не из чего-то, что реально может подвести.
+	l, err := cfg.Build()
+	if err != nil {
+		panic("logger: failed to build zap logger: " + err.Error())
+	}
+	sugar := l.Sugar()
+
+	// zap.S()/zap.L() (глобальные, без DI) иначе no-op по умолчанию — в отличие
+	// от вечно рабочего logrus.StandardLogger(), на который раньше опирался
+	// bot/texts.T(): без этого редкий, но реальный лог о битом переводе просто
+	// исчезал бы молча. Один настроенный логгер на процесс — тот же самый,
+	// что уходит в fx и во все репозитории/сервисы через DI.
+	zap.ReplaceGlobals(l)
 
 	// Предупреждаем уже настроенным логгером: молчаливый откат на info означал,
 	// что опечатка вроде LOG_LEVEL=warning даёт уровень болтливее ожидаемого, и
 	// заметить это можно только по объёму логов.
 	if unknownLevel {
-		l.WithField("log_level", c.Level).Warn("logger: unrecognized log level, falling back to info")
+		sugar.Warnw("logger: unrecognized log level, falling back to info", "log_level", c.Level)
 	}
 
-	return l
+	return sugar
 }
