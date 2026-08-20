@@ -23,6 +23,7 @@ type Config struct {
 	Redis      *RedisConfig
 	AdminPanel *AdminPanelConfig
 	Payments   *PaymentsConfig
+	Metrics    *MetricsConfig
 	Logger     *LoggerConfig
 }
 
@@ -81,6 +82,11 @@ type PaymentsConfig struct {
 	URL string
 }
 
+// MetricsConfig — конфиг /metrics-сервера бота (Prometheus, см. internal/metrics/bot).
+type MetricsConfig struct {
+	Port int
+}
+
 type LoggerConfig struct {
 	Level string
 }
@@ -130,6 +136,11 @@ func New() (*Config, error) {
 	}
 	paymentsURL := getEnv("PAYMENTS_BACKEND_URL", "http://localhost:8081")
 
+	metricsPort, err := getEnvInt("BOT_METRICS_PORT", 9100)
+	if err != nil {
+		return nil, err
+	}
+
 	logLevel := getEnv("LOG_LEVEL", "info")
 
 	cfg := &Config{
@@ -166,6 +177,10 @@ func New() (*Config, error) {
 		Payments: &PaymentsConfig{
 			Port: paymentsPort,
 			URL:  paymentsURL,
+		},
+
+		Metrics: &MetricsConfig{
+			Port: metricsPort,
 		},
 
 		Logger: &LoggerConfig{
@@ -211,6 +226,7 @@ func New() (*Config, error) {
 		{"POSTGRES_PORT", cfg.Postgres.DBPort},
 		{"ADMIN_PANEL_BACKEND_PORT", cfg.AdminPanel.Port},
 		{"PAYMENTS_BACKEND_PORT", cfg.Payments.Port},
+		{"BOT_METRICS_PORT", cfg.Metrics.Port},
 	} {
 		if err = validatePort(p.key, p.value); err != nil {
 			return nil, err
