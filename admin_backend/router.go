@@ -64,8 +64,6 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 		api.GET("/purchases", h.ListPurchases)
 		api.GET("/purchases/:id", h.GetPurchase)
 
-		api.GET("/stats/dashboard", h.Dashboard)
-
 		api.GET("/admin-logs", h.ListAdminLogs)
 
 		api.GET("/settings", h.GetSettings)

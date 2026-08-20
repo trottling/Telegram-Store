@@ -69,7 +69,6 @@ func main() {
 			fx.Annotate(pgdb.NewSettingsRepo, fx.As(new(repository.SettingsRepository))),
 			fx.Annotate(pgdb.NewReplenishmentRepo, fx.As(new(repository.ReplenishmentRepository))),
 			fx.Annotate(pgdb.NewAdminLogRepo, fx.As(new(repository.AdminLogRepository))),
-			fx.Annotate(pgdb.NewStatsRepo, fx.As(new(repository.StatsRepository))),
 			fx.Annotate(pgdb.NewGormTransactor, fx.As(new(repository.Transactor))),
 
 			fx.Annotate(svc.NewUserSrv, fx.As(new(service.UserService))),
@@ -79,7 +78,6 @@ func main() {
 			// purchaseService тут только для чтения (админ-листинг) — Buy() не вызывается.
 			fx.Annotate(svc.NewPurchaseSrv, fx.As(new(service.PurchaseService))),
 			fx.Annotate(svc.NewAdminSrv, fx.As(new(service.AdminService))),
-			fx.Annotate(svc.NewStatsSrv, fx.As(new(service.StatsService))),
 			provideReplenishmentService,
 			provideAdminAuthService,
 

@@ -26,14 +26,13 @@ func New(
 	categoryService service.CategoryService,
 	purchaseService service.PurchaseService,
 	adminService service.AdminService,
-	statsService service.StatsService,
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
 	cfg *config.AdminPanelConfig,
 	log *zap.SugaredLogger,
 ) *Server {
-	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, replenishmentService, adminAuthService, cfg.CookieDomain, log)
+	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, settingsService, replenishmentService, adminAuthService, cfg.CookieDomain, log)
 	router := newRouter(h, adminAuthService, cfg.CORSOrigin, cfg.TrustedProxies, log)
 
 	return &Server{

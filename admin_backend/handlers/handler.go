@@ -14,7 +14,6 @@ type Handlers struct {
 	categoryService      service.CategoryService
 	purchaseService      service.PurchaseService
 	adminService         service.AdminService
-	statsService         service.StatsService
 	settingsService      service.SettingsService
 	replenishmentService service.ReplenishmentService
 	adminAuthService     service.AdminAuthService
@@ -30,7 +29,6 @@ func New(
 	categoryService service.CategoryService,
 	purchaseService service.PurchaseService,
 	adminService service.AdminService,
-	statsService service.StatsService,
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
@@ -43,7 +41,6 @@ func New(
 		categoryService:      categoryService,
 		purchaseService:      purchaseService,
 		adminService:         adminService,
-		statsService:         statsService,
 		settingsService:      settingsService,
 		replenishmentService: replenishmentService,
 		adminAuthService:     adminAuthService,
