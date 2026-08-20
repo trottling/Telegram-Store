@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 )
@@ -43,7 +42,7 @@ func (h *Handlers) CreateCategory(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "category_id": category.ID}).Info("handlers: category created")
+	h.log.Infow("handlers: category created", "admin_id", admin.TelegramID, "category_id", category.ID)
 	c.JSON(http.StatusCreated, category)
 }
 
@@ -62,7 +61,7 @@ func (h *Handlers) UpdateCategory(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "category_id": id}).Info("handlers: category updated")
+	h.log.Infow("handlers: category updated", "admin_id", admin.TelegramID, "category_id", id)
 	c.JSON(http.StatusOK, category)
 }
 
@@ -76,6 +75,6 @@ func (h *Handlers) DeleteCategory(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "category_id": id}).Info("handlers: category deleted")
+	h.log.Infow("handlers: category deleted", "admin_id", admin.TelegramID, "category_id", id)
 	c.Status(http.StatusNoContent)
 }

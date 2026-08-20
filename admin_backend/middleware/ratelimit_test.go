@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 )
 
 // fakeAuthService считает попытки по ключу и режет после limit — та же
@@ -51,8 +50,7 @@ func (s *fakeAuthService) Logout(context.Context, string) error {
 func newTestEngine(auth *fakeAuthService, trustedProxies string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 
-	log := logrus.New()
-	log.SetOutput(io.Discard)
+	log := zap.NewNop().Sugar()
 
 	r := gin.New()
 	if trustedProxies != "" {

@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -52,7 +51,7 @@ func (h *Handlers) CreateProduct(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "product_id": product.ID}).Info("handlers: product created")
+	h.log.Infow("handlers: product created", "admin_id", admin.TelegramID, "product_id", product.ID)
 	c.JSON(http.StatusCreated, product)
 }
 
@@ -71,7 +70,7 @@ func (h *Handlers) UpdateProduct(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "product_id": id}).Info("handlers: product updated")
+	h.log.Infow("handlers: product updated", "admin_id", admin.TelegramID, "product_id", id)
 	c.JSON(http.StatusOK, product)
 }
 
@@ -85,7 +84,7 @@ func (h *Handlers) DeleteProduct(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "product_id": id}).Info("handlers: product deleted")
+	h.log.Infow("handlers: product deleted", "admin_id", admin.TelegramID, "product_id", id)
 	c.Status(http.StatusNoContent)
 }
 
@@ -103,6 +102,6 @@ func (h *Handlers) AddProductItems(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "product_id": id, "count": len(req.Contents)}).Info("handlers: product items added")
+	h.log.Infow("handlers: product items added", "admin_id", admin.TelegramID, "product_id", id, "count", len(req.Contents))
 	c.Status(http.StatusNoContent)
 }

@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -48,7 +47,7 @@ func (h *Handlers) BanUser(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id}).Info("handlers: user banned")
+	h.log.Infow("handlers: user banned", "admin_id", admin.TelegramID, "target_id", id)
 	c.Status(http.StatusNoContent)
 }
 
@@ -62,7 +61,7 @@ func (h *Handlers) UnbanUser(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id}).Info("handlers: user unbanned")
+	h.log.Infow("handlers: user unbanned", "admin_id", admin.TelegramID, "target_id", id)
 	c.Status(http.StatusNoContent)
 }
 
@@ -80,7 +79,7 @@ func (h *Handlers) AdjustBalance(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id, "amount": req.Amount}).Info("handlers: balance adjusted")
+	h.log.Infow("handlers: balance adjusted", "admin_id", admin.TelegramID, "target_id", id, "amount", req.Amount)
 	c.Status(http.StatusNoContent)
 }
 
@@ -95,7 +94,7 @@ func (h *Handlers) PromoteUser(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id}).Info("handlers: user promoted to admin")
+	h.log.Infow("handlers: user promoted to admin", "admin_id", admin.TelegramID, "target_id", id)
 	c.Status(http.StatusNoContent)
 }
 
@@ -109,7 +108,7 @@ func (h *Handlers) DemoteUser(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id}).Info("handlers: admin revoked")
+	h.log.Infow("handlers: admin revoked", "admin_id", admin.TelegramID, "target_id", id)
 	c.Status(http.StatusNoContent)
 }
 
@@ -152,6 +151,6 @@ func (h *Handlers) setUserReferrals(c *gin.Context, enabled bool) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID, "target_id": id, "enabled": enabled}).Info("handlers: user referrals toggled")
+	h.log.Infow("handlers: user referrals toggled", "admin_id", admin.TelegramID, "target_id", id, "enabled", enabled)
 	c.Status(http.StatusNoContent)
 }

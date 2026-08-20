@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -21,11 +20,10 @@ const (
 // writeError логирует ошибку (5xx — Error, 4xx — Debug) и пишет HTTP-ответ.
 func (h *Handlers) writeError(c *gin.Context, err error) {
 	status, body := errors.DomainErrorToResponse(err)
-	fields := logrus.Fields{"method": c.Request.Method, "path": c.Request.URL.Path, "status": status}
 	if status >= http.StatusInternalServerError {
-		h.log.WithError(err).WithFields(fields).Error("handlers: request failed")
+		h.log.Errorw("handlers: request failed", "error", err, "method", c.Request.Method, "path", c.Request.URL.Path, "status", status)
 	} else {
-		h.log.WithError(err).WithFields(fields).Debug("handlers: request rejected")
+		h.log.Debugw("handlers: request rejected", "error", err, "method", c.Request.Method, "path", c.Request.URL.Path, "status", status)
 	}
 	c.JSON(status, body)
 }
@@ -39,8 +37,7 @@ func (h *Handlers) writeError(c *gin.Context, err error) {
 func (h *Handlers) decodeJSON(c *gin.Context, v any) bool {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
 	if err := c.ShouldBindJSON(v); err != nil {
-		h.log.WithError(err).WithFields(logrus.Fields{"method": c.Request.Method, "path": c.Request.URL.Path}).
-			Debug("handlers: invalid request body")
+		h.log.Debugw("handlers: invalid request body", "error", err, "method", c.Request.Method, "path", c.Request.URL.Path)
 		c.JSON(http.StatusBadRequest, &dto.ErrorResponse{Code: "bad_request", Message: "invalid request body"})
 		return false
 	}

@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/handlers"
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"go.uber.org/zap"
 )
 
 type Server struct {
 	httpServer *http.Server
-	log        *logrus.Logger
+	log        *zap.SugaredLogger
 }
 
 func New(
@@ -31,7 +31,7 @@ func New(
 	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
 	cfg *config.AdminPanelConfig,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *Server {
 	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, replenishmentService, adminAuthService, cfg.CookieDomain, log)
 	router := newRouter(h, adminAuthService, cfg.CORSOrigin, cfg.TrustedProxies, log)
@@ -47,7 +47,7 @@ func New(
 
 // Start блокируется, пока сервер не остановят через Shutdown.
 func (s *Server) Start() error {
-	s.log.WithField("addr", s.httpServer.Addr).Info("admin_backend: starting admin API server")
+	s.log.Infow("admin_backend: starting admin API server", "addr", s.httpServer.Addr)
 	err := s.httpServer.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil

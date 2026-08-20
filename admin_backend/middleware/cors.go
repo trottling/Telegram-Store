@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 )
 
 // rejectedOriginLogInterval — как часто максимум пишем про отвергнутый origin.
@@ -19,14 +19,14 @@ import (
 const rejectedOriginLogInterval = 10 * time.Second
 
 // CORS разрешает список origin'ов из ADMIN_PANEL_CORS_ORIGIN (через запятую).
-func CORS(allowedOrigins string, log *logrus.Logger) gin.HandlerFunc {
+func CORS(allowedOrigins string, log *zap.SugaredLogger) gin.HandlerFunc {
 	allowed := make(map[string]struct{})
 	for o := range strings.SplitSeq(allowedOrigins, ",") {
 		if o = strings.TrimSpace(o); o != "" {
 			allowed[o] = struct{}{}
 		}
 	}
-	log.WithField("allowed_origins", allowedOrigins).Info("admin_backend: CORS configured")
+	log.Infow("admin_backend: CORS configured", "allowed_origins", allowedOrigins)
 
 	var (
 		mu            sync.Mutex
@@ -49,9 +49,8 @@ func CORS(allowedOrigins string, log *logrus.Logger) gin.HandlerFunc {
 				suppressed++
 				return false
 			}
-			log.WithFields(logrus.Fields{
-				"origin": origin, "allowed_origins": allowedOrigins, "suppressed_since_last": suppressed,
-			}).Warn("admin_backend: rejected request from disallowed origin")
+			log.Warnw("admin_backend: rejected request from disallowed origin",
+				"origin", origin, "allowed_origins", allowedOrigins, "suppressed_since_last", suppressed)
 			lastRejectLog = time.Now()
 			suppressed = 0
 			return false

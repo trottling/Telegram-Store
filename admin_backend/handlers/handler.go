@@ -4,8 +4,8 @@
 package handlers
 
 import (
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"go.uber.org/zap"
 )
 
 type Handlers struct {
@@ -21,7 +21,7 @@ type Handlers struct {
 
 	// cookieDomain — Domain сессионной cookie, см. Exchange/Logout.
 	cookieDomain string
-	log          *logrus.Logger
+	log          *zap.SugaredLogger
 }
 
 func New(
@@ -35,7 +35,7 @@ func New(
 	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
 	cookieDomain string,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *Handlers {
 	return &Handlers{
 		userService:          userService,

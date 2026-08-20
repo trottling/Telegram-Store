@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
@@ -36,6 +35,6 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 		h.writeError(c, err)
 		return
 	}
-	h.log.WithFields(logrus.Fields{"admin_id": admin.TelegramID}).Info("handlers: settings updated")
+	h.log.Infow("handlers: settings updated", "admin_id", admin.TelegramID)
 	c.JSON(http.StatusOK, settings)
 }

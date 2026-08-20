@@ -5,16 +5,16 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/handlers"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"go.uber.org/zap"
 )
 
 // newRouter собирает таблицу маршрутов. Без Auth — только /api/auth/exchange
 // (там ещё нет сессии). Вебхуки мерчантов сюда не входят — они принимаются
 // отдельным бинарником, payments_backend (см. его router.go).
-func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, corsOrigin, trustedProxies string, log *logrus.Logger) http.Handler {
+func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, corsOrigin, trustedProxies string, log *zap.SugaredLogger) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 
@@ -23,8 +23,7 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 	// значение, которым управляет клиент: rate-limit на /api/auth/exchange
 	// обходился бы одним лишним заголовком.
 	if err := r.SetTrustedProxies(strings.Split(trustedProxies, ",")); err != nil {
-		log.WithError(err).WithField("trusted_proxies", trustedProxies).
-			Error("admin_backend: invalid trusted proxies, per-IP limits are not reliable")
+		log.Errorw("admin_backend: invalid trusted proxies, per-IP limits are not reliable", "error", err, "trusted_proxies", trustedProxies)
 	}
 
 	r.Use(gin.Recovery())

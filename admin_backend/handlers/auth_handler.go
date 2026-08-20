@@ -28,7 +28,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 		// info — то есть подбор кода не оставлял бы в логах ничего вообще.
 		// Это единственный роут без авторизации, неудачный обмен здесь —
 		// сигнал, а не рядовая клиентская ошибка.
-		h.log.WithError(err).WithField("ip", c.ClientIP()).Warn("handlers: login code exchange failed")
+		h.log.Warnw("handlers: login code exchange failed", "error", err, "ip", c.ClientIP())
 		h.writeError(c, err)
 		return
 	}
@@ -39,7 +39,7 @@ func (h *Handlers) Exchange(c *gin.Context) {
 	// forward_auth, и заголовок Authorization там просто некому проставить.
 	h.setSessionCookie(c, token)
 
-	h.log.WithField("admin_id", admin.TelegramID).Info("handlers: admin logged in")
+	h.log.Infow("handlers: admin logged in", "admin_id", admin.TelegramID)
 	c.JSON(http.StatusOK, dto.TokenResponse{Token: token})
 }
 
@@ -62,7 +62,7 @@ func (h *Handlers) Logout(c *gin.Context) {
 		token := strings.TrimSpace(strings.TrimPrefix(auth, prefix))
 		if err := h.adminAuthService.Logout(c.Request.Context(), token); err != nil {
 			// Не критично — сессия всё равно истечёт по TTL.
-			h.log.WithError(err).Warn("handlers: failed to delete session on logout")
+			h.log.Warnw("handlers: failed to delete session on logout", "error", err)
 		} else {
 			h.log.Info("handlers: admin logged out")
 		}

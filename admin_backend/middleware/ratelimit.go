@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/admin_backend/errors"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
+	"go.uber.org/zap"
 )
 
 // RateLimitExchange ограничивает попытки обмена кода входа.
@@ -18,7 +18,7 @@ import (
 // Ключ — IP, без глобального лимита: общий счётчик означал бы, что один
 // атакующий закрывает вход всем админам. Полагаться на IP можно только при
 // настроенных доверенных прокси, см. SetTrustedProxies в router.go.
-func RateLimitExchange(adminAuthService service.AdminAuthService, log *logrus.Logger) gin.HandlerFunc {
+func RateLimitExchange(adminAuthService service.AdminAuthService, log *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ip := c.ClientIP()
 
@@ -26,8 +26,7 @@ func RateLimitExchange(adminAuthService service.AdminAuthService, log *logrus.Lo
 		if err != nil || !allowed {
 			// Ошибка Redis — тоже отказ: сам обмен кода всё равно требует
 			// Redis, разрешать проход было бы бессмысленно.
-			log.WithError(err).WithFields(logrus.Fields{"ip": ip, "allowed": allowed}).
-				Warn("middleware: login code exchange rate limited")
+			log.Warnw("middleware: login code exchange rate limited", "error", err, "ip", ip, "allowed", allowed)
 			c.JSON(errors.DomainErrorToResponse(domainerrors.ErrTooManyAttempts))
 			c.Abort()
 			return
