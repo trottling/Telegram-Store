@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Появится реальным таргетом только после фазы 3 (метрики в боте) — до
+  # этого будет числиться DOWN в Status → Targets, это ожидаемо, не баг.
+  # Порт должен совпадать с BOT_METRICS_PORT из .env — ${VAR}-подстановка
+  # docker-compose на этот файл не распространяется, менять руками в обоих
+  # местах (см. CLAUDE.md).
+  - job_name: bot
+    static_configs:
+      - targets: ["bot:9100"]

@@ -1,0 +1,13 @@
+# Провижининг папки дашбордов — сами JSON-файлы дашбордов кладутся рядом,
+# в эту же директорию (первый появится в фазе 3 вместе с метриками бота).
+apiVersion: 1
+
+providers:
+  - name: default
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards

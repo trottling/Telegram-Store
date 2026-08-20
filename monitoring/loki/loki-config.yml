@@ -1,0 +1,43 @@
+# Single-binary Loki, filesystem storage — под масштаб этого деплоя (один
+# небольшой VPS), объектное хранилище (S3/GCS) избыточно.
+#
+# ${LOKI_RETENTION_DAYS} подставляется самим Loki при старте (флаг
+# -config.expand-env=true в docker-compose.yml), не docker-compose'ом.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  retention_period: ${LOKI_RETENTION_DAYS}d
+
+# retention_period сам по себе ничего не удаляет — за фактическое удаление
+# отвечает compactor, retention_enabled должен быть включён явно.
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  delete_request_store: filesystem
