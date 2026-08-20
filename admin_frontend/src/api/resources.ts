@@ -1,6 +1,6 @@
 // По одной функции на эндпоинт backend'а, всё в одном файле.
 import {apiRequest} from './client'
-import type {AdminLog, AdminUser, Category, DashboardStats, Paginated, Product, ProductAdminSummary, PurchaseAdminItem, ReplenishmentAdminItem, Settings, TokenResponse,} from '../types/api'
+import type {AdminLog, AdminUser, Category, Paginated, Product, ProductAdminSummary, PurchaseAdminItem, ReplenishmentAdminItem, Settings, TokenResponse,} from '../types/api'
 
 // аутентификация
 export const exchangeLoginCode = (code: string) =>
@@ -60,10 +60,6 @@ export const getPurchase = (id: number) => apiRequest<PurchaseAdminItem>(`/api/p
 // пополнения
 export const listReplenishments = (params: { offset?: number; limit?: number; user_id?: number; merchant?: string }) =>
     apiRequest<Paginated<ReplenishmentAdminItem>>('/api/replenishments', {query: params})
-
-// статистика
-export const getDashboard = (params: { from?: string; to?: string }) =>
-    apiRequest<DashboardStats>('/api/stats/dashboard', {query: params})
 
 // логи админов
 export const listAdminLogs = (params: { offset?: number; limit?: number; admin_id?: number }) =>

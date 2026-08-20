@@ -75,46 +75,6 @@ export interface PurchaseAdminItem {
     completed_at?: string | null
 }
 
-export interface SalesOverview {
-    total_revenue: number
-    total_purchases: number
-}
-
-export interface RevenuePoint {
-    date: string
-    revenue: number
-    count: number
-}
-
-export interface ProductStat {
-    product_id: number
-    product_name: string
-    units_sold: number
-    revenue: number
-}
-
-export interface CategoryStat {
-    category_id?: number | null
-    category_name: string
-    units_sold: number
-    revenue: number
-}
-
-export interface UserStats {
-    total_users: number
-    banned_users: number
-    admin_users: number
-    total_balance: number
-}
-
-export interface DashboardStats {
-    overview: SalesOverview
-    revenue_series: RevenuePoint[]
-    top_products: ProductStat[]
-    top_categories: CategoryStat[]
-    users: UserStats
-}
-
 export interface TokenResponse {
     token: string
 }

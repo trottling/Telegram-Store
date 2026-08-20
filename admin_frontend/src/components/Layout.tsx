@@ -1,6 +1,6 @@
 import type {ReactNode} from 'react'
 import {Button, Layout as AntLayout, Menu, Typography} from 'antd'
-import {AppstoreOutlined, BarChartOutlined, CreditCardOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined, ShoppingCartOutlined, ShoppingOutlined, UserOutlined,} from '@ant-design/icons'
+import {AppstoreOutlined, CreditCardOutlined, FileTextOutlined, LogoutOutlined, SettingOutlined, ShoppingCartOutlined, ShoppingOutlined, UserOutlined,} from '@ant-design/icons'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {useAuth} from '../auth/AuthContext'
 
@@ -13,7 +13,6 @@ const menuItems = [
     {key: '/users', icon: <UserOutlined/>, label: 'Пользователи'},
     {key: '/purchases', icon: <ShoppingCartOutlined/>, label: 'Покупки'},
     {key: '/replenishments', icon: <CreditCardOutlined/>, label: 'Пополнения'},
-    {key: '/stats', icon: <BarChartOutlined/>, label: 'Статистика'},
     {key: '/admin-logs', icon: <FileTextOutlined/>, label: 'Логи админов'},
     {key: '/settings', icon: <SettingOutlined/>, label: 'Настройки'},
 ]
