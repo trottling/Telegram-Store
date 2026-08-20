@@ -4,20 +4,20 @@ import (
 	"context"
 	"errors"
 
-	"github.com/sirupsen/logrus"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	"go.uber.org/zap"
 )
 
 type UserSrv struct {
 	userRepo repository.UserRepository
 	cache    domaincache.UserCache
-	log      *logrus.Logger
+	log      *zap.SugaredLogger
 }
 
-func NewUserSrv(userRepo repository.UserRepository, cache domaincache.UserCache, log *logrus.Logger) *UserSrv {
+func NewUserSrv(userRepo repository.UserRepository, cache domaincache.UserCache, log *zap.SugaredLogger) *UserSrv {
 	return &UserSrv{userRepo: userRepo, cache: cache, log: log}
 }
 
@@ -39,7 +39,7 @@ func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username st
 		if err = s.userRepo.Create(ctx, user); err != nil {
 			return nil, err
 		}
-		s.log.WithFields(logrus.Fields{"telegram_id": telegramID, "referrer_id": user.ReferrerID, "language": language}).Info("user_service: new user registered")
+		s.log.Infow("user_service: new user registered", "telegram_id", telegramID, "referrer_id", user.ReferrerID, "language", language)
 	}
 
 	_ = s.cache.SetUser(ctx, user)

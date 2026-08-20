@@ -3,12 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 )
 
 // fakeDB — минимальная модель того, что делает Postgres: fakeTransactor снимает
@@ -123,8 +122,7 @@ func (c *fakeUserCache) SetUser(context.Context, *models.User) error {
 }
 
 func newTestSrv(db *fakeDB, balanceErr error) *ReplenishmentSrv {
-	log := logrus.New()
-	log.SetOutput(io.Discard)
+	log := zap.NewNop().Sugar()
 	return NewReplenishmentSrv(
 		&fakeReplRepo{db: db},
 		&fakeUserRepo{db: db, failErr: balanceErr},

@@ -5,12 +5,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/auth/web"
 	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	"go.uber.org/zap"
 )
 
 // loginCodeTTL — срок жизни одноразового кода от /admin.
@@ -31,10 +31,10 @@ type AdminAuthSrv struct {
 	userRepo  repository.UserRepository
 	store     adminsession.Store
 	jwtSecret []byte
-	log       *logrus.Logger
+	log       *zap.SugaredLogger
 }
 
-func NewAdminAuthSrv(userRepo repository.UserRepository, store adminsession.Store, jwtSecret []byte, log *logrus.Logger) *AdminAuthSrv {
+func NewAdminAuthSrv(userRepo repository.UserRepository, store adminsession.Store, jwtSecret []byte, log *zap.SugaredLogger) *AdminAuthSrv {
 	return &AdminAuthSrv{userRepo: userRepo, store: store, jwtSecret: jwtSecret, log: log}
 }
 
@@ -74,7 +74,7 @@ func (s *AdminAuthSrv) ExchangeLoginCode(ctx context.Context, code string) (stri
 		return "", nil, err
 	}
 
-	s.log.WithField("telegram_id", telegramID).Info("admin_auth_service: login code exchanged for session")
+	s.log.Infow("admin_auth_service: login code exchanged for session", "telegram_id", telegramID)
 	return plaintext, user, nil
 }
 

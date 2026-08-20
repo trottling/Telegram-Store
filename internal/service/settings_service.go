@@ -3,19 +3,19 @@ package service
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	"go.uber.org/zap"
 )
 
 type SettingsSrv struct {
 	settingsRepo repository.SettingsRepository
 	cache        domaincache.SettingsCache
-	log          *logrus.Logger
+	log          *zap.SugaredLogger
 }
 
-func NewSettingsSrv(settingsRepo repository.SettingsRepository, cache domaincache.SettingsCache, log *logrus.Logger) *SettingsSrv {
+func NewSettingsSrv(settingsRepo repository.SettingsRepository, cache domaincache.SettingsCache, log *zap.SugaredLogger) *SettingsSrv {
 	return &SettingsSrv{settingsRepo: settingsRepo, cache: cache, log: log}
 }
 

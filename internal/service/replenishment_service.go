@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
+	"go.uber.org/zap"
 )
 
 type ReplenishmentSrv struct {
@@ -22,7 +22,7 @@ type ReplenishmentSrv struct {
 	providers  map[models.Merchant]payment.PaymentProvider
 	transactor repository.Transactor
 	cache      domaincache.UserCache
-	log        *logrus.Logger
+	log        *zap.SugaredLogger
 }
 
 func NewReplenishmentSrv(
@@ -31,7 +31,7 @@ func NewReplenishmentSrv(
 	transactor repository.Transactor,
 	providers map[models.Merchant]payment.PaymentProvider,
 	cache domaincache.UserCache,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *ReplenishmentSrv {
 	return &ReplenishmentSrv{
 		replenishmentRepo: replenishmentRepo,
@@ -71,10 +71,10 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 		// Счёт у мерчанта уже создан, а у нас записи о нём нет: оплата придёт
 		// вебхуком на неизвестный invoice_id и будет отброшена. Компенсации
 		// нет, поэтому оставляем в логе всё нужное для ручного разбора.
-		s.log.WithError(err).WithFields(logrus.Fields{
-			"user_id": telegramID, "merchant": merchant,
-			"invoice_id": invoiceID, "amount": amount,
-		}).Error("replenishment_service: invoice created at merchant but not recorded")
+		s.log.Errorw("replenishment_service: invoice created at merchant but not recorded",
+			"error", err, "user_id", telegramID, "merchant", merchant,
+			"invoice_id", invoiceID, "amount", amount,
+		)
 		return "", err
 	}
 
@@ -99,10 +99,10 @@ func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant
 	// Расхождение само по себе зачислению не мешает, но означает, что наша
 	// запись и данные мерчанта разошлись, и это стоит увидеть в логах.
 	if paidAmount > 0 && paidAmount != replenishment.Amount {
-		s.log.WithFields(logrus.Fields{
-			"merchant": merchant, "invoice_id": invoiceID,
-			"recorded_amount": replenishment.Amount, "reported_amount": paidAmount,
-		}).Warn("replenishment_service: merchant reported a different amount")
+		s.log.Warnw("replenishment_service: merchant reported a different amount",
+			"merchant", merchant, "invoice_id", invoiceID,
+			"recorded_amount", replenishment.Amount, "reported_amount", paidAmount,
+		)
 	}
 
 	var credited bool
@@ -126,7 +126,7 @@ func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant
 	// и параллельный читатель залил бы его обратно в кэш.
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, replenishment.UserID), "user", replenishment.UserID)
 
-	s.log.WithFields(logrus.Fields{"user_id": replenishment.UserID, "merchant": merchant, "invoice_id": invoiceID, "amount": replenishment.Amount}).Info("replenishment_service: balance credited")
+	s.log.Infow("replenishment_service: balance credited", "user_id", replenishment.UserID, "merchant", merchant, "invoice_id", invoiceID, "amount", replenishment.Amount)
 	return nil
 }
 
@@ -145,9 +145,9 @@ func (s *ReplenishmentSrv) Fail(ctx context.Context, merchant models.Merchant, i
 	// оплачен, то мерчант считает его неудачным, а мы — оплаченным, и деньги
 	// уже зачислены. Разбираться придётся руками, поэтому пишем в лог.
 	if !changed && replenishment.Status == models.ReplenishmentStatusPaid {
-		s.log.WithFields(logrus.Fields{
-			"user_id": replenishment.UserID, "merchant": merchant, "invoice_id": invoiceID,
-		}).Warn("replenishment_service: merchant reported failure for an already paid invoice")
+		s.log.Warnw("replenishment_service: merchant reported failure for an already paid invoice",
+			"user_id", replenishment.UserID, "merchant", merchant, "invoice_id", invoiceID,
+		)
 	}
 	return nil
 }

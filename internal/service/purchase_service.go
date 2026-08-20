@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
+	"go.uber.org/zap"
 )
 
 type PurchaseSrv struct {
@@ -22,7 +22,7 @@ type PurchaseSrv struct {
 	transactor        repository.Transactor
 	settingsService   domainservice.SettingsService
 	cache             MultiCache
-	log               *logrus.Logger
+	log               *zap.SugaredLogger
 }
 
 func NewPurchaseSrv(
@@ -34,7 +34,7 @@ func NewPurchaseSrv(
 	transactor repository.Transactor,
 	settingsService domainservice.SettingsService,
 	cache MultiCache,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *PurchaseSrv {
 	return &PurchaseSrv{
 		userRepo:          userRepo,
@@ -51,7 +51,7 @@ func NewPurchaseSrv(
 
 // Buy покупает count единиц productID для telegramID в одной транзакции.
 func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, count int) ([]*models.Purchase, *models.ReferralCredit, error) {
-	logCtx := s.log.WithFields(logrus.Fields{"telegram_id": telegramID, "product_id": productID, "count": count})
+	logCtx := s.log.With("telegram_id", telegramID, "product_id", productID, "count", count)
 
 	if count <= 0 {
 		return nil, nil, domainerrors.ErrInvalidQuantity
@@ -78,7 +78,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	// Ниже totalPrice пересчитывается внутри транзакции по свежей цене; списание
 	// всё равно защищено guard'ом balance >= сумма в UpdateBalance.
 	if user.Balance < totalPrice {
-		logCtx.WithField("balance", user.Balance).Warn("purchase_service: buy rejected, not enough balance")
+		logCtx.Warnw("purchase_service: buy rejected, not enough balance", "balance", user.Balance)
 		return nil, nil, domainerrors.ErrNotEnoughBalance
 	}
 
@@ -130,7 +130,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		if errors.Is(err, domainerrors.ErrProductOutOfStock) {
 			logCtx.Warn("purchase_service: buy rejected, out of stock")
 		} else {
-			logCtx.WithError(err).Error("purchase_service: buy transaction failed")
+			logCtx.Errorw("purchase_service: buy transaction failed", "error", err)
 		}
 		return nil, nil, err
 	}
@@ -153,7 +153,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	if credit != nil {
 		logInvalidation(s.log, s.cache.InvalidateUser(ctx, credit.ReferrerID), "user", credit.ReferrerID)
 	}
-	logCtx.WithField("total_price", totalPrice).Info("purchase_service: purchase completed")
+	logCtx.Infow("purchase_service: purchase completed", "total_price", totalPrice)
 	return purchases, credit, nil
 }
 
@@ -200,7 +200,7 @@ func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, pur
 		})
 	})
 	if err != nil {
-		s.log.WithError(err).WithField("referrer_id", referrer.TelegramID).Error("purchase_service: failed to credit referral")
+		s.log.Errorw("purchase_service: failed to credit referral", "error", err, "referrer_id", referrer.TelegramID)
 		return nil
 	}
 

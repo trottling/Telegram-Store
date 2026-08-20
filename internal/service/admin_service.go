@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/sirupsen/logrus"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	"go.uber.org/zap"
 	"gorm.io/datatypes"
 )
 
@@ -21,7 +21,7 @@ type AdminSrv struct {
 	settingsRepo  repository.SettingsRepository
 	cache         MultiCache
 	settingsCache domaincache.SettingsCache
-	log           *logrus.Logger
+	log           *zap.SugaredLogger
 }
 
 func NewAdminSrv(
@@ -33,7 +33,7 @@ func NewAdminSrv(
 	settingsRepo repository.SettingsRepository,
 	cache MultiCache,
 	settingsCache domaincache.SettingsCache,
-	log *logrus.Logger,
+	log *zap.SugaredLogger,
 ) *AdminSrv {
 	return &AdminSrv{
 		userRepo:      userRepo,
@@ -63,7 +63,7 @@ func (s *AdminSrv) logAction(ctx context.Context, adminID int64, action string, 
 		TargetID: targetID,
 		Details:  adminLogDetails(details),
 	})
-	s.log.WithFields(logrus.Fields{"admin_id": adminID, "action": action, "target_id": *targetID}).Info("admin_service: action performed")
+	s.log.Infow("admin_service: action performed", "admin_id", adminID, "action", action, "target_id", *targetID)
 }
 
 func (s *AdminSrv) AddBalance(ctx context.Context, adminID, targetTelegramID int64, amount float64) error {

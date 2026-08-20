@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -17,10 +17,10 @@ const topListLimit = 10
 
 type StatsSrv struct {
 	statsRepo repository.StatsRepository
-	log       *logrus.Logger
+	log       *zap.SugaredLogger
 }
 
-func NewStatsSrv(statsRepo repository.StatsRepository, log *logrus.Logger) *StatsSrv {
+func NewStatsSrv(statsRepo repository.StatsRepository, log *zap.SugaredLogger) *StatsSrv {
 	return &StatsSrv{statsRepo: statsRepo, log: log}
 }
 
@@ -75,7 +75,7 @@ func (s *StatsSrv) GetDashboard(ctx context.Context, from, to *time.Time) (*mode
 	})
 
 	if err := g.Wait(); err != nil {
-		s.log.WithError(err).Error("stats_service: get dashboard failed")
+		s.log.Errorw("stats_service: get dashboard failed", "error", err)
 		return nil, err
 	}
 

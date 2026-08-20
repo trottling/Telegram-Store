@@ -3,19 +3,19 @@ package service
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	"go.uber.org/zap"
 )
 
 type ProductSrv struct {
 	productRepo repository.ProductRepository
 	cache       domaincache.ProductCache
-	log         *logrus.Logger
+	log         *zap.SugaredLogger
 }
 
-func NewProductSrv(productRepo repository.ProductRepository, cache domaincache.ProductCache, log *logrus.Logger) *ProductSrv {
+func NewProductSrv(productRepo repository.ProductRepository, cache domaincache.ProductCache, log *zap.SugaredLogger) *ProductSrv {
 	return &ProductSrv{productRepo: productRepo, cache: cache, log: log}
 }
 

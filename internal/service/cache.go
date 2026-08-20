@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	"go.uber.org/zap"
 )
 
 // MultiCache — композиция кэшей для AdminSrv и PurchaseSrv, которым нужно
@@ -25,12 +25,11 @@ type MultiCache interface {
 // молча отдаёт устаревшее значение до истечения TTL, и жалоба вроде «бан не
 // применился» выглядит необъяснимой. Каталог сюда не заводим — он устаревает
 // на минуту, и цена этого мала.
-func logInvalidation(log *logrus.Logger, err error, entity string, id any) {
+func logInvalidation(log *zap.SugaredLogger, err error, entity string, id any) {
 	if err == nil {
 		return
 	}
-	log.WithError(err).WithFields(logrus.Fields{"entity": entity, "id": id}).
-		Warn("service: cache invalidation failed, stale value until TTL")
+	log.Warnw("service: cache invalidation failed, stale value until TTL", "error", err, "entity", entity, "id", id)
 }
 
 // invalidateCategoryAncestorChain сбрасывает кэш списков детей от
