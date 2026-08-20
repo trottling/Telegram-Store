@@ -47,24 +47,35 @@ func New(
 func (m *Middlewares) Logging(next bot.HandlerFunc) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		chatID, _ := extractChatID(update)
-		fields := []any{"telegram_id", chatID, "update_id", update.ID}
+		kind := classifyKind(update)
+		fields := []any{"telegram_id", chatID, "update_id", update.ID, "kind", kind}
 
 		switch {
 		case update.Message != nil:
-			fields = append(fields, "kind", "message")
 			// Только длина, не сам текст: на Debug сюда попадало всё, что пишут
 			// пользователи, включая пересланный им же код входа. Для отладки
 			// хватает связки update_id + шаг FSM.
 			fields = append(fields, "text_len", len(update.Message.Text))
 		case update.CallbackQuery != nil:
-			fields = append(fields, "kind", "callback_query")
 			fields = append(fields, "data", update.CallbackQuery.Data)
-		default:
-			fields = append(fields, "kind", "other")
 		}
 
 		m.log.Debugw("middleware: update received", fields...)
 		next(ctx, b, update)
+	}
+}
+
+// classifyKind — message/callback_query/other; переиспользуется Logging и
+// Metrics, чтобы не заводить два разных источника истины об одной и той же
+// классификации.
+func classifyKind(update *models.Update) string {
+	switch {
+	case update.Message != nil:
+		return "message"
+	case update.CallbackQuery != nil:
+		return "callback_query"
+	default:
+		return "other"
 	}
 }
 

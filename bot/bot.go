@@ -66,7 +66,7 @@ func New(
 
 	middlewares := middleware.New(userService, purchaseService, productService, replenishmentService, stateStore, log)
 
-	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Track, middlewares.Recover, middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
+	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Track, middlewares.Recover, middlewares.Metrics, middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
 	if err != nil {
 		return nil, err
 	}

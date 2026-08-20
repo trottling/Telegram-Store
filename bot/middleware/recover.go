@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	botmetrics "github.com/trottling/Telegram-Store/internal/metrics/bot"
 )
 
 // Recover ловит панику в обработке update. go-telegram/bot запускает каждый
@@ -18,6 +19,7 @@ func (m *Middlewares) Recover(next bot.HandlerFunc) bot.HandlerFunc {
 		defer func() {
 			if r := recover(); r != nil {
 				chatID, _ := extractChatID(update)
+				botmetrics.PanicsTotal.WithLabelValues(classifyKind(update)).Inc()
 				m.log.Errorw("middleware: panic recovered",
 					"telegram_id", chatID,
 					"update_id", update.ID,
