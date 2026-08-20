@@ -11,6 +11,7 @@ import (
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	botmetrics "github.com/trottling/Telegram-Store/internal/metrics/bot"
 )
 
 const maxQuickPickQuantity = 5
@@ -184,6 +185,7 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 
 	purchases, credit, err := h.purchaseService.Buy(ctx, chatID, st.ProductID, st.Quantity)
 	if err != nil {
+		botmetrics.PurchasesTotal.WithLabelValues("failed").Inc()
 		h.log.Errorf("BuyConfirmHandler: failed to buy product %d x%d for user %d: %v", st.ProductID, st.Quantity, chatID, err)
 		if _, sendErr := b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
@@ -194,6 +196,14 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 		}
 		return
 	}
+
+	botmetrics.PurchasesTotal.WithLabelValues("success").Inc()
+	botmetrics.PurchaseUnitsTotal.Add(float64(len(purchases)))
+	var amount float64
+	for _, p := range purchases {
+		amount += p.Amount
+	}
+	botmetrics.PurchaseAmountTotal.Add(amount)
 
 	contents := make([]string, len(purchases))
 	for i, p := range purchases {
