@@ -63,6 +63,14 @@ type AdminPanelConfig struct {
 	TrustedProxies string
 	// JWTSecret подписывает сессионные токены, обязателен.
 	JWTSecret []byte
+	// CookieDomain — Domain у сессионной cookie (см. handlers.Exchange),
+	// нужен, чтобы она донеслась и до stats.$DOMAIN_NAME (Grafana за
+	// forward_auth). Переиспользует DOMAIN_NAME, а не отдельную переменную —
+	// две копии одного домена иначе пришлось бы держать в синхроне вручную,
+	// та же ловушка, что и с ADMIN_PANEL_TRUSTED_PROXIES/public-network.
+	// Пусто в локальной разработке без реального домена — cookie тогда просто
+	// не проставляет Domain (браузер ограничит её текущим хостом), без ошибок.
+	CookieDomain string
 }
 
 // PaymentsConfig — конфиг payments_backend (вебхуки мерчантов).
@@ -112,6 +120,9 @@ func New() (*Config, error) {
 	// Дефолт — подсеть public-network из docker-compose.yml.
 	adminPanelTrustedProxies := getEnv("ADMIN_PANEL_TRUSTED_PROXIES", "172.28.0.0/16")
 	adminJWTSecret := os.Getenv("ADMIN_JWT_SECRET")
+	// DOMAIN_NAME иначе читают только docker-compose.yml/Caddyfile/backup — это
+	// единственное место, где он нужен и Go-коду (см. AdminPanelConfig.CookieDomain).
+	cookieDomain := os.Getenv("DOMAIN_NAME")
 
 	paymentsPort, err := getEnvInt("PAYMENTS_BACKEND_PORT", 8081)
 	if err != nil {
@@ -149,6 +160,7 @@ func New() (*Config, error) {
 			CORSOrigin:     adminPanelCORSOrigin,
 			TrustedProxies: adminPanelTrustedProxies,
 			JWTSecret:      []byte(adminJWTSecret),
+			CookieDomain:   cookieDomain,
 		},
 
 		Payments: &PaymentsConfig{

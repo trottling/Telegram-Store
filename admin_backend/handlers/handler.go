@@ -19,7 +19,9 @@ type Handlers struct {
 	replenishmentService service.ReplenishmentService
 	adminAuthService     service.AdminAuthService
 
-	log *logrus.Logger
+	// cookieDomain — Domain сессионной cookie, см. Exchange/Logout.
+	cookieDomain string
+	log          *logrus.Logger
 }
 
 func New(
@@ -32,6 +34,7 @@ func New(
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
 	adminAuthService service.AdminAuthService,
+	cookieDomain string,
 	log *logrus.Logger,
 ) *Handlers {
 	return &Handlers{
@@ -44,6 +47,7 @@ func New(
 		settingsService:      settingsService,
 		replenishmentService: replenishmentService,
 		adminAuthService:     adminAuthService,
+		cookieDomain:         cookieDomain,
 		log:                  log,
 	}
 }

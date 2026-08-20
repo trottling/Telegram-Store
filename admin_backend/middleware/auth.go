@@ -13,11 +13,20 @@ import (
 // ctxKeyAdmin — ключ gin.Context для авторизованного админа.
 const ctxKeyAdmin = "admin"
 
-// Auth проверяет "Authorization: Bearer <token>" через ValidateSession и
-// кладёт админа в контекст. Навешан на всю группу /api, а не по хендлерам.
+// SessionCookieName — та же сессия, что и Authorization-заголовок SPA,
+// продублированная в cookie (см. handlers.Exchange), чтобы её донёс браузер
+// на другой поддомен — так Caddy forward_auth перед stats.$DOMAIN_NAME
+// (Grafana) может спросить /api/auth/me без своей формы логина.
+const SessionCookieName = "session"
+
+// Auth проверяет сессионный токен через ValidateSession и кладёт админа в
+// контекст. Навешан на всю группу /api, а не по хендлерам. Источник токена —
+// сначала "Authorization: Bearer" (SPA), при отсутствии — cookie
+// SessionCookieName (forward_auth/браузерная навигация на stats.$DOMAIN_NAME,
+// где заголовок никто не проставляет).
 func Auth(adminAuthService service.AdminAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := bearerToken(c)
+		token := sessionToken(c)
 		if token == "" {
 			c.JSON(errors.DomainErrorToResponse(domainerrors.ErrInvalidToken))
 			c.Abort()
@@ -36,13 +45,15 @@ func Auth(adminAuthService service.AdminAuthService) gin.HandlerFunc {
 	}
 }
 
-func bearerToken(c *gin.Context) string {
+func sessionToken(c *gin.Context) string {
 	const prefix = "Bearer "
-	h := c.GetHeader("Authorization")
-	if !strings.HasPrefix(h, prefix) {
-		return ""
+	if h := c.GetHeader("Authorization"); strings.HasPrefix(h, prefix) {
+		return strings.TrimSpace(strings.TrimPrefix(h, prefix))
 	}
-	return strings.TrimSpace(strings.TrimPrefix(h, prefix))
+	if cookie, err := c.Cookie(SessionCookieName); err == nil {
+		return cookie
+	}
+	return ""
 }
 
 // AdminFromContext возвращает админа, положенного туда Auth.

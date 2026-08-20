@@ -33,7 +33,7 @@ func New(
 	cfg *config.AdminPanelConfig,
 	log *logrus.Logger,
 ) *Server {
-	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, replenishmentService, adminAuthService, log)
+	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, statsService, settingsService, replenishmentService, adminAuthService, cfg.CookieDomain, log)
 	router := newRouter(h, adminAuthService, cfg.CORSOrigin, cfg.TrustedProxies, log)
 
 	return &Server{

@@ -1,6 +1,6 @@
-# TLS-терминатор перед admin_frontend/admin_backend/payments_backend.
+# TLS-терминатор перед admin_frontend/admin_backend/payments_backend/grafana.
 # Домен и почта ACME берутся из .env (DOMAIN_NAME/ACME_EMAIL). Поддомены
-# admin./api./pay. собираются из DOMAIN_NAME прямо тут, отдельных
+# admin./api./pay./stats. собираются из DOMAIN_NAME прямо тут, отдельных
 # env-переменных под каждый домен не заводим.
 #
 # {$VAR:default} — синтаксис дефолта у Caddy через одинарное двоеточие,
@@ -69,4 +69,37 @@ pay.{$DOMAIN_NAME} {
 	import common_headers
 
 	reverse_proxy payments_backend:{$PAYMENTS_BACKEND_PORT:8081}
+}
+
+# Grafana. Своей формы логина не показывает вообще — вход тем же кодом из
+# /admin, что и в панель (см. CLAUDE.md). forward_auth спрашивает
+# admin_backend "залогинен ли этот браузер" (сессионная cookie, см.
+# handlers.Exchange/middleware.Auth), копирует identity дальше в
+# X-WEBAUTH-USER, которому доверяет Grafana в режиме auth.proxy
+# (GF_AUTH_PROXY_* в docker-compose.yml). Незалогиненный визит получает 401 от
+# /api/auth/me и редиректится на существующую страницу логина панели.
+#
+# CSP сознательно не ставим — в отличие от admin.-хоста, реальные требования
+# Grafana к инлайн-скриптам/стилям тут не проверены вживую (там CSP подобран
+# эмпирически по консоли браузера). Открыть после первого деплоя, проверить
+# консоль, при необходимости дотянуть.
+stats.{$DOMAIN_NAME} {
+	import common_headers
+
+	header {
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+	}
+
+	forward_auth admin_backend:{$ADMIN_PANEL_BACKEND_PORT:8080} {
+		uri /api/auth/me
+		copy_headers X-Admin-Username
+	}
+
+	handle_errors {
+		@denied expression {http.error.status_code} == 401
+		redir @denied https://admin.{$DOMAIN_NAME}/login
+	}
+
+	reverse_proxy grafana:3000
 }
