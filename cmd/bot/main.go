@@ -32,6 +32,7 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	"github.com/trottling/Telegram-Store/internal/logger"
+	botmetrics "github.com/trottling/Telegram-Store/internal/metrics/bot"
 	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
 	svc "github.com/trottling/Telegram-Store/internal/service"
 )
@@ -47,7 +48,10 @@ func main() {
 			provideRedisConfig,
 			provideAdminPanelConfig,
 			providePaymentsConfig,
+			provideMetricsConfig,
 			provideLoggerConfig,
+
+			botmetrics.NewServer,
 
 			rdb.NewClient,
 			// cacheService — и FSM-хранилище, и read-through кэш, один клиент,
@@ -85,7 +89,7 @@ func main() {
 
 			bot.New,
 		),
-		fx.Invoke(runBot),
+		fx.Invoke(runBot, RunMetricsServer),
 	)
 
 	// Ошибку сборки графа и упавшего Invoke (например, недоступный Postgres)

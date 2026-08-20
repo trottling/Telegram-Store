@@ -23,6 +23,7 @@ func providePostgresConfig(cfg *config.Config) *config.PostgresConfig     { retu
 func provideRedisConfig(cfg *config.Config) *config.RedisConfig           { return cfg.Redis }
 func provideAdminPanelConfig(cfg *config.Config) *config.AdminPanelConfig { return cfg.AdminPanel }
 func providePaymentsConfig(cfg *config.Config) *config.PaymentsConfig     { return cfg.Payments }
+func provideMetricsConfig(cfg *config.Config) *config.MetricsConfig       { return cfg.Metrics }
 func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Logger }
 
 // providePaymentProviders — по одному провайдеру на реальный мерчант;
