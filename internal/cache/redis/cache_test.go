@@ -3,24 +3,22 @@ package redis
 import (
 	"context"
 	"errors"
-	"io"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	"go.uber.org/zap"
 )
 
 func newTestCache(t *testing.T) *Cache {
 	t.Helper()
 
 	server := miniredis.RunT(t)
-	log := logrus.New()
-	log.SetOutput(io.Discard)
+	log := zap.NewNop().Sugar()
 
 	return NewRedisCache(redis.NewClient(&redis.Options{Addr: server.Addr()}), log)
 }
@@ -132,8 +130,7 @@ func TestSetLoginCodeIsPerAdmin(t *testing.T) {
 // навсегда вместо минуты.
 func TestIncrExchangeAttemptsWindowDoesNotSlide(t *testing.T) {
 	server := miniredis.RunT(t)
-	log := logrus.New()
-	log.SetOutput(io.Discard)
+	log := zap.NewNop().Sugar()
 	cache := NewRedisCache(redis.NewClient(&redis.Options{Addr: server.Addr()}), log)
 
 	ctx := context.Background()

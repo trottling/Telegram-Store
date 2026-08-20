@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 )
 
 // Cache — Redis-реализация domain/cache, domain/fsm.Store и
@@ -20,10 +20,10 @@ import (
 // пространства ключей.
 type Cache struct {
 	client *redis.Client
-	log    *logrus.Logger
+	log    *zap.SugaredLogger
 }
 
-func NewRedisCache(client *redis.Client, log *logrus.Logger) *Cache {
+func NewRedisCache(client *redis.Client, log *zap.SugaredLogger) *Cache {
 	return &Cache{client: client, log: log}
 }
 
@@ -36,13 +36,13 @@ func (c *Cache) getJSON(ctx context.Context, key string, dest any) error {
 		return domaincache.ErrMiss
 	}
 	if err != nil {
-		c.log.WithError(err).WithField("key", key).Error("cache: redis GET failed")
+		c.log.Errorw("cache: redis GET failed", "error", err, "key", key)
 		return err
 	}
 	if err = json.Unmarshal(raw, dest); err != nil {
 		// Битое значение удаляем сразу: иначе каждое чтение до истечения TTL
 		// снова падает и снова пишет в лог, хотя чинится это одним DEL.
-		c.log.WithError(err).WithField("key", key).Warn("cache: stored value failed to unmarshal, dropping key")
+		c.log.Warnw("cache: stored value failed to unmarshal, dropping key", "error", err, "key", key)
 		_ = c.delete(ctx, key)
 		return domaincache.ErrMiss
 	}
@@ -52,11 +52,11 @@ func (c *Cache) getJSON(ctx context.Context, key string, dest any) error {
 func (c *Cache) setJSON(ctx context.Context, key string, value any, ttl time.Duration) error {
 	raw, err := json.Marshal(value)
 	if err != nil {
-		c.log.WithError(err).WithField("key", key).Error("cache: failed to marshal value")
+		c.log.Errorw("cache: failed to marshal value", "error", err, "key", key)
 		return err
 	}
 	if err = c.client.Set(ctx, key, raw, ttl).Err(); err != nil {
-		c.log.WithError(err).WithField("key", key).Warn("cache: redis SET failed")
+		c.log.Warnw("cache: redis SET failed", "error", err, "key", key)
 		return err
 	}
 	return nil
@@ -67,7 +67,7 @@ func (c *Cache) delete(ctx context.Context, keys ...string) error {
 		return nil
 	}
 	if err := c.client.Del(ctx, keys...).Err(); err != nil {
-		c.log.WithError(err).WithField("keys", keys).Warn("cache: redis DEL failed")
+		c.log.Warnw("cache: redis DEL failed", "error", err, "keys", keys)
 		return err
 	}
 	return nil
@@ -131,12 +131,12 @@ func (c *Cache) GetProductAvailableCount(ctx context.Context, productID int64) (
 		return 0, domaincache.ErrMiss
 	}
 	if err != nil {
-		c.log.WithError(err).WithField("product_id", productID).Error("cache: redis GET failed")
+		c.log.Errorw("cache: redis GET failed", "error", err, "product_id", productID)
 		return 0, err
 	}
 	count, err := strconv.Atoi(raw)
 	if err != nil {
-		c.log.WithError(err).WithField("product_id", productID).Warn("cache: stored count is not an int, dropping key")
+		c.log.Warnw("cache: stored count is not an int, dropping key", "error", err, "product_id", productID)
 		_ = c.delete(ctx, productCountKey(productID))
 		return 0, domaincache.ErrMiss
 	}
@@ -145,7 +145,7 @@ func (c *Cache) GetProductAvailableCount(ctx context.Context, productID int64) (
 
 func (c *Cache) SetProductAvailableCount(ctx context.Context, productID int64, count int) error {
 	if err := c.client.Set(ctx, productCountKey(productID), strconv.Itoa(count), productCountTTL).Err(); err != nil {
-		c.log.WithError(err).WithField("product_id", productID).Warn("cache: redis SET failed")
+		c.log.Warnw("cache: redis SET failed", "error", err, "product_id", productID)
 		return err
 	}
 	return nil
@@ -199,13 +199,13 @@ func (c *Cache) GetFSMState(ctx context.Context, telegramID int64) (*domainfsm.S
 		return nil, domainfsm.ErrNotFound
 	}
 	if err != nil {
-		c.log.WithError(err).WithField("telegram_id", telegramID).Error("cache: redis GET failed (fsm state)")
+		c.log.Errorw("cache: redis GET failed (fsm state)", "error", err, "telegram_id", telegramID)
 		return nil, err
 	}
 
 	var st domainfsm.State
 	if err = json.Unmarshal(raw, &st); err != nil {
-		c.log.WithError(err).WithField("telegram_id", telegramID).Warn("cache: stored fsm state failed to unmarshal, treating as absent")
+		c.log.Warnw("cache: stored fsm state failed to unmarshal, treating as absent", "error", err, "telegram_id", telegramID)
 		return nil, domainfsm.ErrNotFound
 	}
 	return &st, nil
@@ -219,13 +219,13 @@ func (c *Cache) ConsumeFSMState(ctx context.Context, telegramID int64) (*domainf
 		return nil, domainfsm.ErrNotFound
 	}
 	if err != nil {
-		c.log.WithError(err).WithField("telegram_id", telegramID).Error("cache: redis GETDEL failed (fsm state)")
+		c.log.Errorw("cache: redis GETDEL failed (fsm state)", "error", err, "telegram_id", telegramID)
 		return nil, err
 	}
 
 	var st domainfsm.State
 	if err = json.Unmarshal(raw, &st); err != nil {
-		c.log.WithError(err).WithField("telegram_id", telegramID).Warn("cache: stored fsm state failed to unmarshal, treating as absent")
+		c.log.Warnw("cache: stored fsm state failed to unmarshal, treating as absent", "error", err, "telegram_id", telegramID)
 		return nil, domainfsm.ErrNotFound
 	}
 	return &st, nil
@@ -234,11 +234,11 @@ func (c *Cache) ConsumeFSMState(ctx context.Context, telegramID int64) (*domainf
 func (c *Cache) SetFSMState(ctx context.Context, telegramID int64, st *domainfsm.State) error {
 	raw, err := json.Marshal(st)
 	if err != nil {
-		c.log.WithError(err).WithField("telegram_id", telegramID).Error("cache: failed to marshal fsm state")
+		c.log.Errorw("cache: failed to marshal fsm state", "error", err, "telegram_id", telegramID)
 		return err
 	}
 	if err = c.client.Set(ctx, stateKey(telegramID), raw, stateTTL).Err(); err != nil {
-		c.log.WithError(err).WithField("telegram_id", telegramID).Error("cache: redis SET failed (fsm state)")
+		c.log.Errorw("cache: redis SET failed (fsm state)", "error", err, "telegram_id", telegramID)
 		return err
 	}
 	return nil
@@ -246,7 +246,7 @@ func (c *Cache) SetFSMState(ctx context.Context, telegramID int64, st *domainfsm
 
 func (c *Cache) ClearFSMState(ctx context.Context, telegramID int64) error {
 	if err := c.client.Del(ctx, stateKey(telegramID)).Err(); err != nil {
-		c.log.WithError(err).WithField("telegram_id", telegramID).Warn("cache: redis DEL failed (fsm state)")
+		c.log.Warnw("cache: redis DEL failed (fsm state)", "error", err, "telegram_id", telegramID)
 		return err
 	}
 	return nil
@@ -264,18 +264,18 @@ func (c *Cache) SetLoginCode(ctx context.Context, codeHash string, telegramID in
 	// хуже лишний живой код на 30 секунд, чем невозможность войти.
 	if previousHash, err := c.client.GetSet(ctx, ownerKey, codeHash).Result(); err == nil && previousHash != "" {
 		if err = c.client.Del(ctx, adminLoginCodeKey(previousHash)).Err(); err != nil {
-			c.log.WithError(err).Warn("cache: redis DEL failed (previous admin login code)")
+			c.log.Warnw("cache: redis DEL failed (previous admin login code)", "error", err)
 		}
 	} else if err != nil && !errors.Is(err, redis.Nil) {
-		c.log.WithError(err).Warn("cache: redis GETSET failed (admin login code owner)")
+		c.log.Warnw("cache: redis GETSET failed (admin login code owner)", "error", err)
 	}
 
 	if err := c.client.Expire(ctx, ownerKey, ttl).Err(); err != nil {
-		c.log.WithError(err).Warn("cache: redis EXPIRE failed (admin login code owner)")
+		c.log.Warnw("cache: redis EXPIRE failed (admin login code owner)", "error", err)
 	}
 
 	if err := c.client.Set(ctx, adminLoginCodeKey(codeHash), strconv.FormatInt(telegramID, 10), ttl).Err(); err != nil {
-		c.log.WithError(err).Warn("cache: redis SET failed (admin login code)")
+		c.log.Warnw("cache: redis SET failed (admin login code)", "error", err)
 		return err
 	}
 	return nil
@@ -288,12 +288,12 @@ func (c *Cache) ConsumeLoginCode(ctx context.Context, codeHash string) (int64, e
 		return 0, adminsession.ErrNotFound
 	}
 	if err != nil {
-		c.log.WithError(err).Error("cache: redis GETDEL failed (admin login code)")
+		c.log.Errorw("cache: redis GETDEL failed (admin login code)", "error", err)
 		return 0, err
 	}
 	telegramID, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		c.log.WithError(err).Warn("cache: stored admin login code value is not an int, treating as miss")
+		c.log.Warnw("cache: stored admin login code value is not an int, treating as miss", "error", err)
 		return 0, adminsession.ErrNotFound
 	}
 	return telegramID, nil
@@ -301,7 +301,7 @@ func (c *Cache) ConsumeLoginCode(ctx context.Context, codeHash string) (int64, e
 
 func (c *Cache) SetSession(ctx context.Context, sessionHash string, telegramID int64, ttl time.Duration) error {
 	if err := c.client.Set(ctx, adminSessionKey(sessionHash), strconv.FormatInt(telegramID, 10), ttl).Err(); err != nil {
-		c.log.WithError(err).Warn("cache: redis SET failed (admin session)")
+		c.log.Warnw("cache: redis SET failed (admin session)", "error", err)
 		return err
 	}
 	return nil
@@ -313,12 +313,12 @@ func (c *Cache) GetSession(ctx context.Context, sessionHash string) (int64, erro
 		return 0, adminsession.ErrNotFound
 	}
 	if err != nil {
-		c.log.WithError(err).Error("cache: redis GET failed (admin session)")
+		c.log.Errorw("cache: redis GET failed (admin session)", "error", err)
 		return 0, err
 	}
 	telegramID, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		c.log.WithError(err).Warn("cache: stored admin session value is not an int, treating as miss")
+		c.log.Warnw("cache: stored admin session value is not an int, treating as miss", "error", err)
 		return 0, adminsession.ErrNotFound
 	}
 	return telegramID, nil
@@ -337,12 +337,12 @@ func (c *Cache) IncrExchangeAttempts(ctx context.Context, key string, window tim
 
 	attempt, err := c.client.Incr(ctx, redisKey).Result()
 	if err != nil {
-		c.log.WithError(err).Error("cache: redis INCR failed (exchange attempts)")
+		c.log.Errorw("cache: redis INCR failed (exchange attempts)", "error", err)
 		return 0, err
 	}
 	if attempt == 1 {
 		if err = c.client.Expire(ctx, redisKey, window).Err(); err != nil {
-			c.log.WithError(err).Warn("cache: redis EXPIRE failed (exchange attempts)")
+			c.log.Warnw("cache: redis EXPIRE failed (exchange attempts)", "error", err)
 		}
 	}
 	return attempt, nil
