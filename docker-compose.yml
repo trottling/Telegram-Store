@@ -110,8 +110,8 @@ services:
 
   # TLS-терминатор: единственный сервис с портами наружу (80/443), автовыпуск
   # сертификатов Let's Encrypt по ACME HTTP-01/TLS-ALPN. Домены и почта — из
-  # DOMAIN_NAME/ACME_EMAIL (см. .env, поддомены admin./api./pay. собираются
-  # из DOMAIN_NAME прямо в Caddyfile).
+  # DOMAIN_NAME/ACME_EMAIL (см. .env, поддомены admin./api./pay./stats.
+  # собираются из DOMAIN_NAME прямо в Caddyfile).
   caddy:
     image: caddy:2-alpine
     container_name: telegram-store-caddy
@@ -129,6 +129,7 @@ services:
       - admin_backend
       - payments_backend
       - admin_frontend
+      - grafana
     restart: unless-stopped
     networks:
       - public-network
@@ -199,6 +200,93 @@ services:
       - public-network
     <<: *default-logging
 
+  # Метрики бота (см. BOT_METRICS_PORT) — сам себя тоже скрейпит, см.
+  # monitoring/prometheus/prometheus.yml. Наружу не торчит — доступ только
+  # через Grafana (datasource) или изнутри docker-сети.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: telegram-store-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - backend-network
+    <<: *default-logging
+
+  # Хранилище логов. -config.expand-env=true — чтобы ${LOKI_RETENTION_DAYS} в
+  # смонтированном конфиге подставился самим Loki, а не docker-compose (тот
+  # ${VAR}-синтаксис на файлы внутри контейнеров не распространяется).
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: telegram-store-loki
+    command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
+    environment:
+      LOKI_RETENTION_DAYS: ${LOKI_RETENTION_DAYS:-14}
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - backend-network
+    <<: *default-logging
+
+  # Пересылает логи всех контейнеров в Loki — находит их сам через Docker
+  # socket (docker_sd_configs), ни один существующий сервис трогать не нужно.
+  # ro-монт /var/lib/docker/containers — там json-file уже пишет NDJSON
+  # каждого контейнера (см. x-logging выше).
+  promtail:
+    image: grafana/promtail:3.2.0
+    container_name: telegram-store-promtail
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+    networks:
+      - backend-network
+    <<: *default-logging
+
+  # Единственный публичный вход во весь observability-стек (stats.$DOMAIN_NAME
+  # в Caddyfile). Логин не свой — auth.proxy доверяет X-WEBAUTH-USER, который
+  # проставляет admin_backend через forward_auth в Caddy (тот же код из /admin,
+  # что и в веб-панель). GRAFANA_ADMIN_USER/PASSWORD — только break-glass,
+  # доступны исключительно изнутри docker-сети, публично эта форма входа не
+  # показывается.
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: telegram-store-grafana
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      GF_AUTH_PROXY_ENABLED: "true"
+      GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
+      GF_AUTH_PROXY_HEADER_PROPERTY: username
+      GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
+      GF_USERS_AUTO_ASSIGN_ORG_ROLE: Editor
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://stats.${DOMAIN_NAME}
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    # оба network: backend — достать prometheus/loki, public — чтобы caddy
+    # нашёл её по имени (тот же паттерн, что у admin_backend).
+    networks:
+      - backend-network
+      - public-network
+    <<: *default-logging
+
 networks:
   # db+redis видны только bot/admin_backend/payments_backend/migrate/backup, без выхода наружу
   backend-network:
@@ -221,3 +309,6 @@ volumes:
   caddy_data:
   caddy_config:
   backup_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
