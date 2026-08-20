@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/config"
+	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
@@ -15,11 +15,11 @@ import (
 // gormSlowQueryThreshold — с какой длительности GORM считает запрос медленным.
 const gormSlowQueryThreshold = 200 * time.Millisecond
 
-// gormLogWriter направляет вывод GORM в logrus. Своим логгером GORM пишет в
+// gormLogWriter направляет вывод GORM в zap. Своим логгером GORM пишет в
 // stderr через стандартный log: с ANSI-раскраской независимо от того, терминал
 // там или pipe, и мимо LOG_LEVEL. В контейнере это была вторая струя логов
 // чужого формата, попадавшая в те же json-file файлы.
-type gormLogWriter struct{ log *logrus.Logger }
+type gormLogWriter struct{ log *zap.SugaredLogger }
 
 // Printf получает уже собранную GORM строку. Уровень один — Warn: при
 // gormlogger.Warn GORM отдаёт только медленные запросы и ошибки, рядовые
@@ -28,7 +28,7 @@ func (w gormLogWriter) Printf(format string, args ...any) {
 	w.log.Warnf(strings.TrimSpace(format), args...)
 }
 
-func NewClient(cfg *config.PostgresConfig, log *logrus.Logger) (*gorm.DB, error) {
+func NewClient(cfg *config.PostgresConfig, log *zap.SugaredLogger) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode,

@@ -4,18 +4,18 @@ import (
 	"context"
 	"errors"
 
-	"github.com/sirupsen/logrus"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type SettingsRepo struct {
 	db  *gorm.DB
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
-func NewSettingsRepo(db *gorm.DB, log *logrus.Logger) *SettingsRepo {
+func NewSettingsRepo(db *gorm.DB, log *zap.SugaredLogger) *SettingsRepo {
 	return &SettingsRepo{db: db, log: log}
 }
 
@@ -25,7 +25,7 @@ func (r *SettingsRepo) Get(ctx context.Context) (*models.Settings, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domainerrors.ErrSettingsNotFound
 		}
-		r.log.WithError(err).Error("settings_repo: get failed")
+		r.log.Errorw("settings_repo: get failed", "error", err)
 		return nil, err
 	}
 	return &settings, nil
@@ -40,7 +40,7 @@ func (r *SettingsRepo) Update(ctx context.Context, settings *models.Settings) er
 		Select("*").
 		Updates(ctx, *settings)
 	if err != nil {
-		r.log.WithError(err).Error("settings_repo: update failed")
+		r.log.Errorw("settings_repo: update failed", "error", err)
 	}
 	return err
 }
@@ -53,13 +53,13 @@ func (r *SettingsRepo) EnsureExists(ctx context.Context, defaults *models.Settin
 		return nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		r.log.WithError(err).Error("settings_repo: failed to check settings existence")
+		r.log.Errorw("settings_repo: failed to check settings existence", "error", err)
 		return err
 	}
 
 	defaults.ID = models.SettingsID
 	if err = gorm.G[models.Settings](dbFromCtx(ctx, r.db)).Create(ctx, defaults); err != nil {
-		r.log.WithError(err).Error("settings_repo: failed to create default settings")
+		r.log.Errorw("settings_repo: failed to create default settings", "error", err)
 		return err
 	}
 	r.log.Info("settings_repo: default settings row created")

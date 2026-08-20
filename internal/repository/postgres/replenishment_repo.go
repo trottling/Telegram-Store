@@ -5,24 +5,24 @@ import (
 	"errors"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type ReplenishmentRepo struct {
 	db  *gorm.DB
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
-func NewReplenishmentRepo(db *gorm.DB, log *logrus.Logger) *ReplenishmentRepo {
+func NewReplenishmentRepo(db *gorm.DB, log *zap.SugaredLogger) *ReplenishmentRepo {
 	return &ReplenishmentRepo{db: db, log: log}
 }
 
 func (r *ReplenishmentRepo) Create(ctx context.Context, replenishment *models.Replenishment) error {
 	if err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).Create(ctx, replenishment); err != nil {
-		r.log.WithError(err).WithField("user_id", replenishment.UserID).Error("replenishment_repo: create failed")
+		r.log.Errorw("replenishment_repo: create failed", "error", err, "user_id", replenishment.UserID)
 		return err
 	}
 	return nil
@@ -36,7 +36,7 @@ func (r *ReplenishmentRepo) GetByMerchantInvoiceID(ctx context.Context, merchant
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domainerrors.ErrReplenishmentNotFound
 		}
-		r.log.WithError(err).WithFields(logrus.Fields{"merchant": merchant, "invoice_id": invoiceID}).Error("replenishment_repo: get by merchant invoice id failed")
+		r.log.Errorw("replenishment_repo: get by merchant invoice id failed", "error", err, "merchant", merchant, "invoice_id", invoiceID)
 		return nil, err
 	}
 	return &replenishment, nil
@@ -49,7 +49,7 @@ func (r *ReplenishmentRepo) UpdateStatus(ctx context.Context, id int64, status m
 		Where("id = ? AND status = ?", id, models.ReplenishmentStatusPending).
 		Updates(ctx, models.Replenishment{Status: status, CompletedAt: completedAt})
 	if err != nil {
-		r.log.WithError(err).WithField("replenishment_id", id).Error("replenishment_repo: update status failed")
+		r.log.Errorw("replenishment_repo: update status failed", "error", err, "replenishment_id", id)
 		return false, err
 	}
 	return rows > 0, nil
@@ -63,7 +63,7 @@ func (r *ReplenishmentRepo) ListByUserID(ctx context.Context, userID int64, offs
 		Limit(limit).
 		Find(ctx)
 	if err != nil {
-		r.log.WithError(err).WithField("user_id", userID).Error("replenishment_repo: list by user id failed")
+		r.log.Errorw("replenishment_repo: list by user id failed", "error", err, "user_id", userID)
 	}
 	return replenishments, err
 }
@@ -71,7 +71,7 @@ func (r *ReplenishmentRepo) ListByUserID(ctx context.Context, userID int64, offs
 func (r *ReplenishmentRepo) CountByUserID(ctx context.Context, userID int64) (int64, error) {
 	count, err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).Where("user_id = ?", userID).Count(ctx, "*")
 	if err != nil {
-		r.log.WithError(err).WithField("user_id", userID).Error("replenishment_repo: count by user id failed")
+		r.log.Errorw("replenishment_repo: count by user id failed", "error", err, "user_id", userID)
 	}
 	return count, err
 }
@@ -84,7 +84,7 @@ func (r *ReplenishmentRepo) SumPaidByUserMerchant(ctx context.Context, userID in
 		Select("COALESCE(SUM(amount), 0)").
 		Scan(&sum).Error
 	if err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{"user_id": userID, "merchant": merchant}).Error("replenishment_repo: sum paid by user merchant failed")
+		r.log.Errorw("replenishment_repo: sum paid by user merchant failed", "error", err, "user_id", userID, "merchant", merchant)
 	}
 	return sum, err
 }
@@ -112,7 +112,7 @@ func (r *ReplenishmentRepo) ListAllAdmin(ctx context.Context, filter models.Repl
 		Limit(limit).
 		Scan(&items).Error
 	if err != nil {
-		r.log.WithError(err).Error("replenishment_repo: list all admin failed")
+		r.log.Errorw("replenishment_repo: list all admin failed", "error", err)
 	}
 	return items, err
 }
@@ -121,7 +121,7 @@ func (r *ReplenishmentRepo) CountAllAdmin(ctx context.Context, filter models.Rep
 	var count int64
 	err := r.replenishmentAdminQuery(ctx, filter).Count(&count).Error
 	if err != nil {
-		r.log.WithError(err).Error("replenishment_repo: count all admin failed")
+		r.log.Errorw("replenishment_repo: count all admin failed", "error", err)
 	}
 	return count, err
 }

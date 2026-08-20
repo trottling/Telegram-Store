@@ -4,18 +4,18 @@ import (
 	"context"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 // StatsRepo — агрегаты для экрана статистики через GORM query builder, не .Raw().
 type StatsRepo struct {
 	db  *gorm.DB
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
-func NewStatsRepo(db *gorm.DB, log *logrus.Logger) *StatsRepo {
+func NewStatsRepo(db *gorm.DB, log *zap.SugaredLogger) *StatsRepo {
 	return &StatsRepo{db: db, log: log}
 }
 
@@ -32,7 +32,7 @@ func (r *StatsRepo) GetSalesOverview(ctx context.Context, from, to *time.Time) (
 
 	var out models.SalesOverview
 	if err := q.Scan(&out).Error; err != nil {
-		r.log.WithError(err).Error("stats_repo: get sales overview failed")
+		r.log.Errorw("stats_repo: get sales overview failed", "error", err)
 		return nil, err
 	}
 	return &out, nil
@@ -47,7 +47,7 @@ func (r *StatsRepo) GetRevenueTimeSeries(ctx context.Context, from, to time.Time
 		Order("date_trunc('day', created_at)").
 		Scan(&points).Error
 	if err != nil {
-		r.log.WithError(err).Error("stats_repo: get revenue time series failed")
+		r.log.Errorw("stats_repo: get revenue time series failed", "error", err)
 	}
 	return points, err
 }
@@ -78,7 +78,7 @@ func (r *StatsRepo) GetTopProducts(ctx context.Context, from, to *time.Time, lim
 		Limit(limit).
 		Scan(&out).Error
 	if err != nil {
-		r.log.WithError(err).Error("stats_repo: get top products failed")
+		r.log.Errorw("stats_repo: get top products failed", "error", err)
 	}
 	return out, err
 }
@@ -102,7 +102,7 @@ func (r *StatsRepo) GetTopCategories(ctx context.Context, from, to *time.Time, l
 		Limit(limit).
 		Scan(&out).Error
 	if err != nil {
-		r.log.WithError(err).Error("stats_repo: get top categories failed")
+		r.log.Errorw("stats_repo: get top categories failed", "error", err)
 	}
 	return out, err
 }
@@ -114,7 +114,7 @@ func (r *StatsRepo) GetUserStats(ctx context.Context) (*models.UserStats, error)
 		Where("deleted_at IS NULL").
 		Scan(&out).Error
 	if err != nil {
-		r.log.WithError(err).Error("stats_repo: get user stats failed")
+		r.log.Errorw("stats_repo: get user stats failed", "error", err)
 		return nil, err
 	}
 	return &out, nil

@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -12,10 +12,10 @@ type txCtxKey struct{}
 
 type GormTransactor struct {
 	db  *gorm.DB
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
-func NewGormTransactor(db *gorm.DB, log *logrus.Logger) *GormTransactor {
+func NewGormTransactor(db *gorm.DB, log *zap.SugaredLogger) *GormTransactor {
 	return &GormTransactor{db: db, log: log}
 }
 
@@ -24,7 +24,7 @@ func (t *GormTransactor) WithinTransaction(ctx context.Context, fn func(ctx cont
 		return fn(context.WithValue(ctx, txCtxKey{}, tx))
 	})
 	if err != nil {
-		t.log.WithError(err).Debug("transactor: transaction rolled back")
+		t.log.Debugw("transactor: transaction rolled back", "error", err)
 	}
 	return err
 }

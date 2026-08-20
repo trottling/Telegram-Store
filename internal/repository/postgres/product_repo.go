@@ -5,27 +5,27 @@ import (
 	"errors"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type ProductRepo struct {
 	db  *gorm.DB
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
-func NewProductRepo(db *gorm.DB, log *logrus.Logger) *ProductRepo {
+func NewProductRepo(db *gorm.DB, log *zap.SugaredLogger) *ProductRepo {
 	return &ProductRepo{db: db, log: log}
 }
 
 func (r *ProductRepo) Create(ctx context.Context, product *models.Product) error {
 	if err := gorm.G[models.Product](dbFromCtx(ctx, r.db)).Create(ctx, product); err != nil {
-		r.log.WithError(err).WithField("name", product.Name).Error("product_repo: create failed")
+		r.log.Errorw("product_repo: create failed", "error", err, "name", product.Name)
 		return err
 	}
-	r.log.WithFields(logrus.Fields{"product_id": product.ID, "name": product.Name}).Info("product_repo: product created")
+	r.log.Infow("product_repo: product created", "product_id", product.ID, "name", product.Name)
 	return nil
 }
 
@@ -35,7 +35,7 @@ func (r *ProductRepo) GetByID(ctx context.Context, id int64) (*models.Product, e
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domainerrors.ErrProductNotFound
 		}
-		r.log.WithError(err).WithField("product_id", id).Error("product_repo: get by id failed")
+		r.log.Errorw("product_repo: get by id failed", "error", err, "product_id", id)
 		return nil, err
 	}
 	return &product, nil
@@ -48,7 +48,7 @@ func (r *ProductRepo) Update(ctx context.Context, product *models.Product) error
 		Select("*").
 		Updates(ctx, *product)
 	if err != nil {
-		r.log.WithError(err).WithField("product_id", product.ID).Error("product_repo: update failed")
+		r.log.Errorw("product_repo: update failed", "error", err, "product_id", product.ID)
 	}
 	return err
 }
@@ -56,10 +56,10 @@ func (r *ProductRepo) Update(ctx context.Context, product *models.Product) error
 func (r *ProductRepo) Delete(ctx context.Context, id int64) error {
 	_, err := gorm.G[models.Product](dbFromCtx(ctx, r.db)).Where("id = ?", id).Delete(ctx)
 	if err != nil {
-		r.log.WithError(err).WithField("product_id", id).Error("product_repo: delete failed")
+		r.log.Errorw("product_repo: delete failed", "error", err, "product_id", id)
 		return err
 	}
-	r.log.WithField("product_id", id).Info("product_repo: product deleted")
+	r.log.Infow("product_repo: product deleted", "product_id", id)
 	return nil
 }
 
@@ -72,7 +72,7 @@ func (r *ProductRepo) ListActive(ctx context.Context) ([]models.Product, error) 
 		Order("id").
 		Find(ctx)
 	if err != nil {
-		r.log.WithError(err).Error("product_repo: list active failed")
+		r.log.Errorw("product_repo: list active failed", "error", err)
 	}
 	return products, err
 }
@@ -94,7 +94,7 @@ func (r *ProductRepo) ListActiveByCategory(ctx context.Context, categoryID *int6
 			Find(ctx)
 	}
 	if err != nil {
-		r.log.WithError(err).WithField("category_id", categoryID).Error("product_repo: list active by category failed")
+		r.log.Errorw("product_repo: list active by category failed", "error", err, "category_id", categoryID)
 	}
 	return products, err
 }
@@ -108,10 +108,10 @@ func (r *ProductRepo) AddItems(ctx context.Context, productID int64, contents []
 		items = append(items, models.ProductItem{ProductID: productID, Content: c})
 	}
 	if err := gorm.G[models.ProductItem](dbFromCtx(ctx, r.db)).CreateInBatches(ctx, &items, len(items)); err != nil {
-		r.log.WithError(err).WithField("product_id", productID).Error("product_repo: add items failed")
+		r.log.Errorw("product_repo: add items failed", "error", err, "product_id", productID)
 		return err
 	}
-	r.log.WithFields(logrus.Fields{"product_id": productID, "count": len(items)}).Info("product_repo: items added")
+	r.log.Infow("product_repo: items added", "product_id", productID, "count", len(items))
 	return nil
 }
 
@@ -146,7 +146,7 @@ func (r *ProductRepo) ReserveItem(ctx context.Context, productID int64) (*models
 		Raw(reserveItemSQL, time.Now(), productID).
 		Scan(&item)
 	if result.Error != nil {
-		r.log.WithError(result.Error).WithField("product_id", productID).Error("product_repo: reserve item failed")
+		r.log.Errorw("product_repo: reserve item failed", "error", result.Error, "product_id", productID)
 		return nil, result.Error
 	}
 	// Подзапрос ничего не нашёл — свободных единиц не осталось. Raw+Scan не
@@ -162,7 +162,7 @@ func (r *ProductRepo) CountAvailableItems(ctx context.Context, productID int64) 
 		Where("product_id = ? AND is_sold = ?", productID, false).
 		Count(ctx, "*")
 	if err != nil {
-		r.log.WithError(err).WithField("product_id", productID).Error("product_repo: count available items failed")
+		r.log.Errorw("product_repo: count available items failed", "error", err, "product_id", productID)
 	}
 	return int(count), err
 }
@@ -184,7 +184,7 @@ func (r *ProductRepo) ListAll(ctx context.Context, offset, limit int, categoryID
 		Limit(limit).
 		Scan(&items).Error
 	if err != nil {
-		r.log.WithError(err).WithField("category_id", categoryID).Error("product_repo: list all failed")
+		r.log.Errorw("product_repo: list all failed", "error", err, "category_id", categoryID)
 	}
 	return items, err
 }
@@ -200,7 +200,7 @@ func (r *ProductRepo) CountAll(ctx context.Context, categoryID *int64) (int64, e
 		count, err = gorm.G[models.Product](dbFromCtx(ctx, r.db)).Count(ctx, "*")
 	}
 	if err != nil {
-		r.log.WithError(err).WithField("category_id", categoryID).Error("product_repo: count all failed")
+		r.log.Errorw("product_repo: count all failed", "error", err, "category_id", categoryID)
 	}
 	return count, err
 }
@@ -209,7 +209,7 @@ func (r *ProductRepo) CountAll(ctx context.Context, categoryID *int64) (int64, e
 func (r *ProductRepo) CountByCategoryID(ctx context.Context, categoryID int64) (int64, error) {
 	count, err := gorm.G[models.Product](dbFromCtx(ctx, r.db)).Where("category_id = ?", categoryID).Count(ctx, "*")
 	if err != nil {
-		r.log.WithError(err).WithField("category_id", categoryID).Error("product_repo: count by category id failed")
+		r.log.Errorw("product_repo: count by category id failed", "error", err, "category_id", categoryID)
 	}
 	return count, err
 }

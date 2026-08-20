@@ -5,27 +5,27 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type CategoryRepo struct {
 	db  *gorm.DB
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
-func NewCategoryRepo(db *gorm.DB, log *logrus.Logger) *CategoryRepo {
+func NewCategoryRepo(db *gorm.DB, log *zap.SugaredLogger) *CategoryRepo {
 	return &CategoryRepo{db: db, log: log}
 }
 
 func (r *CategoryRepo) Create(ctx context.Context, category *models.Category) error {
 	if err := gorm.G[models.Category](dbFromCtx(ctx, r.db)).Create(ctx, category); err != nil {
-		r.log.WithError(err).WithField("name", category.Name).Error("category_repo: create failed")
+		r.log.Errorw("category_repo: create failed", "error", err, "name", category.Name)
 		return err
 	}
-	r.log.WithFields(logrus.Fields{"category_id": category.ID, "name": category.Name}).Info("category_repo: category created")
+	r.log.Infow("category_repo: category created", "category_id", category.ID, "name", category.Name)
 	return nil
 }
 
@@ -35,7 +35,7 @@ func (r *CategoryRepo) GetByID(ctx context.Context, id int64) (*models.Category,
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domainerrors.ErrCategoryNotFound
 		}
-		r.log.WithError(err).WithField("category_id", id).Error("category_repo: get by id failed")
+		r.log.Errorw("category_repo: get by id failed", "error", err, "category_id", id)
 		return nil, err
 	}
 	return &category, nil
@@ -49,7 +49,7 @@ func (r *CategoryRepo) Update(ctx context.Context, category *models.Category) er
 		Select("*").
 		Updates(ctx, *category)
 	if err != nil {
-		r.log.WithError(err).WithField("category_id", category.ID).Error("category_repo: update failed")
+		r.log.Errorw("category_repo: update failed", "error", err, "category_id", category.ID)
 	}
 	return err
 }
@@ -57,10 +57,10 @@ func (r *CategoryRepo) Update(ctx context.Context, category *models.Category) er
 func (r *CategoryRepo) Delete(ctx context.Context, id int64) error {
 	_, err := gorm.G[models.Category](dbFromCtx(ctx, r.db)).Where("id = ?", id).Delete(ctx)
 	if err != nil {
-		r.log.WithError(err).WithField("category_id", id).Error("category_repo: delete failed")
+		r.log.Errorw("category_repo: delete failed", "error", err, "category_id", id)
 		return err
 	}
-	r.log.WithField("category_id", id).Info("category_repo: category deleted")
+	r.log.Infow("category_repo: category deleted", "category_id", id)
 	return nil
 }
 
@@ -100,7 +100,7 @@ func (r *CategoryRepo) ListChildren(ctx context.Context, parentID *int64) ([]mod
 		err = dbFromCtx(ctx, r.db).WithContext(ctx).Raw(sql, *parentID, *parentID).Scan(&children).Error
 	}
 	if err != nil {
-		r.log.WithError(err).WithField("parent_id", parentID).Error("category_repo: list children failed")
+		r.log.Errorw("category_repo: list children failed", "error", err, "parent_id", parentID)
 	}
 	return children, err
 }
@@ -116,7 +116,7 @@ func (r *CategoryRepo) ListPath(ctx context.Context, id int64) ([]models.Categor
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, domainerrors.ErrCategoryNotFound
 			}
-			r.log.WithError(err).WithField("category_id", *currentID).Error("category_repo: list path failed")
+			r.log.Errorw("category_repo: list path failed", "error", err, "category_id", *currentID)
 			return nil, err
 		}
 
@@ -133,7 +133,7 @@ func (r *CategoryRepo) ListAllFlat(ctx context.Context) ([]models.Category, erro
 		Order("parent_id NULLS FIRST, name").
 		Find(ctx)
 	if err != nil {
-		r.log.WithError(err).Error("category_repo: list all flat failed")
+		r.log.Errorw("category_repo: list all flat failed", "error", err)
 	}
 	return categories, err
 }
@@ -142,7 +142,7 @@ func (r *CategoryRepo) ListAllFlat(ctx context.Context) ([]models.Category, erro
 func (r *CategoryRepo) CountChildren(ctx context.Context, parentID int64) (int64, error) {
 	count, err := gorm.G[models.Category](dbFromCtx(ctx, r.db)).Where("parent_id = ?", parentID).Count(ctx, "*")
 	if err != nil {
-		r.log.WithError(err).WithField("parent_id", parentID).Error("category_repo: count children failed")
+		r.log.Errorw("category_repo: count children failed", "error", err, "parent_id", parentID)
 	}
 	return count, err
 }

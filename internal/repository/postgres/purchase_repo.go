@@ -4,24 +4,24 @@ import (
 	"context"
 	"errors"
 
-	"github.com/sirupsen/logrus"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
 type PurchaseRepo struct {
 	db  *gorm.DB
-	log *logrus.Logger
+	log *zap.SugaredLogger
 }
 
-func NewPurchaseRepo(db *gorm.DB, log *logrus.Logger) *PurchaseRepo {
+func NewPurchaseRepo(db *gorm.DB, log *zap.SugaredLogger) *PurchaseRepo {
 	return &PurchaseRepo{db: db, log: log}
 }
 
 func (r *PurchaseRepo) Create(ctx context.Context, purchase *models.Purchase) error {
 	if err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Create(ctx, purchase); err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{"user_id": purchase.UserID, "product_id": purchase.ProductID}).Error("purchase_repo: create failed")
+		r.log.Errorw("purchase_repo: create failed", "error", err, "user_id", purchase.UserID, "product_id", purchase.ProductID)
 		return err
 	}
 	return nil
@@ -30,7 +30,7 @@ func (r *PurchaseRepo) Create(ctx context.Context, purchase *models.Purchase) er
 func (r *PurchaseRepo) UpdateStatus(ctx context.Context, purchaseID int64, status models.PurchaseStatus) error {
 	_, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Where("id = ?", purchaseID).Update(ctx, "status", status)
 	if err != nil {
-		r.log.WithError(err).WithField("purchase_id", purchaseID).Error("purchase_repo: update status failed")
+		r.log.Errorw("purchase_repo: update status failed", "error", err, "purchase_id", purchaseID)
 	}
 	return err
 }
@@ -45,7 +45,7 @@ func (r *PurchaseRepo) GetByID(ctx context.Context, id int64) (*models.Purchase,
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, domainerrors.ErrPurchaseNotFound
 		}
-		r.log.WithError(err).WithField("purchase_id", id).Error("purchase_repo: get by id failed")
+		r.log.Errorw("purchase_repo: get by id failed", "error", err, "purchase_id", id)
 		return nil, err
 	}
 	return &purchase, nil
@@ -59,7 +59,7 @@ func (r *PurchaseRepo) GetByBatchID(ctx context.Context, userID int64, batchID s
 		Order("id").
 		Find(ctx)
 	if err != nil {
-		r.log.WithError(err).WithField("batch_id", batchID).Error("purchase_repo: get by batch id failed")
+		r.log.Errorw("purchase_repo: get by batch id failed", "error", err, "batch_id", batchID)
 	}
 	return purchases, err
 }
@@ -77,7 +77,7 @@ func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, 
 		Where("user_id = ?", userID).
 		Scan(&stats).Error
 	if err != nil {
-		r.log.WithError(err).WithField("user_id", userID).Error("purchase_repo: stats by user id failed")
+		r.log.Errorw("purchase_repo: stats by user id failed", "error", err, "user_id", userID)
 		return 0, 0, err
 	}
 	return stats.Count, stats.TotalSpent, nil
@@ -86,7 +86,7 @@ func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, 
 func (r *PurchaseRepo) CountByProductID(ctx context.Context, productID int64) (int64, error) {
 	count, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Where("product_id = ?", productID).Count(ctx, "*")
 	if err != nil {
-		r.log.WithError(err).WithField("product_id", productID).Error("purchase_repo: count by product id failed")
+		r.log.Errorw("purchase_repo: count by product id failed", "error", err, "product_id", productID)
 	}
 	return count, err
 }
@@ -104,7 +104,7 @@ func (r *PurchaseRepo) ListBatchesByUserID(ctx context.Context, userID int64, of
 		Limit(limit).
 		Scan(&summaries).Error
 	if err != nil {
-		r.log.WithError(err).WithField("user_id", userID).Error("purchase_repo: list batches failed")
+		r.log.Errorw("purchase_repo: list batches failed", "error", err, "user_id", userID)
 	}
 	return summaries, err
 }
@@ -116,7 +116,7 @@ func (r *PurchaseRepo) CountBatchesByUserID(ctx context.Context, userID int64) (
 		Distinct("batch_id").
 		Count(&count).Error
 	if err != nil {
-		r.log.WithError(err).WithField("user_id", userID).Error("purchase_repo: count batches failed")
+		r.log.Errorw("purchase_repo: count batches failed", "error", err, "user_id", userID)
 	}
 	return count, err
 }
@@ -153,7 +153,7 @@ func (r *PurchaseRepo) ListAll(ctx context.Context, filter models.PurchaseAdminF
 		Limit(limit).
 		Scan(&items).Error
 	if err != nil {
-		r.log.WithError(err).Error("purchase_repo: list all failed")
+		r.log.Errorw("purchase_repo: list all failed", "error", err)
 	}
 	return items, err
 }
@@ -162,7 +162,7 @@ func (r *PurchaseRepo) CountAll(ctx context.Context, filter models.PurchaseAdmin
 	var count int64
 	err := r.purchaseFilterQuery(ctx, filter).Count(&count).Error
 	if err != nil {
-		r.log.WithError(err).Error("purchase_repo: count all failed")
+		r.log.Errorw("purchase_repo: count all failed", "error", err)
 	}
 	return count, err
 }
@@ -176,7 +176,7 @@ func (r *PurchaseRepo) GetAdminByID(ctx context.Context, id int64) (*models.Purc
 		Where("purchases.id = ?", id).
 		Scan(&item)
 	if result.Error != nil {
-		r.log.WithError(result.Error).WithField("purchase_id", id).Error("purchase_repo: get admin by id failed")
+		r.log.Errorw("purchase_repo: get admin by id failed", "error", result.Error, "purchase_id", id)
 		return nil, result.Error
 	}
 	// Scan() не возвращает gorm.ErrRecordNotFound — проверяем RowsAffected.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -35,7 +35,7 @@ func createPartialIndexes(db *gorm.DB) error {
 
 // AutoMigrate — единственная точка входа для cmd/migrate: схема (DDL), бутстрап root-admin + дефолтных настроек.
 // cmd/migrate/main.go - тонкая обвязка
-func AutoMigrate(ctx context.Context, db *gorm.DB, log *logrus.Logger, rootAdminID int64) error {
+func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootAdminID int64) error {
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Category{},
