@@ -75,7 +75,7 @@ internal/domain/models/       GORM entities (User, Category, Product, ProductIte
                                itself lives in internal/repository/postgres, not here: driving a schema migration
                                against a specific database is an adapter concern, not a domain one
 internal/domain/repository/   repository interfaces + Transactor (unit-of-work over *gorm.DB.Transaction)
-internal/domain/service/      service interfaces (User/Product/Purchase/Category/Admin/AdminAuth/Stats/Settings/
+internal/domain/service/      service interfaces (User/Product/Purchase/Category/Admin/AdminAuth/Settings/
                                Replenishment)
 internal/domain/service/payment/  PaymentProvider interface + PaymentStatus enum
 internal/domain/cache/        read-through cache ports, one interface per cached entity (UserCache/ProductCache/
@@ -354,16 +354,16 @@ cmd/bot/main.go                fx.New(...).Run() — Run() itself blocks and lis
 cmd/admin_backend/main.go      fx.New(...).Run(), same signal handling as cmd/bot. lifecycle.go's runServer
                                launches webServer.Start() in a goroutine from OnStart (it blocks until
                                Shutdown) and calls webServer.Shutdown(ctx) (10s timeout) then closes the redis
-                               client from OnStop. Wires all repos/services admin_backend/handlers needs: eight
-                               repos (User/Product/Purchase/Category/Settings/Replenishment/AdminLog/Stats) plus
-                               GormTransactor, seven services (User/Product/Category/Settings/Purchase/Admin/Stats
+                               client from OnStop. Wires all repos/services admin_backend/handlers needs: seven
+                               repos (User/Product/Purchase/Category/Settings/Replenishment/AdminLog) plus
+                               GormTransactor, six services (User/Product/Category/Settings/Purchase/Admin
                                via fx.Annotate) plus provideReplenishmentService/provideAdminAuthService
 cmd/payments_backend/main.go   Same fx.New(...).Run()/runServer shape as cmd/admin_backend, but a much narrower
                                graph: three repos (User/Settings/Replenishment) plus GormTransactor — the
                                transactor is here purely for ReplenishmentSrv.Confirm, which has to commit the
                                status flip and the balance credit together — one service via fx.Annotate
                                (SettingsSrv) plus provideReplenishmentService — no
-                               UserService/AdminAuthService/adminsession.Store/Product/Category/AdminLog/Stats
+                               UserService/AdminAuthService/adminsession.Store/Product/Category/AdminLog
                                anything. ReplenishmentSrv itself takes a raw repository.UserRepository, not
                                UserService, which is why payments_backend never needs to wire UserSrv at all
 
@@ -371,8 +371,9 @@ admin_frontend/                the web admin panel's UI — React + Vite + Ant D
                                deployed as a separate container (nginx serving the built static bundle) that calls
                                admin_backend's API cross-origin (VITE_API_BASE_URL, baked in at image build time, not
                                read at runtime). Not part of the Go module. Every protected page is React.lazy()-loaded
-                               (see App.tsx) — StatsPage alone pulls in @ant-design/plots (~1.4MB), which shouldn't
-                               block loading the login screen or any other page
+                               (see App.tsx), so the login screen never waits on any of them. No metrics/charts screen
+                               here — that's Grafana's job now (see the observability-stack paragraph above), this
+                               panel is CRUDL only
 ```
 
 All repositories and services are fully implemented (not stubs) and logging (`*zap.SugaredLogger`, threaded in from each `main.go`) is wired through every repo/cache/service constructor.
@@ -405,7 +406,7 @@ The buy flow is stateful, backed by `internal/cache/redis.Cache` (which doubles 
 
 ### Web admin panel
 
-CRUDL for categories/products, view+edit for users (ban/unban, balance, promote/demote admin, plus `POST /api/users/:telegram_id/referrals/{enable,disable}` -> `AdminService.SetReferralsEnabled`), view for purchases (cross-user — everything on `PurchaseService`/`PurchaseRepository` elsewhere is scoped to one Telegram user, so `ListAllAdmin`/`CountAllAdmin`/`GetAdminByID` exist purely for this screen), a cross-user replenishments view (same `ListAllAdmin`/`CountAllAdmin` pattern on `ReplenishmentService` — this is also where `Merchant: referral` credits are visible across all users, not just each referrer's own "Мои пополнения"), an admin audit-log view, a Statistics screen backed by `StatsService`/`StatsRepository` (plain SQL aggregates — unrelated to the Prometheus/Grafana stack below, which covers infra/bot metrics and logs, not shop analytics), and settings (Support username, per-merchant credentials/`Enabled`/min-max, and the referral `Enabled`+`Percent` pair, via `GET`/`PUT /api/settings` — **frontend page not built yet**, only the admin_backend API).
+CRUDL for categories/products, view+edit for users (ban/unban, balance, promote/demote admin, plus `POST /api/users/:telegram_id/referrals/{enable,disable}` -> `AdminService.SetReferralsEnabled`), view for purchases (cross-user — everything on `PurchaseService`/`PurchaseRepository` elsewhere is scoped to one Telegram user, so `ListAllAdmin`/`CountAllAdmin`/`GetAdminByID` exist purely for this screen), a cross-user replenishments view (same `ListAllAdmin`/`CountAllAdmin` pattern on `ReplenishmentService` — this is also where `Merchant: referral` credits are visible across all users, not just each referrer's own "Мои пополнения"), an admin audit-log view, and settings (Support username, per-merchant credentials/`Enabled`/min-max, and the referral `Enabled`+`Percent` pair, via `GET`/`PUT /api/settings` — **frontend page not built yet**, only the admin_backend API). **No metrics/charts screen** — there used to be a SQL-aggregate Statistics page (`StatsService`/`StatsRepository`, `GET /api/stats/dashboard`), removed once the Prometheus/Grafana stack (see above) covered the same need without a bespoke query layer; the panel is CRUDL-only by design now, any dashboarding need goes to Grafana instead.
 
 Auth is code-then-session, entirely Redis-backed, nothing in Postgres: `Handlers.AdminHandler` (`/admin`) calls `AdminAuthService.IssueLoginCode`, which generates a 6-digit code (`admintoken.GenerateCode`), stores `sha256(code) -> telegramID` in Redis for 30 seconds (`domain/adminsession.Store`, implemented by the same `internal/cache/redis.Cache` struct as the read-through cache and FSM state, separate keyspace), and sends it back in the `/admin` reply. The login page's `POST /api/auth/exchange` (the *one* unauthenticated route — registered directly on the top-level gin engine, outside the `/api` route group, so it never passes through `Auth`, but it does get `middleware.RateLimitExchange`: 10 attempts per minute per client IP via `AdminAuthService.AllowExchangeAttempt` -> `adminsession.Store.IncrExchangeAttempts`, since a 6-digit code with free failed guesses is otherwise brute-forceable and the prize is a 24h admin session. Per-IP and deliberately not global — a global counter would let one attacker lock every admin out. A Redis error fails closed, which costs nothing because the exchange needs Redis anyway) calls `AdminAuthService.ExchangeLoginCode`: consumes the code atomically (Redis `GETDEL`, so it's single-use even under concurrent attempts), re-checks `IsAdmin()` (a demote between issuance and exchange must not slip through), and issues a 24h HS256 JWT session token (`admintoken.GenerateSessionJWT`, keyed by `ADMIN_JWT_SECRET`) whose hash is *also* stored in Redis the same way the login code was.
 
