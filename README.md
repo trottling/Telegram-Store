@@ -44,9 +44,10 @@
 поддоменами (`DOMAIN_NAME` в `.env`) — без них ACME не сможет выпустить
 сертификаты. Для локального запуска без домена используйте
 `docker compose -f docker-compose.debug.yml up --build` — там все порты
-опубликованы напрямую (`admin_backend` на `:8080`, `admin_frontend` на `:3000` и
-т.д.), `caddy`/`backup` и стек логов/метрик (Prometheus/Loki/Promtail/Grafana) в
-этом файле нет. Порты БД и кеша так-же открыты наружу.
+опубликованы напрямую (`admin_backend` на `:8080`, `admin_frontend` на `:3000`,
+Grafana на `:3001` и т.д.), `caddy` и `backup` в этом файле нет. Без `caddy`
+нет и входа кодом из `/admin` в Grafana — там обычный логин по
+`GRAFANA_ADMIN_USER`/`PASSWORD`. Порты БД и кеша так-же открыты наружу.
 
 ```bash
 cp .env.example .env

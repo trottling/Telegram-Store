@@ -24,6 +24,8 @@ services:
     env_file:
       - path: .env
         required: true
+    ports:
+      - "${BOT_METRICS_PORT:-9100}:${BOT_METRICS_PORT:-9100}"
     depends_on:
       db:
         condition: service_healthy
@@ -133,6 +135,69 @@ services:
     networks:
       - debug-network
 
+  # Наблюдаемость — тот же monitoring/, что и в docker-compose.yml, но без
+  # forward_auth (тут нет caddy перед Grafana): вход обычной формой Grafana
+  # по GRAFANA_ADMIN_USER/PASSWORD напрямую, не кодом из /admin.
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: telegram-store-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - debug-network
+
+  loki:
+    image: grafana/loki:3.2.0
+    container_name: telegram-store-loki
+    command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
+    environment:
+      LOKI_RETENTION_DAYS: ${LOKI_RETENTION_DAYS:-14}
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks:
+      - debug-network
+
+  promtail:
+    image: grafana/promtail:3.2.0
+    container_name: telegram-store-promtail
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      - loki
+    networks:
+      - debug-network
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: telegram-store-grafana
+    env_file:
+      - path: .env
+        required: true
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    networks:
+      - debug-network
+
 networks:
   debug-network:
     driver: bridge
@@ -140,3 +205,6 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  prometheus_data:
+  loki_data:
+  grafana_data:
