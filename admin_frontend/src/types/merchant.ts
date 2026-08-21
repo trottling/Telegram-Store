@@ -6,6 +6,7 @@ export const merchantLabel: Record<Merchant, string> = {
     crystalpay: 'CrystalPay',
     yookassa: 'ЮKassa',
     tinkoff: 'Тинькофф',
+    dummy: 'Тест',
     referral: 'Реферальная программа',
 }
 

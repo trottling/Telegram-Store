@@ -13,6 +13,8 @@ func MerchantName(lang string, merchant domain.Merchant) string {
 		return T(lang, YooKassaBtn, nil)
 	case domain.MerchantTinkoff:
 		return T(lang, TinkoffBtn, nil)
+	case domain.MerchantDummy:
+		return T(lang, DummyBtn, nil)
 	case domain.MerchantReferral:
 		return T(lang, ReferralName, nil)
 	default:

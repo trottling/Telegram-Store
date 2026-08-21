@@ -21,5 +21,10 @@ func newRouter(h *handlers.Handlers) http.Handler {
 	r.POST("/api/webhooks/yookassa", h.YooKassaWebhook)
 	r.POST("/api/webhooks/tinkoff", h.TinkoffWebhook)
 
+	// dummy — тестовый провайдер (см. internal/service/payment/dummy.go), не
+	// настоящий мерчант: вебхук стучит сам себе, страница счёта — просто заглушка.
+	r.POST("/api/webhooks/dummy", h.DummyWebhook)
+	r.GET("/dummy/:invoice_id", h.DummyInvoicePage)
+
 	return r
 }

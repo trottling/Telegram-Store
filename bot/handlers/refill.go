@@ -21,6 +21,7 @@ var refillMerchants = []struct {
 	{domain.MerchantCrystalPay, texts.CrystalPayBtn},
 	{domain.MerchantYooKassa, texts.YooKassaBtn},
 	{domain.MerchantTinkoff, texts.TinkoffBtn},
+	{domain.MerchantDummy, texts.DummyBtn},
 }
 
 // merchantLimits — общая для всех мерчантов часть настроек (у каждого свои
@@ -39,6 +40,8 @@ func merchantConfig(settings *domain.Settings, merchant domain.Merchant) merchan
 		return merchantLimits{settings.YooKassa.Enabled, settings.YooKassa.MinAmount, settings.YooKassa.MaxAmount}
 	case domain.MerchantTinkoff:
 		return merchantLimits{settings.Tinkoff.Enabled, settings.Tinkoff.MinAmount, settings.Tinkoff.MaxAmount}
+	case domain.MerchantDummy:
+		return merchantLimits{settings.Dummy.Enabled, settings.Dummy.MinAmount, settings.Dummy.MaxAmount}
 	default:
 		return merchantLimits{}
 	}

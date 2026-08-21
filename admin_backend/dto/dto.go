@@ -64,6 +64,7 @@ type UpdateSettingsRequest struct {
 	CrystalPay      domainmodels.CrystalPaySettings `json:"crystalpay"`
 	YooKassa        domainmodels.YooKassaSettings   `json:"yookassa"`
 	Tinkoff         domainmodels.TinkoffSettings    `json:"tinkoff"`
+	Dummy           domainmodels.DummySettings      `json:"dummy"`
 	Referral        domainmodels.ReferralSettings   `json:"referral"`
 }
 

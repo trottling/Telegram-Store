@@ -26,12 +26,13 @@ func providePaymentsConfig(cfg *config.Config) *config.PaymentsConfig     { retu
 func provideMetricsConfig(cfg *config.Config) *config.MetricsConfig       { return cfg.Metrics }
 func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Logger }
 
-// providePaymentProviders — по одному провайдеру на реальный мерчант;
+// providePaymentProviders — по одному провайдеру на мерчант, включая
+// DummyProvider (тестовый, без реальной оплаты — см. internal/service/payment/dummy.go);
 // MerchantReferral сюда не входит, начисления с рефералов создаются
 // напрямую, без CreateInvoice (см. domain/models.Replenishment). Реальная
 // сборка map — не просто приведение типа, поэтому fx.Annotate тут не
-// подходит, нужна обычная функция. Колбэки CrystalPay/Tinkoff указывают на
-// payments_backend (paymentsCfg.URL), не на admin_backend — вебхуки принимает он.
+// подходит, нужна обычная функция. Колбэки CrystalPay/Tinkoff/Dummy указывают
+// на payments_backend (paymentsCfg.URL), не на admin_backend — вебхуки принимает он.
 func providePaymentProviders(settingsService service.SettingsService, paymentsCfg *config.PaymentsConfig, log *zap.SugaredLogger) map[domainmodels.Merchant]domainpayment.PaymentProvider {
 	// Забытый PAYMENTS_BACKEND_URL иначе никак не заметить: счёт создастся,
 	// ссылка на оплату будет рабочей, деньги спишутся — а подтверждение не
@@ -45,6 +46,7 @@ func providePaymentProviders(settingsService service.SettingsService, paymentsCf
 		domainmodels.MerchantCrystalPay: payment.NewCrystalPayProvider(settingsService, paymentsCfg.URL),
 		domainmodels.MerchantYooKassa:   payment.NewYooKassaProvider(settingsService),
 		domainmodels.MerchantTinkoff:    payment.NewTinkoffProvider(settingsService, paymentsCfg.URL),
+		domainmodels.MerchantDummy:      payment.NewDummyProvider(settingsService, paymentsCfg.URL, log),
 	}
 }
 

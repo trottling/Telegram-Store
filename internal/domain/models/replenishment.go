@@ -12,6 +12,9 @@ const (
 	MerchantYooKassa   Merchant = "yookassa"
 	MerchantTinkoff    Merchant = "tinkoff"
 	MerchantReferral   Merchant = "referral"
+	// MerchantDummy — тестовый провайдер без реальной оплаты (см.
+	// internal/service/payment.DummyProvider), для разработки/демо.
+	MerchantDummy Merchant = "dummy"
 )
 
 type ReplenishmentStatus string

@@ -25,6 +25,7 @@ const (
 	CrystalPayBtn = "CrystalPayBtn"
 	YooKassaBtn   = "YooKassaBtn"
 	TinkoffBtn    = "TinkoffBtn"
+	DummyBtn      = "DummyBtn"
 	ReferralName  = "ReferralName"
 	ReferralBtn   = "ReferralBtn"
 	CloseBtn      = "CloseBtn"

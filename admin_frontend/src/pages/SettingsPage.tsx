@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {Button, Card, Form, Input, InputNumber, message, Space, Switch, Typography} from 'antd'
+import {Alert, Button, Card, Form, Input, InputNumber, message, Space, Switch, Typography} from 'antd'
 import {SaveOutlined} from '@ant-design/icons'
 import {getSettings, updateSettings} from '../api/resources'
 import {ApiError} from '../api/client'
@@ -112,7 +112,7 @@ export function SettingsPage() {
                     </Space>
                 </Card>
 
-                <Card title="Тинькофф">
+                <Card title="Тинькофф" style={{marginBottom: 16}}>
                     <Form.Item name={['tinkoff', 'enabled']} label="Включён" valuePropName="checked">
                         <Switch/>
                     </Form.Item>
@@ -127,6 +127,33 @@ export function SettingsPage() {
                             <InputNumber min={0} step={0.01} style={{width: 160}}/>
                         </Form.Item>
                         <Form.Item name={['tinkoff', 'max_amount']} label="Макс. сумма, ₽ (0 — без ограничения)">
+                            <InputNumber min={0} step={0.01} style={{width: 160}}/>
+                        </Form.Item>
+                    </Space>
+                </Card>
+
+                {/* Красная рамка/заголовок — не настоящий мерчант, деньги нигде не
+                    двигаются, счёт подтверждается сам через ~10 секунд. Включать
+                    только для разработки/демо, не в проде. */}
+                <Card
+                    title={<span style={{color: '#cf1322'}}>⚠️ Тестовый провайдер (dummy)</span>}
+                    style={{borderColor: '#ffa39e'}}
+                    styles={{header: {borderColor: '#ffa39e'}}}
+                >
+                    <Alert
+                        type="error"
+                        showIcon
+                        style={{marginBottom: 16}}
+                        message="Не настоящая оплата — счёт подтверждается сам через 10 секунд после создания. Включайте только для разработки или демо."
+                    />
+                    <Form.Item name={['dummy', 'enabled']} label="Включён" valuePropName="checked">
+                        <Switch/>
+                    </Form.Item>
+                    <Space size="large">
+                        <Form.Item name={['dummy', 'min_amount']} label="Мин. сумма, ₽">
+                            <InputNumber min={0} step={0.01} style={{width: 160}}/>
+                        </Form.Item>
+                        <Form.Item name={['dummy', 'max_amount']} label="Макс. сумма, ₽ (0 — без ограничения)">
                             <InputNumber min={0} step={0.01} style={{width: 160}}/>
                         </Form.Item>
                     </Space>

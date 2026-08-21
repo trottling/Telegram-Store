@@ -8,7 +8,7 @@ import "testing"
 var allMessageIDs = []string{
 	CatalogBtn, ProfileBtn, HelpBtn, PurchasesBtn, ReplenishmentsBtn, RefillBalanceBtn,
 	StartMenuBtn, AdminPanelBtn, SettingsBtn, LanguageBtn,
-	CrystalPayBtn, YooKassaBtn, TinkoffBtn, ReferralName, ReferralBtn, CloseBtn, ShareBtn,
+	CrystalPayBtn, YooKassaBtn, TinkoffBtn, DummyBtn, ReferralName, ReferralBtn, CloseBtn, ShareBtn,
 	PurchaseInlineBtn, BuyBtn, BackBtn, MainMenuInlineBtn, CatalogRootBtn, CancelBtn,
 	ConfirmBtn, PrevPageBtn, NextPageBtn, ProfileRefreshBtn,
 	StartMsg, ProfileMsg, HelpMsg, PurchasesMsg, ProductMsg, CatalogMsg, CategoryMsg,

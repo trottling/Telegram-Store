@@ -29,6 +29,7 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 		CrystalPay:      req.CrystalPay,
 		YooKassa:        req.YooKassa,
 		Tinkoff:         req.Tinkoff,
+		Dummy:           req.Dummy,
 		Referral:        req.Referral,
 	})
 	if err != nil {

@@ -88,7 +88,7 @@ export interface AdminLog {
     created_at: string
 }
 
-export type Merchant = 'crystalpay' | 'yookassa' | 'tinkoff' | 'referral'
+export type Merchant = 'crystalpay' | 'yookassa' | 'tinkoff' | 'dummy' | 'referral'
 export type ReplenishmentStatus = 'pending' | 'paid' | 'failed' | 'cancelled'
 
 export interface ReplenishmentAdminItem {
@@ -128,6 +128,12 @@ export interface TinkoffSettings {
     max_amount: number
 }
 
+export interface DummySettings {
+    enabled: boolean
+    min_amount: number
+    max_amount: number
+}
+
 export interface ReferralSettings {
     enabled: boolean
     percent: number
@@ -139,6 +145,7 @@ export interface Settings {
     crystalpay: CrystalPaySettings
     yookassa: YooKassaSettings
     tinkoff: TinkoffSettings
+    dummy: DummySettings
     referral: ReferralSettings
 }
 
