@@ -142,10 +142,15 @@ func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update
 	}
 
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
-		ChatID:      chatID,
-		MessageID:   messageID,
-		Text:        texts.T(user.Language, texts.AskRefillAmountMsg, map[string]any{"Hint": amountRangeHint(user.Language, mc)}),
-		ReplyMarkup: &models.InlineKeyboardMarkup{},
+		ChatID:    chatID,
+		MessageID: messageID,
+		Text:      texts.T(user.Language, texts.AskRefillAmountMsg, map[string]any{"Hint": amountRangeHint(user.Language, mc)}),
+		// InlineKeyboard должен быть непустым (не nil) слайсом: у пустой
+		// структуры models.InlineKeyboardMarkup{} это поле нулевое и уходит в
+		// JSON как null, а Telegram API отвечает "inline_keyboard must be of
+		// type Array" — правка убирает клавиатуру карточки мерчанта молча
+		// падала, FSM-состояние на ввод суммы при этом уже выставлено.
+		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}},
 	}); err != nil {
 		h.log.Errorf("RefillMerchantHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
 	}

@@ -22,10 +22,14 @@ const maxQuickPickQuantity = 5
 
 // knownButtonIDs — reply-кнопки; если во время ожидания шага пришла подпись
 // одной из них (на любом поддерживаемом языке), пользователь ушёл из
-// сценария, парсить текст как число/сумму не нужно.
+// сценария, парсить текст как число/сумму не нужно. Список должен покрывать
+// все reply-кнопки, зарегистрированные в bot.go — пропущенная тут кнопка
+// вместо своего действия попадала бы в handleBuyQuantity/handleRefillAmount
+// и парсилась бы как число/сумма, с закономерным "введите положительное число".
 var knownButtonIDs = []string{
 	texts.HelpBtn, texts.CatalogBtn, texts.ProfileBtn,
 	texts.PurchasesBtn, texts.RefillBalanceBtn, texts.StartMenuBtn,
+	texts.ProfileRefreshBtn, texts.ReplenishmentsBtn, texts.ReferralBtn, texts.SettingsBtn,
 }
 
 var knownButtonTexts = buildKnownButtonTexts()
