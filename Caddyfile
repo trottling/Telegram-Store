@@ -1,4 +1,4 @@
-# TLS-терминатор перед admin_frontend/admin_backend/payments_backend/grafana.
+# TLS-терминатор перед admin-frontend/admin-backend/payments-backend/grafana.
 # Домен и почта ACME берутся из .env (DOMAIN_NAME/ACME_EMAIL). Поддомены
 # admin./api./pay./stats. собираются из DOMAIN_NAME прямо тут, отдельных
 # env-переменных под каждый домен не заводим.
@@ -46,11 +46,11 @@ admin.{$DOMAIN_NAME} {
 		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://api.{$DOMAIN_NAME}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 	}
 
-	reverse_proxy admin_frontend:80
+	reverse_proxy admin-frontend:80
 }
 
 # API админ-панели. Отдаёт только JSON, поэтому ресурсы ему не нужны вовсе —
-# отсюда 'none' вместо 'self'. CORS остаётся на стороне admin_backend: там он
+# отсюда 'none' вместо 'self'. CORS остаётся на стороне admin-backend: там он
 # завязан на ADMIN_PANEL_CORS_ORIGIN и умеет логировать отказы.
 api.{$DOMAIN_NAME} {
 	import common_headers
@@ -60,7 +60,7 @@ api.{$DOMAIN_NAME} {
 		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
 	}
 
-	reverse_proxy admin_backend:{$ADMIN_PANEL_BACKEND_PORT:8080}
+	reverse_proxy admin-backend:{$ADMIN_PANEL_BACKEND_PORT:8080}
 }
 
 # Приём вебхуков мерчантов. Вызывающая сторона — сервер, а не браузер, так что
@@ -68,12 +68,12 @@ api.{$DOMAIN_NAME} {
 pay.{$DOMAIN_NAME} {
 	import common_headers
 
-	reverse_proxy payments_backend:{$PAYMENTS_BACKEND_PORT:8081}
+	reverse_proxy payments-backend:{$PAYMENTS_BACKEND_PORT:8081}
 }
 
 # Grafana. Своей формы логина не показывает вообще — вход тем же кодом из
 # /admin, что и в панель (см. CLAUDE.md). forward_auth спрашивает
-# admin_backend "залогинен ли этот браузер" (сессионная cookie, см.
+# admin-backend "залогинен ли этот браузер" (сессионная cookie, см.
 # handlers.Exchange/middleware.Auth), копирует identity дальше в
 # X-WEBAUTH-USER, которому доверяет Grafana в режиме auth.proxy
 # (GF_AUTH_PROXY_* в docker-compose.yml). Незалогиненный визит получает 401 от
@@ -91,7 +91,7 @@ stats.{$DOMAIN_NAME} {
 		Referrer-Policy "no-referrer"
 	}
 
-	forward_auth admin_backend:{$ADMIN_PANEL_BACKEND_PORT:8080} {
+	forward_auth admin-backend:{$ADMIN_PANEL_BACKEND_PORT:8080} {
 		uri /api/auth/me
 		copy_headers X-Admin-Username
 	}

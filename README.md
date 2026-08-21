@@ -44,7 +44,7 @@
 поддоменами (`DOMAIN_NAME` в `.env`) — без них ACME не сможет выпустить
 сертификаты. Для локального запуска без домена используйте
 `docker compose -f docker-compose.debug.yml up --build` — там все порты
-опубликованы напрямую (`admin_backend` на `:8080`, `admin_frontend` на `:3000`,
+опубликованы напрямую (`admin-backend` на `:8080`, `admin-frontend` на `:3000`,
 Grafana на `:3001` и т.д.), `caddy` и `backup` в этом файле нет. Без `caddy`
 нет и входа кодом из `/admin` в Grafana — там обычный логин по
 `GRAFANA_ADMIN_USER`/`PASSWORD`. Порты БД и кеша так-же открыты наружу.
@@ -59,7 +59,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin_backend`, `payments_backend`, `admin_frontend`, `caddy` (TLS-терминатор), `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`) и стек наблюдаемости — `prometheus`/`loki`/`promtail`/`grafana` (конфиги — в `monitoring/`).
+Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin-backend`, `payments-backend`, `admin-frontend`, `caddy` (TLS-терминатор), `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`) и стек наблюдаемости — `prometheus`/`loki`/`promtail`/`grafana` (конфиги — в `monitoring/`).
 
 После запуска:
 

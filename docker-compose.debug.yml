@@ -37,7 +37,7 @@ services:
     networks:
       - debug-network
 
-  admin_backend:
+  admin-backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -59,7 +59,7 @@ services:
     networks:
       - debug-network
 
-  payments_backend:
+  payments-backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -81,7 +81,7 @@ services:
     networks:
       - debug-network
 
-  admin_frontend:
+  admin-frontend:
     build:
       context: ./admin_frontend
       dockerfile: Dockerfile
@@ -94,7 +94,7 @@ services:
     networks:
       - debug-network
     depends_on:
-      - admin_backend
+      - admin-backend
 
   db:
     image: postgres:latest
@@ -139,7 +139,7 @@ services:
   # forward_auth (тут нет caddy перед Grafana): вход обычной формой Grafana
   # по GRAFANA_ADMIN_USER/PASSWORD напрямую, не кодом из /admin.
   prometheus:
-    image: prom/prometheus:v2.55.1
+    image: prom/prometheus:v3
     container_name: telegram-store-prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -152,7 +152,7 @@ services:
       - debug-network
 
   loki:
-    image: grafana/loki:3.2.0
+    image: grafana/loki:3.7.6
     container_name: telegram-store-loki
     command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
     environment:
@@ -164,7 +164,7 @@ services:
       - debug-network
 
   promtail:
-    image: grafana/promtail:3.2.0
+    image: grafana/promtail:3.6.11
     container_name: telegram-store-promtail
     command: ["-config.file=/etc/promtail/config.yml"]
     volumes:
@@ -177,7 +177,7 @@ services:
       - debug-network
 
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:13.1
     container_name: telegram-store-grafana
     env_file:
       - path: .env

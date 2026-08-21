@@ -46,7 +46,7 @@ services:
       - backend-network
     <<: *default-logging
 
-  admin_backend:
+  admin-backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -55,7 +55,7 @@ services:
     env_file:
       - path: .env
         required: true
-    # порт наружу не пробрасываем — снаружи торчит только caddy, до admin_backend
+    # порт наружу не пробрасываем — снаружи торчит только caddy, до admin-backend
     # он достаёт по имени сервиса внутри public-network
     depends_on:
       db:
@@ -70,7 +70,7 @@ services:
       - backend-network
     <<: *default-logging
 
-  payments_backend:
+  payments-backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -93,7 +93,7 @@ services:
       - backend-network
     <<: *default-logging
 
-  admin_frontend:
+  admin-frontend:
     build:
       context: ./admin_frontend
       dockerfile: Dockerfile
@@ -105,7 +105,7 @@ services:
     networks:
       - public-network
     depends_on:
-      - admin_backend
+      - admin-backend
     <<: *default-logging
 
   # TLS-терминатор: единственный сервис с портами наружу (80/443), автовыпуск
@@ -126,9 +126,9 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - admin_backend
-      - payments_backend
-      - admin_frontend
+      - admin-backend
+      - payments-backend
+      - admin-frontend
       - grafana
     restart: unless-stopped
     networks:
@@ -204,7 +204,7 @@ services:
   # monitoring/prometheus/prometheus.yml. Наружу не торчит — доступ только
   # через Grafana (datasource) или изнутри docker-сети.
   prometheus:
-    image: prom/prometheus:v2.55.1
+    image: prom/prometheus:v3
     container_name: telegram-store-prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -221,7 +221,7 @@ services:
   # смонтированном конфиге подставился самим Loki, а не docker-compose (тот
   # ${VAR}-синтаксис на файлы внутри контейнеров не распространяется).
   loki:
-    image: grafana/loki:3.2.0
+    image: grafana/loki:3.7.6
     container_name: telegram-store-loki
     command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
     environment:
@@ -238,7 +238,7 @@ services:
   # ro-монт /var/lib/docker/containers — там json-file уже пишет NDJSON
   # каждого контейнера (см. x-logging выше).
   promtail:
-    image: grafana/promtail:3.2.0
+    image: grafana/promtail:3.6.11
     container_name: telegram-store-promtail
     command: ["-config.file=/etc/promtail/config.yml"]
     volumes:
@@ -253,12 +253,12 @@ services:
 
   # Единственный публичный вход во весь observability-стек (stats.$DOMAIN_NAME
   # в Caddyfile). Логин не свой — auth.proxy доверяет X-WEBAUTH-USER, который
-  # проставляет admin_backend через forward_auth в Caddy (тот же код из /admin,
+  # проставляет admin-backend через forward_auth в Caddy (тот же код из /admin,
   # что и в веб-панель). GRAFANA_ADMIN_USER/PASSWORD — только break-glass,
   # доступны исключительно изнутри docker-сети, публично эта форма входа не
   # показывается.
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:13.1
     container_name: telegram-store-grafana
     env_file:
       - path: .env
@@ -281,21 +281,21 @@ services:
       - loki
     restart: unless-stopped
     # оба network: backend — достать prometheus/loki, public — чтобы caddy
-    # нашёл её по имени (тот же паттерн, что у admin_backend).
+    # нашёл её по имени (тот же паттерн, что у admin-backend).
     networks:
       - backend-network
       - public-network
     <<: *default-logging
 
 networks:
-  # db+redis видны только bot/admin_backend/payments_backend/migrate/backup/
+  # db+redis видны только bot/admin-backend/payments-backend/migrate/backup/
   # prometheus/loki/promtail/grafana, без выхода наружу
   backend-network:
     driver: bridge
     internal: true
-  # нужна для исходящих к Telegram (bot), к S3 (backup) и для caddy/admin_backend/
-  # payments_backend/admin_frontend/grafana, между которыми ходят проксируемые запросы.
-  # Подсеть закреплена, потому что admin_backend доверяет X-Forwarded-For только
+  # нужна для исходящих к Telegram (bot), к S3 (backup) и для caddy/admin-backend/
+  # payments-backend/admin-frontend/grafana, между которыми ходят проксируемые запросы.
+  # Подсеть закреплена, потому что admin-backend доверяет X-Forwarded-For только
   # от неё (ADMIN_PANEL_TRUSTED_PROXIES) — на плавающем адресе из дефолтного
   # пула Docker это доверие пришлось бы выдавать вслепую.
   public-network:
