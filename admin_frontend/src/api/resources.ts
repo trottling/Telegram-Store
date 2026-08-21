@@ -3,8 +3,8 @@ import {apiRequest} from './client'
 import type {AdminLog, AdminUser, Category, Paginated, Product, ProductAdminSummary, PurchaseAdminItem, ReplenishmentAdminItem, Settings, TokenResponse,} from '../types/api'
 
 // аутентификация
-export const exchangeLoginCode = (code: string) =>
-    apiRequest<TokenResponse>('/api/auth/exchange', {method: 'POST', body: {code}})
+export const exchangeInitData = (initData: string) =>
+    apiRequest<TokenResponse>('/api/auth/exchange', {method: 'POST', body: {init_data: initData}})
 export const getMe = () => apiRequest<AdminUser>('/api/auth/me')
 export const logoutRequest = () => apiRequest<void>('/api/auth/logout', {method: 'POST'})
 

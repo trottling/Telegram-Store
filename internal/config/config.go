@@ -64,6 +64,9 @@ type AdminPanelConfig struct {
 	TrustedProxies string
 	// JWTSecret подписывает сессионные токены, обязателен.
 	JWTSecret []byte
+	// BotToken нужен для работы с TMA и initData
+	// Должен совпадать с TelegramConfig.Token
+	BotToken string
 	// MetricsPort — свой /metrics-сервер admin_backend (бизнес-метрики
 	// админских действий + агрегаты для Grafana, см. internal/metrics/admin),
 	// отдельно от собственного порта API (Port).
@@ -175,6 +178,7 @@ func New() (*Config, error) {
 			CORSOrigin:     adminPanelCORSOrigin,
 			TrustedProxies: adminPanelTrustedProxies,
 			JWTSecret:      []byte(adminJWTSecret),
+			BotToken:       botToken,
 			MetricsPort:    adminMetricsPort,
 		},
 

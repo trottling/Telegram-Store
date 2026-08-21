@@ -19,8 +19,8 @@ func DomainErrorToResponse(err error) (int, *dto.ErrorResponse) {
 		return http.StatusNotFound, &dto.ErrorResponse{Code: "not_found", Message: err.Error()}
 	case errors.Is(err, domainerrors.ErrInvalidToken):
 		return http.StatusUnauthorized, &dto.ErrorResponse{Code: "unauthorized", Message: "invalid or expired session"}
-	case errors.Is(err, domainerrors.ErrInvalidLoginCode):
-		return http.StatusUnauthorized, &dto.ErrorResponse{Code: "unauthorized", Message: "invalid or expired login code"}
+	case errors.Is(err, domainerrors.ErrInvalidInitData):
+		return http.StatusUnauthorized, &dto.ErrorResponse{Code: "unauthorized", Message: "invalid or expired initData"}
 	case errors.Is(err, domainerrors.ErrTooManyAttempts):
 		return http.StatusTooManyRequests, &dto.ErrorResponse{Code: "too_many_requests", Message: "too many attempts, try again later"}
 	case errors.Is(err, domainerrors.ErrAlreadyAdmin),

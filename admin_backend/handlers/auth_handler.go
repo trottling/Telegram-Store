@@ -14,15 +14,15 @@ import (
 // (admintoken.GenerateSessionJWT) — cookie не должна пережить токен, который несёт.
 const sessionCookieMaxAge = 24 * 60 * 60
 
-// Exchange меняет одноразовый код от бота на сессионный токен. Единственный
+// Exchange меняет initData от Telegram на сессионный токен. Единственный
 // незащищённый /api-роут — см. router.go.
 func (h *Handlers) Exchange(c *gin.Context) {
-	var req dto.ExchangeCodeRequest
+	var req dto.ExchangeRequest
 	if !h.decodeJSON(c, &req) {
 		return
 	}
 
-	token, admin, err := h.adminAuthService.ExchangeLoginCode(c.Request.Context(), req.Code)
+	token, admin, err := h.adminAuthService.ExchangeInitData(c.Request.Context(), req.InitData)
 	if err != nil {
 		// Отдельный Warn: writeError пишет 4xx в Debug, а прод работает на
 		// info — то есть подбор кода не оставлял бы в логах ничего вообще.

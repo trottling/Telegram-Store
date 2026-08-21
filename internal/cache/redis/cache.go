@@ -252,52 +252,7 @@ func (c *Cache) ClearFSMState(ctx context.Context, telegramID int64) error {
 	return nil
 }
 
-// логин-коды и сессии веб-панели
-
-// SetLoginCode держит два ключа: сам код (hash -> telegramID, по нему ищет
-// ConsumeLoginCode) и обратный индекс владельца, по которому гасится
-// предыдущий код того же админа. Живой код у админа всегда один.
-func (c *Cache) SetLoginCode(ctx context.Context, codeHash string, telegramID int64, ttl time.Duration) error {
-	ownerKey := adminLoginCodeOwnerKey(telegramID)
-
-	// Предыдущий код гасим до записи нового. Ошибку не считаем фатальной:
-	// хуже лишний живой код на 30 секунд, чем невозможность войти.
-	if previousHash, err := c.client.GetSet(ctx, ownerKey, codeHash).Result(); err == nil && previousHash != "" {
-		if err = c.client.Del(ctx, adminLoginCodeKey(previousHash)).Err(); err != nil {
-			c.log.Warnw("cache: redis DEL failed (previous admin login code)", "error", err)
-		}
-	} else if err != nil && !errors.Is(err, redis.Nil) {
-		c.log.Warnw("cache: redis GETSET failed (admin login code owner)", "error", err)
-	}
-
-	if err := c.client.Expire(ctx, ownerKey, ttl).Err(); err != nil {
-		c.log.Warnw("cache: redis EXPIRE failed (admin login code owner)", "error", err)
-	}
-
-	if err := c.client.Set(ctx, adminLoginCodeKey(codeHash), strconv.FormatInt(telegramID, 10), ttl).Err(); err != nil {
-		c.log.Warnw("cache: redis SET failed (admin login code)", "error", err)
-		return err
-	}
-	return nil
-}
-
-// ConsumeLoginCode использует GETDEL — атомарно, код нельзя обменять дважды.
-func (c *Cache) ConsumeLoginCode(ctx context.Context, codeHash string) (int64, error) {
-	raw, err := c.client.GetDel(ctx, adminLoginCodeKey(codeHash)).Result()
-	if errors.Is(err, redis.Nil) {
-		return 0, adminsession.ErrNotFound
-	}
-	if err != nil {
-		c.log.Errorw("cache: redis GETDEL failed (admin login code)", "error", err)
-		return 0, err
-	}
-	telegramID, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil {
-		c.log.Warnw("cache: stored admin login code value is not an int, treating as miss", "error", err)
-		return 0, adminsession.ErrNotFound
-	}
-	return telegramID, nil
-}
+// сессии веб-панели
 
 func (c *Cache) SetSession(ctx context.Context, sessionHash string, telegramID int64, ttl time.Duration) error {
 	if err := c.client.Set(ctx, adminSessionKey(sessionHash), strconv.FormatInt(telegramID, 10), ttl).Err(); err != nil {

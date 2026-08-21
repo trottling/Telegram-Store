@@ -1,13 +1,13 @@
 import {createContext, type ReactNode, useCallback, useContext, useEffect, useState} from 'react'
-import {exchangeLoginCode, getMe, logoutRequest} from '../api/resources'
+import {exchangeInitData, getMe, logoutRequest} from '../api/resources'
 import {clearToken, getToken, setToken} from '../api/client'
 import type {AdminUser} from '../types/api'
 
 interface AuthContextValue {
     admin: AdminUser | null
     loading: boolean
-    // login меняет код от /admin на токен и подтверждает через GET /api/auth/me.
-    login: (code: string) => Promise<void>
+    // login меняет initData от Telegram на токен и подтверждает через GET /api/auth/me.
+    login: (initData: string) => Promise<void>
     logout: () => void
     refresh: () => Promise<void>
 }
@@ -38,8 +38,8 @@ export function AuthProvider({children}: { children: ReactNode }) {
         refresh()
     }, [refresh])
 
-    const login = useCallback(async (code: string) => {
-        const {token} = await exchangeLoginCode(code) // кидает ApiError(401) на неверный/истёкший код
+    const login = useCallback(async (initData: string) => {
+        const {token} = await exchangeInitData(initData) // кидает ApiError(401), если initData невалидна или не админ
         setToken(token)
         const me = await getMe()
         setAdmin(me)

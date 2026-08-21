@@ -16,7 +16,6 @@ type Handlers struct {
 	categoryService      service.CategoryService
 	settingsService      service.SettingsService
 	replenishmentService service.ReplenishmentService
-	adminAuthService     service.AdminAuthService
 	stateStore           domainfsm.Store
 	kb                   *keyboards.Keyboards
 	log                  *zap.SugaredLogger
@@ -32,7 +31,6 @@ func New(
 	categoryService service.CategoryService,
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
-	adminAuthService service.AdminAuthService,
 	stateStore domainfsm.Store,
 	kb *keyboards.Keyboards,
 	log *zap.SugaredLogger,
@@ -46,7 +44,6 @@ func New(
 		categoryService:      categoryService,
 		settingsService:      settingsService,
 		replenishmentService: replenishmentService,
-		adminAuthService:     adminAuthService,
 		stateStore:           stateStore,
 		kb:                   kb,
 		log:                  log,

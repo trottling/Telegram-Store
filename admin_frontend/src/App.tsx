@@ -4,7 +4,7 @@ import {ConfigProvider, Spin} from 'antd'
 import {AuthProvider} from './auth/AuthContext'
 import {RequireAuth} from './auth/RequireAuth'
 import {Layout} from './components/Layout'
-import {LoginPage} from './pages/LoginPage'
+import {StartPage} from './pages/StartPage'
 
 // Ленивая загрузка — каждая страница своим чанком.
 const CategoriesPage = lazy(() => import('./pages/CategoriesPage').then((m) => ({default: m.CategoriesPage})))
@@ -39,7 +39,7 @@ export default function App() {
             <AuthProvider>
                 <Suspense fallback={<PageFallback/>}>
                     <Routes>
-                        <Route path="/login" element={<LoginPage/>}/>
+                        <Route path="/start" element={<StartPage/>}/>
                         <Route path="/categories" element={<Protected><CategoriesPage/></Protected>}/>
                         <Route path="/products" element={<Protected><ProductsPage/></Protected>}/>
                         <Route path="/users" element={<Protected><UsersPage/></Protected>}/>

@@ -6,6 +6,7 @@ ReplenishmentsBtn = "💳 My top-ups"
 RefillBalanceBtn = "💰 Top up balance"
 StartMenuBtn = "↩️ Home"
 AdminPanelBtn = "♿️ Admin panel"
+StatsBtn = "📊 Stats"
 SettingsBtn = "⚙️ Settings"
 LanguageBtn = "🌐 Language"
 
@@ -57,9 +58,8 @@ ReferralMsg = "👫 Referral program\n\nEvery referral purchase earns you {{.Per
 ReferralCreditMsg = "🎉 Your referral made a purchase\\!\n💵 Credited: *{{.Amount}}* ₽"
 ReferralUnavailableMsg = "👫 The referral program is currently unavailable"
 
-AdminMsg = "🔐 Admin panel:\n\n🔑 Login code: `{{.Code}}`\n⏳ Valid for 30 seconds"
-AdminMsgWithLink = "🔐 Admin panel:\n\n🔑 Login code: `{{.Code}}`\n⏳ Valid for 30 seconds\n\n🔗 Link: {{.URL}}"
-AdminCodeErrMsg = "❌ Failed to issue a login code, try again."
+AdminMsg = "🔐 Admin panel and stats are below."
+AdminPanelUnavailableMsg = "❌ Could not open the panel: ADMIN_PANEL_FRONTEND_URL must be a real https domain."
 NotAdminMsg = "⛔️ This command is for admins only."
 
 PleaseStartMsg = "👋 Please tap /start first"

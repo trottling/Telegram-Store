@@ -6,6 +6,7 @@ ReplenishmentsBtn = "💳 Мои пополнения"
 RefillBalanceBtn = "💰 Пополнить баланс"
 StartMenuBtn = "↩️ На главную"
 AdminPanelBtn = "♿️ Админ панель"
+StatsBtn = "📊 Статистика"
 SettingsBtn = "⚙️ Настройки"
 LanguageBtn = "🌐 Язык"
 
@@ -57,9 +58,8 @@ ReferralMsg = "👫 Реферальная программа\n\nС каждой
 ReferralCreditMsg = "🎉 Ваш реферал совершил покупку\\!\n💵 Начислено: *{{.Amount}}* ₽"
 ReferralUnavailableMsg = "👫 Реферальная программа сейчас недоступна"
 
-AdminMsg = "🔐 Панель администратора:\n\n🔑 Код для входа: `{{.Code}}`\n⏳ Действителен 30 секунд"
-AdminMsgWithLink = "🔐 Панель администратора:\n\n🔑 Код для входа: `{{.Code}}`\n⏳ Действителен 30 секунд\n\n🔗 Ссылка: {{.URL}}"
-AdminCodeErrMsg = "❌ Не удалось выпустить код для входа, попробуйте ещё раз."
+AdminMsg = "🔐 Панель администратора и статистика — ниже."
+AdminPanelUnavailableMsg = "❌ Не удалось открыть панель: ADMIN_PANEL_FRONTEND_URL должен быть настоящим https-доменом."
 NotAdminMsg = "⛔️ Команда доступна только администраторам."
 
 PleaseStartMsg = "👋 Сначала нажмите /start"

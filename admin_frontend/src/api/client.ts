@@ -1,4 +1,4 @@
-// Обёртка над fetch: добавляет токен к каждому запросу, на 401 чистит его и уводит на /login.
+// Обёртка над fetch: добавляет токен к каждому запросу, на 401 чистит его и уводит на /start.
 import type {ErrorResponse} from '../types/api'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'
@@ -59,8 +59,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
     if (res.status === 401) {
         clearToken()
-        if (window.location.pathname !== '/login') {
-            window.location.href = '/login'
+        if (window.location.pathname !== '/start') {
+            window.location.href = '/start?to=admin'
         }
         throw new ApiError(401, {code: 'unauthorized', message: 'session expired'})
     }

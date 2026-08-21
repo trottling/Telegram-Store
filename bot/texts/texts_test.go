@@ -7,7 +7,7 @@ import "testing"
 // цена простого map-based T() вместо генерации типизированных обёрток.
 var allMessageIDs = []string{
 	CatalogBtn, ProfileBtn, HelpBtn, PurchasesBtn, ReplenishmentsBtn, RefillBalanceBtn,
-	StartMenuBtn, AdminPanelBtn, SettingsBtn, LanguageBtn,
+	StartMenuBtn, AdminPanelBtn, StatsBtn, SettingsBtn, LanguageBtn,
 	CrystalPayBtn, YooKassaBtn, TinkoffBtn, DummyBtn, ReferralName, ReferralBtn, CloseBtn, ShareBtn,
 	PurchaseInlineBtn, BuyBtn, BackBtn, MainMenuInlineBtn, CatalogRootBtn, CancelBtn,
 	ConfirmBtn, PrevPageBtn, NextPageBtn, ProfileRefreshBtn,
@@ -17,7 +17,7 @@ var allMessageIDs = []string{
 	ReplenishmentStatusPending, ReplenishmentStatusPaid, ReplenishmentStatusFailed, ReplenishmentStatusCancelled,
 	RefillMerchantPickerMsg,
 	ReferralMsg, ReferralCreditMsg, ReferralUnavailableMsg,
-	AdminMsg, AdminMsgWithLink, AdminCodeErrMsg, NotAdminMsg,
+	AdminMsg, AdminPanelUnavailableMsg, NotAdminMsg,
 	PleaseStartMsg, BannedMsg,
 	AskQuantityMsg, InsufficientStockMsg, ConfirmPurchaseMsg, InvalidQuantityMsg,
 	AskRefillAmountMsg, AmountRangeBothMsg, AmountRangeMinMsg, AmountRangeMaxMsg, AmountRangeAnyMsg,

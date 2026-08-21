@@ -44,7 +44,7 @@ var (
 	ErrCannotBanRootAdmin      = errors.New("cannot ban the root admin")
 	ErrCannotBanSelf           = errors.New("cannot ban your own account")
 	ErrInvalidToken            = errors.New("invalid or expired session")
-	ErrInvalidLoginCode        = errors.New("invalid or expired login code")
+	ErrInvalidInitData         = errors.New("invalid or expired init data")
 	ErrTooManyAttempts         = errors.New("too many attempts")
 	ErrCategoryNotEmpty        = errors.New("category still has child categories or products")
 	ErrProductHasPurchases     = errors.New("product has purchase history and cannot be deleted")

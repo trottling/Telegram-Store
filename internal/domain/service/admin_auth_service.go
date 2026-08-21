@@ -10,13 +10,10 @@ import (
 // (IssueLoginCode), логин-страница меняет его на сессионный токен
 // (ExchangeLoginCode), дальше сессия живёт через ValidateSession/Logout.
 type AdminAuthService interface {
-	// IssueLoginCode выдаёт код на 30 секунд для уже-админа telegramID.
-	IssueLoginCode(ctx context.Context, telegramID int64) (code string, err error)
-
-	// ExchangeLoginCode одноразово меняет код на токен, если пользователь
-	// всё ещё админ. ErrInvalidLoginCode — код неверный/истёк/использован,
+	// ExchangeInitData одноразово меняет initData на токен, если пользователь
+	// всё ещё админ. ErrInvalidLoginCode — initData неверная/истёкла,
 	// ErrNotAdmin — права сняли после выдачи кода.
-	ExchangeLoginCode(ctx context.Context, code string) (sessionToken string, admin *models.User, err error)
+	ExchangeInitData(ctx context.Context, initData string) (sessionToken string, admin *models.User, err error)
 
 	// ValidateSession резолвит токен в админа. ErrInvalidToken — сессия не
 	// найдена/истекла или права сняты.

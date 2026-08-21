@@ -10,26 +10,21 @@ import (
 // имени тега не ловится компилятором и проявилась бы отказом на валидных
 // запросах — например, невозможностью войти в панель.
 
-func TestExchangeCodeRequestBinding(t *testing.T) {
+func TestExchangeRequestBinding(t *testing.T) {
 	tests := []struct {
-		name    string
-		code    string
-		wantErr bool
+		name     string
+		initData string
+		wantErr  bool
 	}{
-		{"шесть цифр", "123456", false},
-		{"ведущие нули", "000042", false},
+		{"непустая initData", "user=...&hash=...", false},
 		{"пусто", "", true},
-		{"короче", "12345", true},
-		{"длиннее", "1234567", true},
-		{"с буквой", "12345a", true},
-		{"со знаком", "-12345", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := binding.Validator.ValidateStruct(&ExchangeCodeRequest{Code: tt.code})
+			err := binding.Validator.ValidateStruct(&ExchangeRequest{InitData: tt.initData})
 			if (err != nil) != tt.wantErr {
-				t.Errorf("код %q: ошибка = %v, ожидалась ошибка: %v", tt.code, err, tt.wantErr)
+				t.Errorf("initData %q: ошибка = %v, ожидалась ошибка: %v", tt.initData, err, tt.wantErr)
 			}
 		})
 	}

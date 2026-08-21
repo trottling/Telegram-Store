@@ -81,8 +81,8 @@ func main() {
 			fx.Annotate(svc.NewPurchaseSrv, fx.As(new(service.PurchaseService))),
 			fx.Annotate(svc.NewAdminSrv, fx.As(new(service.AdminService))),
 			fx.Annotate(svc.NewAnalyticsSrv, fx.As(new(service.AnalyticsService))),
+			fx.Annotate(svc.NewAdminAuthSrv, fx.As(new(service.AdminAuthService))),
 			provideReplenishmentService,
-			provideAdminAuthService,
 
 			provideMetricsServer,
 			adminmetrics.NewAnalyticsCollector,

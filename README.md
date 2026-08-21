@@ -13,10 +13,10 @@
 ## Админ
 
 - 🌐 Отдельная **веб-панель** (React + Ant Design), общается с бэкендом по REST
-- 🔑 **Вход без пароля** — одноразовый код из `/admin` в боте обменивается на короткоживущую сессию (JWT + Redis)
+- 🔑 **Вход без пароля** — панель и статистика открываются из `/admin` как Telegram Mini App, сессия (JWT + Redis) выдаётся в обмен на подписанную Telegram `initData`, вводить ничего не нужно
 - 🚫 Управление пользователями — бан/разбан, начисление баланса, выдача/снятие прав админа
 - 📜 Аудит-лог всех административных действий — кто, что и когда поменял
-- 📈 Логи и метрики всего стека в Grafana (`$DOMAIN_NAME/stats`) — вход тем же кодом из `/admin`, отдельного логина нет; два дашборда — технический (эксплуатация) и бизнесовый (выручка, пополнения, регистрации, топ товаров)
+- 📈 Логи и метрики всего стека в Grafana (`$DOMAIN_NAME/stats`) — тот же Mini-App-вход из `/admin`, отдельного логина нет; два дашборда — технический (эксплуатация) и бизнесовый (выручка, пополнения, регистрации, топ товаров)
 
 ---
 
@@ -47,15 +47,16 @@ A-запись на `DOMAIN_NAME` (в `.env`), без неё ACME не смож�
 `docker compose -f docker-compose.debug.yml up --build` — там все порты
 опубликованы напрямую (`admin-backend` на `:8080`, `admin-frontend` на `:3000`,
 Grafana на `:3001` и т.д.), `caddy` и `backup` в этом файле нет. Без `caddy`
-нет и входа кодом из `/admin` в Grafana — там обычный логин по
+нет и Mini-App-входа из `/admin` в Grafana — там обычный логин по
 `GRAFANA_ADMIN_USER`/`PASSWORD`. Порты БД и кеша так-же открыты наружу.
 
 ```bash
 cp .env.example .env
 # заполните TELEGRAM_BOT_TOKEN, TELEGRAM_ROOT_ADMIN_ID (свой Telegram user ID)
 # и сгенерируйте настоящий ADMIN_JWT_SECRET: openssl rand -base64 32
-# для прод-стека — ещё DOMAIN_NAME/ACME_EMAIL и https://-варианты
-# ADMIN_PANEL_BACKEND_URL/FRONTEND_URL/CORS_ORIGIN (см. комментарии в .env.example)
+# для прод-стека — ещё DOMAIN_NAME/ACME_EMAIL (ADMIN_PANEL_BACKEND_URL/
+# FRONTEND_URL/CORS_ORIGIN можно оставить пустыми — docker-compose.yml сам
+# подставит https://$DOMAIN_NAME, см. комментарии в .env.example)
 
 docker compose up --build
 ```
@@ -65,8 +66,7 @@ docker compose up --build
 После запуска:
 
 1. Откройте бота в Telegram, отправьте `/start`.
-2. Отправьте `/admin` — бот пришлёт ссылку на панель и 6-значный код (действует 30 секунд).
-3. Откройте `https://$DOMAIN_NAME` (или `http://localhost:3000` при запуске через `docker-compose.debug.yml`), вставьте код.
+2. Отправьте `/admin` — бот пришлёт две кнопки Mini App: панель и статистика. И то, и другое открывается сразу внутри Telegram, без ссылок и кодов.
 
 Так входит любой админ, включая root — пароль настраивать не нужно. Тем же кодом открывается и `https://$DOMAIN_NAME/stats` (Grafana с логами и метриками всего стека) — своей формы входа у неё нет, она просто доверяет уже залогиненной сессии панели.
 
@@ -105,7 +105,7 @@ npm run dev      # Vite dev-сервер на :3000
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_NAME` | доступы к базе данных                                                                                        |
 | `ADMIN_JWT_SECRET`                                      | подписывает сессионные токены админов — сгенерировать `openssl rand -base64 32`, плейсхолдер не использовать |
 
-Всё остальное (`POSTGRES_HOST/PORT/SSLMODE`, `REDIS_*`, `ADMIN_PANEL_*`, `PAYMENTS_BACKEND_PORT/URL`, `BOT_METRICS_PORT`, `LOKI_RETENTION_DAYS`, `GRAFANA_ADMIN_USER/PASSWORD`, `LOG_LEVEL`) имеет разумные значения по умолчанию для локальной разработки и Docker — что делает каждая переменная и когда её нужно менять, смотрите в комментариях `.env.example` (например, `ADMIN_PANEL_FRONTEND_URL` в продакшене должен быть настоящим `https://`-доменом, так как Telegram отклоняет `localhost`-ссылки в инлайн-кнопках; `PAYMENTS_BACKEND_URL` — внешний адрес, на который платёжные провайдеры шлют вебхуки; `GRAFANA_ADMIN_USER/PASSWORD` — не основной вход в Grafana, а break-glass доступ изнутри docker-сети, публично вход туда идёт кодом из `/admin`, см. выше).
+Всё остальное (`POSTGRES_HOST/PORT/SSLMODE`, `REDIS_*`, `ADMIN_PANEL_*`, `PAYMENTS_BACKEND_PORT/URL`, `BOT_METRICS_PORT`, `LOKI_RETENTION_DAYS`, `GRAFANA_ADMIN_USER/PASSWORD`, `LOG_LEVEL`) имеет разумные значения по умолчанию для локальной разработки и Docker — что делает каждая переменная и когда её нужно менять, смотрите в комментариях `.env.example` (например, `ADMIN_PANEL_FRONTEND_URL` в продакшене должен быть настоящим `https://`-доменом, так как Telegram отклоняет `localhost`-ссылки в Mini-App-кнопках; `PAYMENTS_BACKEND_URL` — внешний адрес, на который платёжные провайдеры шлют вебхуки; `GRAFANA_ADMIN_USER/PASSWORD` — не основной вход в Grafana, а break-glass доступ изнутри docker-сети, публично вход туда идёт тем же Mini-App-логином из `/admin`, см. выше).
 
 ## 📁 Структура проекта
 

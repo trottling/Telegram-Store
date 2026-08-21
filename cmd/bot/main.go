@@ -26,7 +26,6 @@ import (
 	"github.com/trottling/Telegram-Store/bot"
 	rdb "github.com/trottling/Telegram-Store/internal/cache/redis"
 	"github.com/trottling/Telegram-Store/internal/config"
-	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
@@ -65,7 +64,6 @@ func main() {
 				fx.As(new(domaincache.CategoryCache)),
 				fx.As(new(domaincache.SettingsCache)),
 				fx.As(new(domainfsm.Store)),
-				fx.As(new(adminsession.Store)),
 				fx.As(new(svc.MultiCache)),
 			),
 
@@ -85,7 +83,6 @@ func main() {
 			fx.Annotate(svc.NewPurchaseSrv, fx.As(new(service.PurchaseService))),
 			providePaymentProviders,
 			fx.Annotate(svc.NewReplenishmentSrv, fx.As(new(service.ReplenishmentService))),
-			provideAdminAuthService,
 
 			bot.New,
 		),

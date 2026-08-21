@@ -3,6 +3,7 @@ package keyboards
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
@@ -60,12 +61,23 @@ func buildProfileKb(lang string) *models.ReplyKeyboardMarkup {
 	}
 }
 
+// buildAdminKb — обе кнопки открываются как Telegram Mini App (web_app), а не
+// внешним браузером: тот же логин по коду, но без переключения из мессенджера.
 func buildAdminKb(lang, frontendURL string) *models.InlineKeyboardMarkup {
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
-			{{Text: texts.T(lang, texts.AdminPanelBtn, nil), URL: frontendURL}},
+			{{Text: texts.T(lang, texts.AdminPanelBtn, nil), WebApp: &models.WebAppInfo{URL: frontendURL}}},
+			{{Text: texts.T(lang, texts.StatsBtn, nil), WebApp: &models.WebAppInfo{URL: StatsURL(frontendURL)}}},
 		},
 	}
+}
+
+// StatsURL — Grafana (/stats) живёт на том же хосте, что и панель, см.
+// Caddyfile; отдельной переменной окружения под это нет — DOMAIN_NAME и так
+// не читается Go-кодом (см. CLAUDE.md), FrontendURL уже равен https://$DOMAIN_NAME.
+// Экспортирована — используется и здесь, и в текстовом фолбэке AdminHandler.
+func StatsURL(frontendURL string) string {
+	return strings.TrimRight(frontendURL, "/") + "/stats"
 }
 
 // buildSettingsKb — инлайн-меню настроек (кнопка "⚙️ Настройки" в профиле).

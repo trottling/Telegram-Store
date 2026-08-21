@@ -13,13 +13,6 @@ var ErrNotFound = errors.New("adminsession: not found")
 
 // Store реализуется internal/cache/redis.Cache.
 type Store interface {
-	// SetLoginCode кладёт codeHash -> telegramID на ttl и гасит предыдущий код
-	// того же админа: иначе каждый повторный /admin добавлял бы ещё один живой
-	// код, линейно повышая шансы подбора. ConsumeLoginCode атомарно читает и
-	// удаляет — код одноразовый по построению.
-	SetLoginCode(ctx context.Context, codeHash string, telegramID int64, ttl time.Duration) error
-	ConsumeLoginCode(ctx context.Context, codeHash string) (telegramID int64, err error)
-
 	SetSession(ctx context.Context, sessionHash string, telegramID int64, ttl time.Duration) error
 	GetSession(ctx context.Context, sessionHash string) (telegramID int64, err error)
 	DeleteSession(ctx context.Context, sessionHash string) error

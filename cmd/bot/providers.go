@@ -2,12 +2,9 @@ package main
 
 import (
 	"github.com/trottling/Telegram-Store/internal/config"
-	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
-	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
-	svc "github.com/trottling/Telegram-Store/internal/service"
 	"github.com/trottling/Telegram-Store/internal/service/payment"
 	"go.uber.org/zap"
 )
@@ -48,11 +45,4 @@ func providePaymentProviders(settingsService service.SettingsService, paymentsCf
 		domainmodels.MerchantTinkoff:    payment.NewTinkoffProvider(settingsService, paymentsCfg.URL),
 		domainmodels.MerchantDummy:      payment.NewDummyProvider(settingsService, paymentsCfg.URL, log),
 	}
-}
-
-// provideAdminAuthService — тоже не просто приведение к интерфейсу: JWT-секрет
-// достаётся из подконфига, а не приходит отдельным типом из графа. Бот сам
-// AdminService не вызывает, только выдаёт код для /admin.
-func provideAdminAuthService(userRepo repository.UserRepository, store adminsession.Store, adminPanelCfg *config.AdminPanelConfig, log *zap.SugaredLogger) service.AdminAuthService {
-	return svc.NewAdminAuthSrv(userRepo, store, adminPanelCfg.JWTSecret, log)
 }

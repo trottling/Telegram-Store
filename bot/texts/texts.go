@@ -19,6 +19,7 @@ const (
 	RefillBalanceBtn  = "RefillBalanceBtn"
 	StartMenuBtn      = "StartMenuBtn"
 	AdminPanelBtn     = "AdminPanelBtn"
+	StatsBtn          = "StatsBtn"
 	SettingsBtn       = "SettingsBtn"
 	LanguageBtn       = "LanguageBtn"
 
@@ -97,14 +98,11 @@ const (
 	ReferralCreditMsg      = "ReferralCreditMsg"
 	ReferralUnavailableMsg = "ReferralUnavailableMsg"
 
-	// ParseMode=MarkdownV2. TemplateData: Code (внутренний, только цифры;
-	// EscapeMarkdownCode применяется defensively).
-	AdminMsg = "AdminMsg"
-	// ParseMode=MarkdownV2. TemplateData: Code (EscapeMarkdownCode), URL (EscapeMarkdown).
-	AdminMsgWithLink = "AdminMsgWithLink"
 	// Без ParseMode.
-	AdminCodeErrMsg = "AdminCodeErrMsg"
-	NotAdminMsg     = "NotAdminMsg"
+	AdminMsg = "AdminMsg"
+	// Без ParseMode. Фолбэк, когда web_app-кнопки отправить нельзя (ADMIN_PANEL_FRONTEND_URL не https).
+	AdminPanelUnavailableMsg = "AdminPanelUnavailableMsg"
+	NotAdminMsg              = "NotAdminMsg"
 
 	// Без ParseMode.
 	PleaseStartMsg = "PleaseStartMsg"

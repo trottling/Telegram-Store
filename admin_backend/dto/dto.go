@@ -68,13 +68,12 @@ type UpdateSettingsRequest struct {
 	Referral        domainmodels.ReferralSettings   `json:"referral"`
 }
 
-// ExchangeCodeRequest — тело POST /api/auth/exchange, одноразовый код от бота.
-// Ровно шесть цифр (admintoken.GenerateCode): мусор отсекается до похода в Redis.
-type ExchangeCodeRequest struct {
-	Code string `json:"code" binding:"required,len=6,number"`
+// ExchangeRequest — тело POST /api/auth/exchange, initData от Telegram.
+type ExchangeRequest struct {
+	InitData string `json:"init_data" binding:"required"`
 }
 
-// TokenResponse — сессионный токен, выдаётся в обмен на код.
+// TokenResponse — сессионный токен, выдаётся в обмен на initData.
 type TokenResponse struct {
 	Token string `json:"token"`
 }

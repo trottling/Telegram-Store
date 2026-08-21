@@ -53,7 +53,6 @@ func New(
 	categoryService service.CategoryService,
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
-	adminAuthService service.AdminAuthService,
 	stateStore domainfsm.Store,
 	telegramConfig *config.TelegramConfig,
 	adminPanelConfig *config.AdminPanelConfig,
@@ -78,7 +77,7 @@ func New(
 		return nil, fmt.Errorf("get bot username: %w", err)
 	}
 
-	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, replenishmentService, adminAuthService, stateStore, kb, log, adminPanelConfig, me.Username)
+	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, replenishmentService, stateStore, kb, log, adminPanelConfig, me.Username)
 
 	// MatchTypeCommandStartOnly — команда матчится по entity, не по подстроке
 	// текста, так что "/start" и "/start <id>" (deep-link реф-ссылки) оба

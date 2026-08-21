@@ -32,10 +32,7 @@ func (s *fakeAuthService) AllowExchangeAttempt(_ context.Context, key string) (b
 	return s.attempts[key] <= s.limit, nil
 }
 
-func (s *fakeAuthService) IssueLoginCode(context.Context, int64) (string, error) {
-	panic("не используется")
-}
-func (s *fakeAuthService) ExchangeLoginCode(context.Context, string) (string, *models.User, error) {
+func (s *fakeAuthService) ExchangeInitData(context.Context, string) (string, *models.User, error) {
 	panic("не используется")
 }
 func (s *fakeAuthService) ValidateSession(context.Context, string) (*models.User, error) {

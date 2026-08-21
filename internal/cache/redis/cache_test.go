@@ -9,7 +9,6 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
 	"go.uber.org/zap"
 )
@@ -76,51 +75,6 @@ func TestConsumeFSMStateOnlyOnceUnderConcurrency(t *testing.T) {
 	}
 	if notFound != goroutines-1 {
 		t.Errorf("ErrNotFound получили %d горутин, ожидалось %d", notFound, goroutines-1)
-	}
-}
-
-// TestSetLoginCodeInvalidatesPrevious — у админа живым остаётся только
-// последний код. Иначе каждый повторный /admin добавлял бы ещё один рабочий
-// код и линейно повышал шансы подбора.
-func TestSetLoginCodeInvalidatesPrevious(t *testing.T) {
-	cache := newTestCache(t)
-	ctx := context.Background()
-
-	const telegramID = int64(500)
-	if err := cache.SetLoginCode(ctx, "hash-old", telegramID, time.Minute); err != nil {
-		t.Fatalf("не удалось записать первый код: %v", err)
-	}
-	if err := cache.SetLoginCode(ctx, "hash-new", telegramID, time.Minute); err != nil {
-		t.Fatalf("не удалось записать второй код: %v", err)
-	}
-
-	if _, err := cache.ConsumeLoginCode(ctx, "hash-old"); !errors.Is(err, adminsession.ErrNotFound) {
-		t.Errorf("старый код вернул %v, ожидался ErrNotFound — он должен быть погашен", err)
-	}
-
-	got, err := cache.ConsumeLoginCode(ctx, "hash-new")
-	if err != nil {
-		t.Fatalf("новый код не сработал: %v", err)
-	}
-	if got != telegramID {
-		t.Errorf("новый код вернул telegramID %d, ожидался %d", got, telegramID)
-	}
-}
-
-// TestSetLoginCodeIsPerAdmin — гашение затрагивает только своего админа.
-func TestSetLoginCodeIsPerAdmin(t *testing.T) {
-	cache := newTestCache(t)
-	ctx := context.Background()
-
-	if err := cache.SetLoginCode(ctx, "hash-a", 1, time.Minute); err != nil {
-		t.Fatalf("неожиданная ошибка: %v", err)
-	}
-	if err := cache.SetLoginCode(ctx, "hash-b", 2, time.Minute); err != nil {
-		t.Fatalf("неожиданная ошибка: %v", err)
-	}
-
-	if _, err := cache.ConsumeLoginCode(ctx, "hash-a"); err != nil {
-		t.Errorf("код первого админа погашен выдачей кода второму: %v", err)
 	}
 }
 

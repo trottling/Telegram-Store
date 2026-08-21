@@ -14,7 +14,7 @@ export function RequireAuth({children}: { children: ReactNode }) {
         )
     }
     if (!admin) {
-        return <Navigate to="/login" replace/>
+        return <Navigate to="/start?to=admin" replace/>
     }
     return <>{children}</>
 }
