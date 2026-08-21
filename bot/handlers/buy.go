@@ -228,6 +228,9 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 	}
 
 	if credit != nil {
+		botmetrics.ReferralCreditsTotal.Inc()
+		botmetrics.ReferralCreditAmountTotal.Add(credit.Amount)
+
 		// Уведомление рефереру — на его собственном языке, не языке покупателя.
 		referrerLang := texts.LangRU
 		if referrer, refErr := h.userService.GetProfile(ctx, credit.ReferrerID); refErr == nil {

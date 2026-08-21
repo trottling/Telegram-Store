@@ -11,8 +11,9 @@ type UserService interface {
 	// при создании строки (см. UserSrv.GetOrCreate) — уже существующий
 	// пользователь рефералом не становится, даже если пришёл по ссылке.
 	// language — нормализованный код (bot/texts.Normalize), тоже применяется
-	// только на ветке создания — повторный /start язык не меняет.
-	GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64, language string) (*models.User, error)
+	// только на ветке создания — повторный /start язык не меняет. created —
+	// true только на ветке создания, для bot_users_registered_total.
+	GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64, language string) (user *models.User, created bool, err error)
 	GetProfile(ctx context.Context, telegramID int64) (*models.User, error)
 	// RefreshProfile — то же, что GetProfile, но всегда читает Postgres напрямую, минуя кэш, и обновляет кэш свежими данными.
 	RefreshProfile(ctx context.Context, telegramID int64) (*models.User, error)

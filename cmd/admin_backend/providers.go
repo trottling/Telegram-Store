@@ -1,11 +1,14 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/trottling/Telegram-Store/internal/config"
 	"github.com/trottling/Telegram-Store/internal/domain/adminsession"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
+	adminmetrics "github.com/trottling/Telegram-Store/internal/metrics/admin"
 	svc "github.com/trottling/Telegram-Store/internal/service"
 	"go.uber.org/zap"
 )
@@ -35,4 +38,11 @@ func provideReplenishmentService(repo repository.ReplenishmentRepository, userRe
 // выдаёт бот (/admin), этот процесс их только обменивает/проверяет.
 func provideAdminAuthService(userRepo repository.UserRepository, store adminsession.Store, adminPanelCfg *config.AdminPanelConfig, log *zap.SugaredLogger) service.AdminAuthService {
 	return svc.NewAdminAuthSrv(userRepo, store, adminPanelCfg.JWTSecret, log)
+}
+
+// provideMetricsServer — свой /metrics-сервер admin_backend (бизнес-метрики
+// админских действий + агрегаты Grafana, см. internal/metrics/admin),
+// отдельно от собственного порта API.
+func provideMetricsServer(adminPanelCfg *config.AdminPanelConfig) *http.Server {
+	return adminmetrics.NewServer(adminPanelCfg.MetricsPort)
 }

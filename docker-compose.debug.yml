@@ -48,6 +48,7 @@ services:
         required: true
     ports:
       - "${ADMIN_PANEL_BACKEND_PORT:-8080}:${ADMIN_PANEL_BACKEND_PORT:-8080}"
+      - "${ADMIN_METRICS_PORT:-9101}:${ADMIN_METRICS_PORT:-9101}"
     depends_on:
       db:
         condition: service_healthy
@@ -70,6 +71,7 @@ services:
         required: true
     ports:
       - "${PAYMENTS_BACKEND_PORT:-8081}:${PAYMENTS_BACKEND_PORT:-8081}"
+      - "${PAYMENTS_METRICS_PORT:-9102}:${PAYMENTS_METRICS_PORT:-9102}"
     depends_on:
       db:
         condition: service_healthy

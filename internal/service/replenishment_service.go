@@ -9,6 +9,7 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
+	paymentsmetrics "github.com/trottling/Telegram-Store/internal/metrics/payments"
 	"go.uber.org/zap"
 )
 
@@ -122,6 +123,12 @@ func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant
 		return err
 	}
 
+	// credited==true — этот вызов реально провёл платёж, не ретрай уже
+	// обработанного вебхука (см. doc-комментарий Confirm). Считать по err==nil
+	// без этой проверки задваивало бы метрику на каждом ретрае мерчанта.
+	paymentsmetrics.ReplenishmentsTotal.WithLabelValues(string(merchant), "paid").Inc()
+	paymentsmetrics.ReplenishmentAmountTotal.WithLabelValues(string(merchant)).Add(replenishment.Amount)
+
 	// Инвалидация только после коммита: до него в Postgres ещё старый баланс,
 	// и параллельный читатель залил бы его обратно в кэш.
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, replenishment.UserID), "user", replenishment.UserID)
@@ -141,14 +148,19 @@ func (s *ReplenishmentSrv) Fail(ctx context.Context, merchant models.Merchant, i
 	if err != nil {
 		return err
 	}
-	// Строка была не pending. Обычно это повторный вебхук, но если счёт уже
-	// оплачен, то мерчант считает его неудачным, а мы — оплаченным, и деньги
-	// уже зачислены. Разбираться придётся руками, поэтому пишем в лог.
-	if !changed && replenishment.Status == models.ReplenishmentStatusPaid {
-		s.log.Warnw("replenishment_service: merchant reported failure for an already paid invoice",
-			"user_id", replenishment.UserID, "merchant", merchant, "invoice_id", invoiceID,
-		)
+	if !changed {
+		// Строка была не pending. Обычно это повторный вебхук, но если счёт уже
+		// оплачен, то мерчант считает его неудачным, а мы — оплаченным, и деньги
+		// уже зачислены. Разбираться придётся руками, поэтому пишем в лог.
+		if replenishment.Status == models.ReplenishmentStatusPaid {
+			s.log.Warnw("replenishment_service: merchant reported failure for an already paid invoice",
+				"user_id", replenishment.UserID, "merchant", merchant, "invoice_id", invoiceID,
+			)
+		}
+		return nil
 	}
+
+	paymentsmetrics.ReplenishmentsTotal.WithLabelValues(string(merchant), "failed").Inc()
 	return nil
 }
 

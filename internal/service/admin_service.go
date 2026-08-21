@@ -8,6 +8,7 @@ import (
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	adminmetrics "github.com/trottling/Telegram-Store/internal/metrics/admin"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 )
@@ -63,6 +64,7 @@ func (s *AdminSrv) logAction(ctx context.Context, adminID int64, action string, 
 		TargetID: targetID,
 		Details:  adminLogDetails(details),
 	})
+	adminmetrics.ActionsTotal.WithLabelValues(action).Inc()
 	s.log.Infow("admin_service: action performed", "admin_id", adminID, "action", action, "target_id", *targetID)
 }
 

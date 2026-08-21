@@ -64,10 +64,11 @@ func main() {
 			fx.Annotate(svc.NewSettingsSrv, fx.As(new(service.SettingsService))),
 			provideReplenishmentService,
 			provideCrystalPayProvider,
+			provideMetricsServer,
 
 			paymentsbackend.New,
 		),
-		fx.Invoke(runServer),
+		fx.Invoke(runServer, RunMetricsServer),
 	)
 
 	// Ошибку сборки графа и упавшего Invoke (например, недоступный Postgres)

@@ -1,0 +1,94 @@
+{
+  "title": "Technical overview",
+  "uid": "technical-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Updates per second, by kind",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "sum by (kind) (rate(bot_updates_total[5m]))", "legendFormat": "{{kind}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Update handling duration, p95",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(bot_update_duration_seconds_bucket[5m])))", "legendFormat": "{{kind}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Panics recovered",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "sum(bot_panics_total)", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "title": "Goroutines, by process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 9, "x": 6, "y": 8 },
+      "targets": [
+        { "expr": "go_goroutines{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Resident memory, by process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 9, "x": 15, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "process_resident_memory_bytes{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Prometheus scrape targets, by health",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 14 },
+      "targets": [
+        { "expr": "up", "legendFormat": "{{job}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Application logs",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "{container=~\"telegram-store-(bot|admin-backend|payments-backend)\"}", "refId": "A" }
+      ]
+    }
+  ]
+}

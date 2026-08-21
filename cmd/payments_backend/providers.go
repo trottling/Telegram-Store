@@ -1,11 +1,14 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/trottling/Telegram-Store/internal/config"
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
+	paymentsmetrics "github.com/trottling/Telegram-Store/internal/metrics/payments"
 	svc "github.com/trottling/Telegram-Store/internal/service"
 	"github.com/trottling/Telegram-Store/internal/service/payment"
 	"go.uber.org/zap"
@@ -34,4 +37,10 @@ func provideCrystalPayProvider(settingsService service.SettingsService, payments
 // просто приведение типа, а реальный "пустой" аргумент.
 func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *zap.SugaredLogger) service.ReplenishmentService {
 	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, log)
+}
+
+// provideMetricsServer — свой /metrics-сервер payments_backend (пополнения по
+// мерчантам, см. internal/metrics/payments), отдельно от порта вебхуков.
+func provideMetricsServer(paymentsCfg *config.PaymentsConfig) *http.Server {
+	return paymentsmetrics.NewServer(paymentsCfg.MetricsPort)
 }

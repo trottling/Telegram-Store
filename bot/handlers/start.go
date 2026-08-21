@@ -9,6 +9,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
+	botmetrics "github.com/trottling/Telegram-Store/internal/metrics/bot"
 )
 
 // StartHandler — единственное место, где создаётся запись пользователя.
@@ -18,10 +19,19 @@ func (h *Handlers) StartHandler(ctx context.Context, b *bot.Bot, update *models.
 	chatID := update.Message.Chat.ID
 	lang := texts.Normalize(update.Message.From.LanguageCode)
 
-	user, err := h.userService.GetOrCreate(ctx, chatID, update.Message.Chat.Username, parseStartPayload(update.Message.Text), lang)
+	user, created, err := h.userService.GetOrCreate(ctx, chatID, update.Message.Chat.Username, parseStartPayload(update.Message.Text), lang)
 	if err != nil {
 		h.log.Errorf("StartHandler: failed to get or create user %d: %v", chatID, err)
 		return
+	}
+	if created {
+		// user.ReferrerID — уже провалидированный UserSrv.validReferrer результат,
+		// не сырой payload: тут не "пришёл по ссылке", а "реально засчитан рефералом".
+		source := "organic"
+		if user.ReferrerID != nil {
+			source = "referral"
+		}
+		botmetrics.UsersRegisteredTotal.WithLabelValues(source).Inc()
 	}
 
 	// user.Language — для существующего пользователя это уже сохранённое

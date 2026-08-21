@@ -72,6 +72,10 @@ type AdminPanelConfig struct {
 	// Пусто в локальной разработке без реального домена — cookie тогда просто
 	// не проставляет Domain (браузер ограничит её текущим хостом), без ошибок.
 	CookieDomain string
+	// MetricsPort — свой /metrics-сервер admin_backend (бизнес-метрики
+	// админских действий + агрегаты для Grafana, см. internal/metrics/admin),
+	// отдельно от собственного порта API (Port).
+	MetricsPort int
 }
 
 // PaymentsConfig — конфиг payments_backend (вебхуки мерчантов).
@@ -80,6 +84,9 @@ type PaymentsConfig struct {
 	// URL — внешний адрес payments_backend, на него указывают webhook-колбэки
 	// CrystalPay/Tinkoff (строится в cmd/bot/providers.go при создании провайдеров).
 	URL string
+	// MetricsPort — свой /metrics-сервер payments_backend (пополнения по
+	// мерчантам, см. internal/metrics/payments), отдельно от порта вебхуков (Port).
+	MetricsPort int
 }
 
 // MetricsConfig — конфиг /metrics-сервера бота (Prometheus, см. internal/metrics/bot).
@@ -135,8 +142,16 @@ func New() (*Config, error) {
 		return nil, err
 	}
 	paymentsURL := getEnv("PAYMENTS_BACKEND_URL", "http://localhost:8081")
+	paymentsMetricsPort, err := getEnvInt("PAYMENTS_METRICS_PORT", 9102)
+	if err != nil {
+		return nil, err
+	}
 
 	metricsPort, err := getEnvInt("BOT_METRICS_PORT", 9100)
+	if err != nil {
+		return nil, err
+	}
+	adminMetricsPort, err := getEnvInt("ADMIN_METRICS_PORT", 9101)
 	if err != nil {
 		return nil, err
 	}
@@ -172,11 +187,13 @@ func New() (*Config, error) {
 			TrustedProxies: adminPanelTrustedProxies,
 			JWTSecret:      []byte(adminJWTSecret),
 			CookieDomain:   cookieDomain,
+			MetricsPort:    adminMetricsPort,
 		},
 
 		Payments: &PaymentsConfig{
-			Port: paymentsPort,
-			URL:  paymentsURL,
+			Port:        paymentsPort,
+			URL:         paymentsURL,
+			MetricsPort: paymentsMetricsPort,
 		},
 
 		Metrics: &MetricsConfig{
@@ -219,7 +236,7 @@ func New() (*Config, error) {
 		return nil, fmt.Errorf("ADMIN_JWT_SECRET must be at least %d characters, got %d", minJWTSecretLen, len(cfg.AdminPanel.JWTSecret))
 	}
 
-	for _, p := range []struct {
+	ports := []struct {
 		key   string
 		value int
 	}{
@@ -227,15 +244,23 @@ func New() (*Config, error) {
 		{"ADMIN_PANEL_BACKEND_PORT", cfg.AdminPanel.Port},
 		{"PAYMENTS_BACKEND_PORT", cfg.Payments.Port},
 		{"BOT_METRICS_PORT", cfg.Metrics.Port},
-	} {
+		{"ADMIN_METRICS_PORT", cfg.AdminPanel.MetricsPort},
+		{"PAYMENTS_METRICS_PORT", cfg.Payments.MetricsPort},
+	}
+	for _, p := range ports {
 		if err = validatePort(p.key, p.value); err != nil {
 			return nil, err
 		}
 	}
-	// Локально и в docker-compose.debug.yml оба сервера слушают один хост, так
-	// что совпадение портов вылезало бы только в рантайме как "address in use".
-	if cfg.AdminPanel.Port == cfg.Payments.Port {
-		return nil, fmt.Errorf("ADMIN_PANEL_BACKEND_PORT and PAYMENTS_BACKEND_PORT must differ, both are %d", cfg.AdminPanel.Port)
+	// Локально и в docker-compose.debug.yml все эти сервисы слушают один хост,
+	// так что совпадение любых двух портов вылезало бы только в рантайме как
+	// "address in use" — проверяем попарную уникальность сразу здесь.
+	seenPorts := make(map[int]string, len(ports))
+	for _, p := range ports {
+		if other, ok := seenPorts[p.value]; ok {
+			return nil, fmt.Errorf("%s and %s must differ, both are %d", other, p.key, p.value)
+		}
+		seenPorts[p.value] = p.key
 	}
 	// Верхнюю границу не проверяем: число баз задаётся конфигом самого Redis.
 	if cfg.Redis.RedisDB < 0 {

@@ -51,4 +51,22 @@ var (
 		Name: "bot_purchase_amount_total",
 		Help: "Total amount charged across successful purchases.",
 	})
+
+	// UsersRegisteredTotal — source: organic/referral, см. UserSrv.GetOrCreate.
+	UsersRegisteredTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "bot_users_registered_total",
+		Help: "Total number of new users registered, by source.",
+	}, []string{"source"})
+
+	// ReferralCreditsTotal/ReferralCreditAmountTotal — начисления рефереру
+	// (PurchaseSrv.creditReferral), инкрементятся там же, где отправляется
+	// уведомление рефереру — BuyConfirmHandler.
+	ReferralCreditsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bot_referral_credits_total",
+		Help: "Total number of referral credits paid out.",
+	})
+	ReferralCreditAmountTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "bot_referral_credit_amount_total",
+		Help: "Total amount paid out as referral credits.",
+	})
 )

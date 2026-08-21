@@ -1,0 +1,160 @@
+{
+  "title": "Business overview",
+  "uid": "business-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "time": { "from": "now-24h", "to": "now" },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Purchases, by outcome",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "targets": [{ "expr": "sum by (status) (bot_purchases_total)", "legendFormat": "{{status}}", "refId": "A" }]
+    },
+    {
+      "id": 2,
+      "title": "Revenue (counter, since start)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "targets": [{ "expr": "bot_purchase_amount_total", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "Referral credits paid",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "targets": [{ "expr": "bot_referral_credits_total", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "title": "Referral credit amount",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "targets": [{ "expr": "bot_referral_credit_amount_total", "refId": "A" }]
+    },
+    {
+      "id": 5,
+      "title": "Replenishments per hour, by merchant and outcome",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        { "expr": "sum by (merchant, status) (rate(replenishments_total[1h]))", "legendFormat": "{{merchant}}/{{status}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Replenishment amount, by merchant",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        { "expr": "sum by (merchant) (replenishment_amount_total)", "legendFormat": "{{merchant}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "New users per hour, by source",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        { "expr": "sum by (source) (rate(bot_users_registered_total[1h]))", "legendFormat": "{{source}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Admin actions, by action",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        { "expr": "sum by (action) (admin_actions_total)", "legendFormat": "{{action}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Total revenue (all time)",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 22 },
+      "targets": [{ "expr": "shop_total_revenue", "refId": "A" }]
+    },
+    {
+      "id": 10,
+      "title": "Total purchases",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 22 },
+      "targets": [{ "expr": "shop_total_purchases", "refId": "A" }]
+    },
+    {
+      "id": 11,
+      "title": "Total users",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 22 },
+      "targets": [{ "expr": "shop_total_users", "refId": "A" }]
+    },
+    {
+      "id": 12,
+      "title": "Banned users",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 22 },
+      "targets": [{ "expr": "shop_banned_users", "refId": "A" }]
+    },
+    {
+      "id": 13,
+      "title": "Admin users",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 22 },
+      "targets": [{ "expr": "shop_admin_users", "refId": "A" }]
+    },
+    {
+      "id": 14,
+      "title": "Total balance on user accounts",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 22 },
+      "targets": [{ "expr": "shop_total_balance", "refId": "A" }]
+    },
+    {
+      "id": 15,
+      "title": "Available stock",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 28 },
+      "targets": [{ "expr": "shop_available_stock_total", "refId": "A" }]
+    },
+    {
+      "id": 16,
+      "title": "Top 10 products by revenue",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 28 },
+      "targets": [
+        { "expr": "shop_top_products_revenue", "legendFormat": "{{product_name}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 17,
+      "title": "Top 10 categories by revenue",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 28 },
+      "targets": [
+        { "expr": "shop_top_categories_revenue", "legendFormat": "{{category_name}}", "refId": "A" }
+      ]
+    }
+  ]
+}

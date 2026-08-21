@@ -25,25 +25,27 @@ func NewUserSrv(userRepo repository.UserRepository, cache domaincache.UserCache,
 // referrerID/language учитываются только на ветке создания — уже существующий
 // пользователь рефералом не становится и язык не меняет, даже если пришёл по
 // реф-ссылке или сменил локаль в Telegram.
-func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64, language string) (*models.User, error) {
+func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64, language string) (*models.User, bool, error) {
 	if user, err := s.cache.GetUser(ctx, telegramID); err == nil {
-		return user, nil
+		return user, false, nil
 	}
 
 	user, err := s.userRepo.GetByID(ctx, telegramID)
+	created := false
 	if err != nil {
 		if !errors.Is(err, domainerrors.ErrUserNotFound) {
-			return nil, err
+			return nil, false, err
 		}
 		user = &models.User{TelegramID: telegramID, Username: username, Language: language, ReferrerID: s.validReferrer(ctx, telegramID, referrerID)}
 		if err = s.userRepo.Create(ctx, user); err != nil {
-			return nil, err
+			return nil, false, err
 		}
+		created = true
 		s.log.Infow("user_service: new user registered", "telegram_id", telegramID, "referrer_id", user.ReferrerID, "language", language)
 	}
 
 	_ = s.cache.SetUser(ctx, user)
-	return user, nil
+	return user, created, nil
 }
 
 // SetLanguage — ручное переключение языка интерфейса, перекрывает то, что

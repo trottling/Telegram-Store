@@ -32,6 +32,7 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	"github.com/trottling/Telegram-Store/internal/logger"
+	adminmetrics "github.com/trottling/Telegram-Store/internal/metrics/admin"
 	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
 	svc "github.com/trottling/Telegram-Store/internal/service"
 )
@@ -69,6 +70,7 @@ func main() {
 			fx.Annotate(pgdb.NewSettingsRepo, fx.As(new(repository.SettingsRepository))),
 			fx.Annotate(pgdb.NewReplenishmentRepo, fx.As(new(repository.ReplenishmentRepository))),
 			fx.Annotate(pgdb.NewAdminLogRepo, fx.As(new(repository.AdminLogRepository))),
+			fx.Annotate(pgdb.NewAnalyticsRepo, fx.As(new(repository.AnalyticsRepository))),
 			fx.Annotate(pgdb.NewGormTransactor, fx.As(new(repository.Transactor))),
 
 			fx.Annotate(svc.NewUserSrv, fx.As(new(service.UserService))),
@@ -78,12 +80,16 @@ func main() {
 			// purchaseService тут только для чтения (админ-листинг) — Buy() не вызывается.
 			fx.Annotate(svc.NewPurchaseSrv, fx.As(new(service.PurchaseService))),
 			fx.Annotate(svc.NewAdminSrv, fx.As(new(service.AdminService))),
+			fx.Annotate(svc.NewAnalyticsSrv, fx.As(new(service.AnalyticsService))),
 			provideReplenishmentService,
 			provideAdminAuthService,
 
+			provideMetricsServer,
+			adminmetrics.NewAnalyticsCollector,
+
 			adminbackend.New,
 		),
-		fx.Invoke(runServer),
+		fx.Invoke(runServer, RunMetricsServer),
 	)
 
 	// Ошибку сборки графа и упавшего Invoke (например, недоступный Postgres)
