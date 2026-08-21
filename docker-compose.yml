@@ -5,6 +5,17 @@ x-logging: &default-logging
       max-size: "10m"
       max-file: "3"
 
+# config.New() валидирует ADMIN_PANEL_FRONTEND_URL/CORS_ORIGIN у каждого
+# Go-бинарника (migrate/bot/admin-backend/payments-backend) независимо от
+# того, читает ли конкретно этот бинарник поле — а в проде оба всегда равны
+# https://$DOMAIN_NAME (один хост на всё, см. Caddyfile). Чтобы не держать
+# в .env три одинаковые строки, если переменная там не задана явно —
+# подставляется https://${DOMAIN_NAME}; явное значение в .env, как и раньше,
+# имеет приоритет.
+x-admin-panel-urls: &admin-panel-urls
+  ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-https://${DOMAIN_NAME}}
+  ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-https://${DOMAIN_NAME}}
+
 services:
   # Одноразовый прогон миграций + бутстрап root-admin, затем выход.
   migrate:
@@ -16,6 +27,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      <<: *admin-panel-urls
     depends_on:
       db:
         condition: service_healthy
@@ -33,6 +46,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      <<: *admin-panel-urls
     depends_on:
       db:
         condition: service_healthy
@@ -55,6 +70,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      <<: *admin-panel-urls
     # порт наружу не пробрасываем — снаружи торчит только caddy, до admin-backend
     # он достаёт по имени сервиса внутри public-network
     depends_on:
@@ -79,7 +96,9 @@ services:
     env_file:
       - path: .env
         required: true
-    # порт наружу не пробрасываем — вебхуки мерчантов идут через caddy (pay.$DOMAIN_NAME)
+    environment:
+      <<: *admin-panel-urls
+    # порт наружу не пробрасываем — вебхуки мерчантов идут через caddy (путь /pay на $DOMAIN_NAME)
     depends_on:
       db:
         condition: service_healthy
@@ -98,9 +117,9 @@ services:
       context: ./admin_frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
+        VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-https://${DOMAIN_NAME}}
     container_name: telegram-store-admin-frontend
-    # порт наружу не пробрасываем — статику отдаёт caddy (admin.$DOMAIN_NAME)
+    # порт наружу не пробрасываем — статику отдаёт caddy (путь / на $DOMAIN_NAME)
     restart: unless-stopped
     networks:
       - public-network
@@ -109,9 +128,9 @@ services:
     <<: *default-logging
 
   # TLS-терминатор: единственный сервис с портами наружу (80/443), автовыпуск
-  # сертификатов Let's Encrypt по ACME HTTP-01/TLS-ALPN. Домены и почта — из
-  # DOMAIN_NAME/ACME_EMAIL (см. .env, поддомены admin./api./pay./stats.
-  # собираются из DOMAIN_NAME прямо в Caddyfile).
+  # сертификатов Let's Encrypt по ACME HTTP-01/TLS-ALPN. Домен и почта — из
+  # DOMAIN_NAME/ACME_EMAIL (см. .env); один хост на всё, панель/API/вебхуки/
+  # Grafana разведены по пути (/, /api, /pay, /stats) прямо в Caddyfile.
   caddy:
     image: caddy:2-alpine
     container_name: telegram-store-caddy
