@@ -1,7 +1,18 @@
 # TLS-терминатор перед admin-frontend/admin-backend/payments-backend/grafana.
-# Домен и почта ACME берутся из .env (DOMAIN_NAME/ACME_EMAIL). Поддомены
-# admin./api./pay./stats. собираются из DOMAIN_NAME прямо тут, отдельных
-# env-переменных под каждый домен не заводим.
+# Один хост ($DOMAIN_NAME) вместо четырёх поддоменов — роутинг по пути:
+#   /            -> admin-frontend (SPA, ничего больше не претендует на корень)
+#   /api/*       -> admin-backend  (сам уже ожидает префикс /api, путь не режем)
+#   /pay/*       -> payments-backend (handle_path режет /pay, дальше уходит
+#                   /api/webhooks/... как есть — payments_backend его и ждёт;
+#                   внешний webhook-URL получается вида .../pay/api/webhooks/crystalpay)
+#   /stats/*     -> grafana (путь НЕ режем — Grafana сама объявляет свои роуты
+#                   под /stats/, см. GF_SERVER_SERVE_FROM_SUB_PATH в docker-compose.yml)
+# Один домен — один A-запись/сертификат вместо четырёх, и то, что раньше было
+# кросс-origin (admin-frontend -> admin-backend), стало same-origin: CORS у
+# admin_backend в проде больше не участвует (остаётся только ради
+# docker-compose.debug.yml, где фронт и бэк всё ещё на разных портах), а
+# сессионная cookie больше не нуждается в explicit Domain= — host-only cookie
+# и так покрывает все пути одного хоста (см. admin_backend/handlers/auth_handler.go).
 #
 # {$VAR:default} — синтаксис дефолта у Caddy через одинарное двоеточие,
 # не через ":-" как в shell/docker-compose.
@@ -9,13 +20,12 @@
 	email {$ACME_EMAIL}
 }
 
-# Заголовки, общие для всех трёх хостов. Ставятся здесь, а не middleware'ом в
-# gin: так они накрывают ещё и статику панели, которую отдаёт nginx, и лежат в
-# одном месте вместо трёх.
+# Заголовки, общие для всех путей. Ставятся здесь, а не middleware'ом в gin:
+# так они накрывают ещё и статику панели, которую отдаёт nginx, и лежат в
+# одном месте вместо четырёх.
 (common_headers) {
 	header {
-		# HSTS. Область действия — сам хост и его поддомены, на соседние
-		# admin./api./pay. не влияет: каждый выставляет свой заголовок.
+		# HSTS. Область действия — сам хост, поддоменов у нас больше нет.
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		# Запрещает браузеру угадывать тип содержимого вопреки Content-Type.
 		X-Content-Type-Options "nosniff"
@@ -24,82 +34,86 @@
 	}
 }
 
-# Панель. Единственный хост, отдающий документ, поэтому весь набор
-# «документных» заголовков только здесь.
-admin.{$DOMAIN_NAME} {
+{$DOMAIN_NAME} {
 	import common_headers
 
-	header {
-		X-Frame-Options "DENY"
-		# no-referrer, а не strict-origin: в URL панели попадают telegram ID и
-		# идентификаторы покупок, и утекать они не должны никуда вообще.
-		Referrer-Policy "no-referrer"
-		Permissions-Policy "geolocation=(), camera=(), microphone=()"
-
-		# CSP подогнан под реальную сборку, а не скопирован из примера:
-		#   style-src 'unsafe-inline' — Ant Design инжектит стили в рантайме,
-		#     с чистым 'self' панель останется без оформления;
-		#   connect-src — фронт ходит в API на ДРУГОЙ поддомен, без явного
-		#     разрешения все запросы панели будут заблокированы;
-		#   data: для img/font — инлайновые иконки и шрифты Ant Design.
-		# Менять сборку фронта — перепроверять этот заголовок в консоли браузера.
-		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://api.{$DOMAIN_NAME}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	# API админ-панели. Отдаёт только JSON, поэтому ресурсы ему не нужны вовсе —
+	# отсюда 'none' вместо 'self'. CORS остаётся на стороне admin_backend только
+	# ради docker-compose.debug.yml — здесь, за одним origin, браузер его даже
+	# не спросит.
+	handle /api/* {
+		header {
+			X-Frame-Options "DENY"
+			Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		}
+		reverse_proxy admin-backend:{$ADMIN_PANEL_BACKEND_PORT:8080}
 	}
 
-	reverse_proxy admin-frontend:80
-}
-
-# API админ-панели. Отдаёт только JSON, поэтому ресурсы ему не нужны вовсе —
-# отсюда 'none' вместо 'self'. CORS остаётся на стороне admin-backend: там он
-# завязан на ADMIN_PANEL_CORS_ORIGIN и умеет логировать отказы.
-api.{$DOMAIN_NAME} {
-	import common_headers
-
-	header {
-		X-Frame-Options "DENY"
-		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+	# Приём вебхуков мерчантов. Вызывающая сторона — сервер, а не браузер, так
+	# что заголовки тут ни на что не влияют; выставляем их только ради
+	# единообразия. handle_path режет "/pay" перед проксированием.
+	handle_path /pay/* {
+		reverse_proxy payments-backend:{$PAYMENTS_BACKEND_PORT:8081}
 	}
 
-	reverse_proxy admin-backend:{$ADMIN_PANEL_BACKEND_PORT:8080}
-}
+	# Grafana. Своей формы логина не показывает вообще — вход тем же кодом из
+	# /admin, что и в панель (см. CLAUDE.md). forward_auth спрашивает
+	# admin-backend "залогинен ли этот браузер" (сессионная cookie, см.
+	# handlers.Exchange/middleware.Auth), копирует identity дальше в
+	# X-WEBAUTH-USER, которому доверяет Grafana в режиме auth.proxy
+	# (GF_AUTH_PROXY_* в docker-compose.yml).
+	#
+	# @denied/handle_response — иначе на отказ forward_auth молча отдаёт клиенту
+	# сырое JSON-тело admin-backend (`{"code":"unauthorized",...}`), в обход
+	# Caddy'шного handle_errors: это не "ошибка" в терминах Caddy, а обычный
+	# проксированный ответ. Проверено вживую (docker run с :80 вместо реального
+	# домена) — без этого блока незалогиненный визит на /stats получал голый
+	# 401 вместо редиректа на страницу логина панели.
+	#
+	# CSP сознательно не ставим — реальные требования Grafana к инлайн-скриптам/
+	# стилям под саб-путём не проверены вживую (у корневого пути CSP подобран
+	# эмпирически по консоли браузера). Открыть после первого деплоя, проверить
+	# консоль, при необходимости дотянуть.
+	handle /stats/* {
+		header {
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+		}
 
-# Приём вебхуков мерчантов. Вызывающая сторона — сервер, а не браузер, так что
-# заголовки тут ни на что не влияют; выставляем их только ради единообразия.
-pay.{$DOMAIN_NAME} {
-	import common_headers
+		forward_auth admin-backend:{$ADMIN_PANEL_BACKEND_PORT:8080} {
+			uri /api/auth/me
+			copy_headers X-Admin-Username
 
-	reverse_proxy payments-backend:{$PAYMENTS_BACKEND_PORT:8081}
-}
+			@denied status 401
+			handle_response @denied {
+				redir * https://{$DOMAIN_NAME}/login
+			}
+		}
 
-# Grafana. Своей формы логина не показывает вообще — вход тем же кодом из
-# /admin, что и в панель (см. CLAUDE.md). forward_auth спрашивает
-# admin-backend "залогинен ли этот браузер" (сессионная cookie, см.
-# handlers.Exchange/middleware.Auth), копирует identity дальше в
-# X-WEBAUTH-USER, которому доверяет Grafana в режиме auth.proxy
-# (GF_AUTH_PROXY_* в docker-compose.yml). Незалогиненный визит получает 401 от
-# /api/auth/me и редиректится на существующую страницу логина панели.
-#
-# CSP сознательно не ставим — в отличие от admin.-хоста, реальные требования
-# Grafana к инлайн-скриптам/стилям тут не проверены вживую (там CSP подобран
-# эмпирически по консоли браузера). Открыть после первого деплоя, проверить
-# консоль, при необходимости дотянуть.
-stats.{$DOMAIN_NAME} {
-	import common_headers
-
-	header {
-		X-Frame-Options "DENY"
-		Referrer-Policy "no-referrer"
+		reverse_proxy grafana:3000
 	}
 
-	forward_auth admin-backend:{$ADMIN_PANEL_BACKEND_PORT:8080} {
-		uri /api/auth/me
-		copy_headers X-Admin-Username
-	}
+	# Панель. Всё, что не /api, /pay, /stats — сюда, включая клиентские
+	# роуты SPA (nginx у admin-frontend сам фолбэчит на index.html).
+	handle {
+		header {
+			X-Frame-Options "DENY"
+			# no-referrer, а не strict-origin: в URL панели попадают telegram ID и
+			# идентификаторы покупок, и утекать они не должны никуда вообще.
+			Referrer-Policy "no-referrer"
+			Permissions-Policy "geolocation=(), camera=(), microphone=()"
 
-	handle_errors {
-		@denied expression {http.error.status_code} == 401
-		redir @denied https://admin.{$DOMAIN_NAME}/login
-	}
+			# CSP подогнан под реальную сборку, а не скопирован из примера:
+			#   style-src 'unsafe-inline' — Ant Design инжектит стили в рантайме,
+			#     с чистым 'self' панель останется без оформления;
+			#   connect-src 'self' — теперь то же самое, что и весь остальной
+			#     сайт: API на том же origin под /api, кросс-origin allowlist
+			#     (как было с api.$DOMAIN_NAME) больше не нужен вести в синхроне;
+			#   data: для img/font — инлайновые иконки и шрифты Ant Design.
+			# Менять сборку фронта — перепроверять этот заголовок в консоли браузера.
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		}
 
-	reverse_proxy grafana:3000
+		reverse_proxy admin-frontend:80
+	}
 }

@@ -35,8 +35,8 @@ func (h *Handlers) Exchange(c *gin.Context) {
 
 	// Та же сессия — в cookie, а не только в теле ответа: SPA всё ещё берёт
 	// токен из тела (Authorization-заголовок), а cookie донесёт её браузер
-	// сам, в том числе на stats.$DOMAIN_NAME — там Grafana спрятана за
-	// forward_auth, и заголовок Authorization там просто некому проставить.
+	// сам, в том числе на /stats — там Grafana спрятана за forward_auth, и
+	// заголовок Authorization там просто некому проставить.
 	h.setSessionCookie(c, token)
 
 	h.log.Infow("handlers: admin logged in", "admin_id", admin.TelegramID)
@@ -44,9 +44,9 @@ func (h *Handlers) Exchange(c *gin.Context) {
 }
 
 // Me возвращает профиль авторизованного админа — фронтенд по 200/401
-// проверяет токен, а Caddy forward_auth перед stats.$DOMAIN_NAME так же
-// проверяет саму сессию и копирует X-Admin-Username дальше в Grafana
-// (auth.proxy, см. Caddyfile/docker-compose.yml).
+// проверяет токен, а Caddy forward_auth перед /stats так же проверяет саму
+// сессию и копирует X-Admin-Username дальше в Grafana (auth.proxy, см.
+// Caddyfile/docker-compose.yml).
 func (h *Handlers) Me(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
 	if admin != nil {
@@ -71,14 +71,17 @@ func (h *Handlers) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// Domain у cookie сознательно не задаём (""): host-only cookie с Path="/"
+// и так покрывает все пути одного хоста — панель, /api, /stats — с тех пор
+// как всё это один origin вместо четырёх поддоменов (см. Caddyfile).
 func (h *Handlers) setSessionCookie(c *gin.Context, token string) {
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.SessionCookieName, token, sessionCookieMaxAge, "/", h.cookieDomain, true, true)
+	c.SetCookie(middleware.SessionCookieName, token, sessionCookieMaxAge, "/", "", true, true)
 }
 
 func (h *Handlers) clearSessionCookie(c *gin.Context) {
 	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie(middleware.SessionCookieName, "", -1, "/", h.cookieDomain, true, true)
+	c.SetCookie(middleware.SessionCookieName, "", -1, "/", "", true, true)
 }
 
 // adminIdentity — X-WEBAUTH-USER для Grafana не должен быть пустым: у

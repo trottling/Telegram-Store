@@ -32,7 +32,7 @@ func New(
 	cfg *config.AdminPanelConfig,
 	log *zap.SugaredLogger,
 ) *Server {
-	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, settingsService, replenishmentService, adminAuthService, cfg.CookieDomain, log)
+	h := handlers.New(userService, productService, categoryService, purchaseService, adminService, settingsService, replenishmentService, adminAuthService, log)
 	router := newRouter(h, adminAuthService, cfg.CORSOrigin, cfg.TrustedProxies, log)
 
 	return &Server{

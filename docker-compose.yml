@@ -251,12 +251,12 @@ services:
       - backend-network
     <<: *default-logging
 
-  # Единственный публичный вход во весь observability-стек (stats.$DOMAIN_NAME
-  # в Caddyfile). Логин не свой — auth.proxy доверяет X-WEBAUTH-USER, который
-  # проставляет admin-backend через forward_auth в Caddy (тот же код из /admin,
-  # что и в веб-панель). GRAFANA_ADMIN_USER/PASSWORD — только break-glass,
-  # доступны исключительно изнутри docker-сети, публично эта форма входа не
-  # показывается.
+  # Единственный публичный вход во весь observability-стек ($DOMAIN_NAME/stats
+  # в Caddyfile, саб-путь — см. GF_SERVER_SERVE_FROM_SUB_PATH). Логин не свой —
+  # auth.proxy доверяет X-WEBAUTH-USER, который проставляет admin-backend через
+  # forward_auth в Caddy (тот же код из /admin, что и в веб-панель).
+  # GRAFANA_ADMIN_USER/PASSWORD — только break-glass, доступны исключительно
+  # изнутри docker-сети, публично эта форма входа не показывается.
   grafana:
     image: grafana/grafana:13.1
     container_name: telegram-store-grafana
@@ -270,7 +270,10 @@ services:
       GF_AUTH_PROXY_AUTO_SIGN_UP: "true"
       GF_USERS_AUTO_ASSIGN_ORG_ROLE: Editor
       GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_ROOT_URL: https://stats.${DOMAIN_NAME}
+      # Grafana сама объявляет свои роуты под /stats/ и ожидает, что Caddy
+      # проксирует путь как есть, не срезая префикс — см. Caddyfile.
+      GF_SERVER_ROOT_URL: https://${DOMAIN_NAME}/stats/
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
     volumes:
