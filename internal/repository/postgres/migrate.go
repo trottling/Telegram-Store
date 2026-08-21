@@ -33,6 +33,25 @@ func createPartialIndexes(db *gorm.DB) error {
 	return nil
 }
 
+// refreshCollationVersions — постоянный шум в логах, а не признак реальной
+// проблемы: postgres:*-alpine собран на musl, а он вообще не версионирует
+// collation. Postgres видит расхождение с версией, записанной при создании
+// базы, и предупреждает на каждое новое подключение ("no actual collation
+// version, but a version was recorded") — штатный ALTER DATABASE ... REFRESH
+// COLLATION VERSION тут даже падает ("invalid collation version change"),
+// сравнивать нечего. Обнулить datcollversion — единственный способ снять
+// предупреждение; поведение сортировки строк это не меняет ни на бит.
+//
+// Ошибку не считаем фатальной для всей миграции и просто предупреждаем:
+// на managed Postgres (не наш bundled образ) роль из POSTGRES_USER может не
+// быть суперпользователем — обновлять системный каталог pg_database тогда
+// нечем, но это не должно останавливать реальную схему.
+func refreshCollationVersions(db *gorm.DB, log *zap.SugaredLogger) {
+	if err := db.Exec(`UPDATE pg_database SET datcollversion = NULL WHERE datcollversion IS NOT NULL`).Error; err != nil {
+		log.Warnw("postgres: failed to clear stale collation versions, the warning will keep appearing in logs", "error", err)
+	}
+}
+
 // AutoMigrate — единственная точка входа для cmd/migrate: схема (DDL), бутстрап root-admin + дефолтных настроек.
 // cmd/migrate/main.go - тонкая обвязка
 func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootAdminID int64) error {
@@ -54,6 +73,8 @@ func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootA
 		return fmt.Errorf("create partial indexes: %w", err)
 	}
 	log.Info("postgres: partial indexes ensured")
+
+	refreshCollationVersions(db, log)
 
 	userRepo := NewUserRepo(db, log)
 	if err := userRepo.EnsureRootAdminExists(ctx, rootAdminID); err != nil {
