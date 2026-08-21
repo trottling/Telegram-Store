@@ -97,7 +97,7 @@ services:
       - admin-backend
 
   db:
-    image: postgres:latest
+    image: postgres:18-alpine
     container_name: telegram-store-db
     ports:
       - "5432:5432"
@@ -116,7 +116,7 @@ services:
       - debug-network
 
   redis:
-    image: redis:latest
+    image: redis:8-alpine
     container_name: telegram-store-redis
     ports:
       - "6379:6379"
