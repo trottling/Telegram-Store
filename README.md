@@ -22,15 +22,15 @@
 
 ## 🧱 Стек
 
-| Часть                        | Технологии                                                                                            |
-|------------------------------|-------------------------------------------------------------------------------------------------------|
-| Бот                          | Go, [go-telegram/bot](https://github.com/go-telegram/bot)                                             |
-| Admin API / вебхуки платежей | Go, [gin](https://github.com/gin-gonic/gin) (два независимых бинарника)                               |
-| Хранение данных              | PostgreSQL через [GORM](https://gorm.io)                                                              |
-| Кэш / состояние              | Redis (read-through кэш, состояние FSM, сессии админов)                                               |
-| UI панели                    | React, Vite, TypeScript, [Ant Design](https://ant.design)                                             |
+| Часть                        | Технологии                                                                                                                                                                        |
+|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Бот                          | Go, [go-telegram/bot](https://github.com/go-telegram/bot)                                                                                                                         |
+| Admin API / вебхуки платежей | Go, [gin](https://github.com/gin-gonic/gin) (два независимых бинарника)                                                                                                           |
+| Хранение данных              | PostgreSQL через [GORM](https://gorm.io)                                                                                                                                          |
+| Кэш / состояние              | Redis (read-through кэш, состояние FSM, сессии админов)                                                                                                                           |
+| UI панели                    | React, Vite, TypeScript, [Ant Design](https://ant.design)                                                                                                                         |
 | Логи и метрики               | [Prometheus](https://prometheus.io) + [Loki](https://grafana.com/oss/loki/)/[Promtail](https://grafana.com/docs/loki/latest/send-data/promtail/) + [Grafana](https://grafana.com) |
-| TLS / прод-деплой            | [Caddy](https://caddyserver.com) (авто-TLS), ежедневный `pg_dump` + [rclone](https://rclone.org) в S3 |
+| TLS / прод-деплой            | [Caddy](https://caddyserver.com) (авто-TLS), ежедневный `pg_dump` + [rclone](https://rclone.org) в S3                                                                             |
 
 Архитектура — hexagonal/ports-and-adapters: четыре независимых Go-бинарника (`bot`, `admin_backend`, `payments_backend`, `migrate`) вокруг общих Postgres и Redis
 
