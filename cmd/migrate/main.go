@@ -30,7 +30,7 @@ import (
 )
 
 func providePostgresConfig(cfg *config.Config) *config.PostgresConfig { return cfg.Postgres }
-func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return cfg.Logger }
+func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return cfg.Loggers.Migrate }
 
 // migrateTimeout — потолок на всю миграцию. Без дедлайна AutoMigrate, упёршийся
 // в блокировку на занятой таблице, висел бы вечно, а вместе с ним и весь стек:

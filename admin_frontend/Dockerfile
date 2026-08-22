@@ -12,6 +12,10 @@ RUN npm run build
 # Рантайм
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# .template + templates/ — образ сам подставит ADMIN_FRONTEND_LOG_LEVEL через
+# envsubst при старте (docker-entrypoint.d/20-envsubst-on-templates.sh) и
+# запишет результат в conf.d/default.conf; обычный COPY в conf.d такого не
+# делает, там файл отдаётся как есть.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

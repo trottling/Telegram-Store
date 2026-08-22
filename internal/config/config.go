@@ -25,7 +25,19 @@ type Config struct {
 	Payments   *PaymentsConfig
 	Webhook    *BotWebhookConfig
 	Metrics    *MetricsConfig
-	Logger     *LoggerConfig
+	// Loggers — свой уровень на каждый Go-бинарник (BOT_LOG_LEVEL/
+	// ADMIN_BACKEND_LOG_LEVEL/PAYMENTS_BACKEND_LOG_LEVEL/MIGRATE_LOG_LEVEL), не
+	// один общий: у миграции и вебхуков платежей разная потребность в
+	// подробности логов, чем у долгоживущего бота. Каждый cmd/*/providers.go
+	// берёт отсюда только своё поле (см. provideLoggerConfig).
+	Loggers *LoggersConfig
+}
+
+type LoggersConfig struct {
+	Bot             *LoggerConfig
+	AdminBackend    *LoggerConfig
+	PaymentsBackend *LoggerConfig
+	Migrate         *LoggerConfig
 }
 
 type TelegramConfig struct {
@@ -172,7 +184,10 @@ func New() (*Config, error) {
 		return nil, err
 	}
 
-	logLevel := getEnv("LOG_LEVEL", "info")
+	botLogLevel := getEnv("BOT_LOG_LEVEL", "info")
+	adminBackendLogLevel := getEnv("ADMIN_BACKEND_LOG_LEVEL", "info")
+	paymentsBackendLogLevel := getEnv("PAYMENTS_BACKEND_LOG_LEVEL", "info")
+	migrateLogLevel := getEnv("MIGRATE_LOG_LEVEL", "info")
 
 	cfg := &Config{
 		Telegram: &TelegramConfig{
@@ -222,8 +237,11 @@ func New() (*Config, error) {
 			Port: metricsPort,
 		},
 
-		Logger: &LoggerConfig{
-			Level: logLevel,
+		Loggers: &LoggersConfig{
+			Bot:             &LoggerConfig{Level: botLogLevel},
+			AdminBackend:    &LoggerConfig{Level: adminBackendLogLevel},
+			PaymentsBackend: &LoggerConfig{Level: paymentsBackendLogLevel},
+			Migrate:         &LoggerConfig{Level: migrateLogLevel},
 		},
 	}
 

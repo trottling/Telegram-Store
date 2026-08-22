@@ -10,9 +10,10 @@ server:
   grpc_listen_port: 9096
   # По умолчанию info — и тогда в лог попадает вообще любая рутинная операция
   # обслуживания (recalculate_owned_streams, checkpoint, compaction, table
-  # upload) каждые 30-60 секунд. warn оставляет то, что реально стоит увидеть,
-  # не трогая сбор логов от остальных контейнеров — это отдельный конвейер.
-  log_level: warn
+  # upload) каждые 30-60 секунд. warn (LOKI_LOG_LEVEL) оставляет то, что
+  # реально стоит увидеть, не трогая сбор логов от остальных контейнеров —
+  # это отдельный конвейер.
+  log_level: ${LOKI_LOG_LEVEL}
 
 common:
   path_prefix: /loki

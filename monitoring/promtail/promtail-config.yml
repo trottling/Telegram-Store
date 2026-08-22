@@ -5,10 +5,11 @@ server:
   http_listen_port: 9080
   grpc_listen_port: 0
   # По умолчанию info — и тогда в лог попадает каждый цикл переоткрытия
-  # позиций/переопроса Docker-контейнеров. warn оставляет то, что реально
-  # стоит увидеть, не влияя на пересылку логов остальных контейнеров — это
-  # отдельный конвейер (см. loki-config.yml, тот же приём).
-  log_level: warn
+  # позиций/переопроса Docker-контейнеров. warn (PROMTAIL_LOG_LEVEL) оставляет
+  # то, что реально стоит увидеть, не влияя на пересылку логов остальных
+  # контейнеров — это отдельный конвейер (см. loki-config.yml, тот же приём;
+  # подстановку тоже включает -config.expand-env=true в docker-compose.yml).
+  log_level: ${PROMTAIL_LOG_LEVEL}
 
 positions:
   filename: /tmp/positions.yaml

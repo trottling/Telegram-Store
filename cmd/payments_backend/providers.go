@@ -19,7 +19,7 @@ import (
 func providePostgresConfig(cfg *config.Config) *config.PostgresConfig { return cfg.Postgres }
 func provideRedisConfig(cfg *config.Config) *config.RedisConfig       { return cfg.Redis }
 func providePaymentsConfig(cfg *config.Config) *config.PaymentsConfig { return cfg.Payments }
-func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return cfg.Logger }
+func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return cfg.Loggers.PaymentsBackend }
 
 // provideCrystalPayProvider — нужен только вебхуку CrystalPay, чтобы
 // перепроверить статус счёта: подпись мерчанта покрывает лишь id, а state в том

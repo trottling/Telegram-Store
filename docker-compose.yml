@@ -159,6 +159,8 @@ services:
       args:
         VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
     container_name: telegram-store-admin-frontend
+    environment:
+      ADMIN_FRONTEND_LOG_LEVEL: ${ADMIN_FRONTEND_LOG_LEVEL:-warn}
     # порт наружу не пробрасываем — статику отдаёт caddy (путь / на $DOMAIN_NAME)
     restart: unless-stopped
     networks:
@@ -199,6 +201,10 @@ services:
   db:
     image: postgres:18-alpine
     container_name: telegram-store-db
+    # -c log_min_messages=... — тот же приём, что и command у redis ниже:
+    # переопределяем один GUC через аргумент запуска, не через смонтированный
+    # postgresql.conf.
+    command: ["postgres", "-c", "log_min_messages=${POSTGRES_LOG_LEVEL:-warning}"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -223,9 +229,9 @@ services:
     # плейсхолдер из .env.example).
     command: [
       # По умолчанию notice — и тогда в лог попадает каждое сохранение RDB/AOF
-      # фонового процесса. warning оставляет то, что реально стоит увидеть
-      # (у Redis нет уровня "warn", только полное "warning").
-      "redis-server", "--appendonly", "yes", "--loglevel", "warning",
+      # фонового процесса. warning (REDIS_LOG_LEVEL) оставляет то, что реально
+      # стоит увидеть (у Redis нет уровня "warn", только полное "warning").
+      "redis-server", "--appendonly", "yes", "--loglevel", "${REDIS_LOG_LEVEL:-warning}",
       "--user", "default", "off",
       "--user", "${REDIS_USERNAME}", "on", ">${REDIS_PASSWORD}", "allcommands", "allkeys", "allchannels"
     ]
@@ -282,8 +288,8 @@ services:
       - "--storage.tsdb.retention.time=15d"
       # По умолчанию info — и тогда в лог попадает каждый scrape каждой цели
       # (bot/admin-backend/payments-backend/сам себя) раз в интервал. warn
-      # оставляет то, что реально стоит увидеть.
-      - "--log.level=warn"
+      # (PROMETHEUS_LOG_LEVEL) оставляет то, что реально стоит увидеть.
+      - "--log.level=${PROMETHEUS_LOG_LEVEL:-warn}"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
@@ -300,6 +306,7 @@ services:
     command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
     environment:
       LOKI_RETENTION_DAYS: ${LOKI_RETENTION_DAYS:-14}
+      LOKI_LOG_LEVEL: ${LOKI_LOG_LEVEL:-warn}
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
       - loki_data:/loki
@@ -314,7 +321,11 @@ services:
   promtail:
     image: grafana/promtail:3.6.11
     container_name: telegram-store-promtail
-    command: ["-config.file=/etc/promtail/config.yml"]
+    # -config.expand-env=true — чтобы ${PROMTAIL_LOG_LEVEL} в смонтированном
+    # конфиге подставил сам Promtail (тот же приём, что у loki выше).
+    command: ["-config.file=/etc/promtail/config.yml", "-config.expand-env=true"]
+    environment:
+      PROMTAIL_LOG_LEVEL: ${PROMTAIL_LOG_LEVEL:-warn}
     volumes:
       - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -340,8 +351,8 @@ services:
     environment:
       # По умолчанию info — и тогда в лог попадает вообще любой рутинный запрос
       # (datasource healthcheck, session cleanup и т.п.) на уровне HTTP-сервера
-      # Grafana. warn оставляет то, что реально стоит увидеть.
-      GF_LOG_LEVEL: warn
+      # Grafana. warn (GRAFANA_LOG_LEVEL) оставляет то, что реально стоит увидеть.
+      GF_LOG_LEVEL: ${GRAFANA_LOG_LEVEL:-warn}
       GF_AUTH_PROXY_ENABLED: "true"
       GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
       GF_AUTH_PROXY_HEADER_PROPERTY: username

@@ -21,7 +21,7 @@ import (
 func providePostgresConfig(cfg *config.Config) *config.PostgresConfig     { return cfg.Postgres }
 func provideRedisConfig(cfg *config.Config) *config.RedisConfig           { return cfg.Redis }
 func provideAdminPanelConfig(cfg *config.Config) *config.AdminPanelConfig { return cfg.AdminPanel }
-func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Logger }
+func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Loggers.AdminBackend }
 
 // provideReplenishmentService — providers=nil (не тип из графа, а буквально
 // nil): admin_backend счета не создаёт и вебхуки не принимает (см.

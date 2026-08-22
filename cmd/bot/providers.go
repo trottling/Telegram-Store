@@ -22,7 +22,7 @@ func provideAdminPanelConfig(cfg *config.Config) *config.AdminPanelConfig { retu
 func providePaymentsConfig(cfg *config.Config) *config.PaymentsConfig     { return cfg.Payments }
 func provideBotWebhookConfig(cfg *config.Config) *config.BotWebhookConfig { return cfg.Webhook }
 func provideMetricsConfig(cfg *config.Config) *config.MetricsConfig       { return cfg.Metrics }
-func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Logger }
+func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Loggers.Bot }
 
 // providePaymentProviders — по одному провайдеру на мерчант, включая
 // DummyProvider (тестовый, без реальной оплаты — см. internal/service/payment/dummy.go);
