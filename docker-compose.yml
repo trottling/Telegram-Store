@@ -19,6 +19,11 @@ x-admin-panel-urls: &admin-panel-urls
 services:
   # Одноразовый прогон миграций + бутстрап root-admin, затем выход.
   migrate:
+    # image+build вместе: `docker compose pull && up -d` (без --build) просто
+    # тянет готовый образ из GHCR (см. .github/workflows/build-images.yml) —
+    # для слабого VPS сборка Go на месте не нужна. `docker compose build`
+    # по-прежнему работает и соберёт локально под тем же тегом, если нужно.
+    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-migrate:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -38,6 +43,7 @@ services:
     <<: *default-logging
 
   bot:
+    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-bot:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -67,6 +73,7 @@ services:
     <<: *default-logging
 
   admin-backend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-admin-backend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -93,6 +100,7 @@ services:
     <<: *default-logging
 
   payments-backend:
+    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-payments-backend:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -118,6 +126,11 @@ services:
     <<: *default-logging
 
   admin-frontend:
+    # Образ из GHCR собран с пустым VITE_API_BASE_URL (относительный /api/...,
+    # один и тот же домен что у панели, что у API — см. workflow) и годится
+    # для любого DOMAIN_NAME без пересборки. build.args ниже — только для
+    # локального `docker compose build`.
+    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-admin-frontend:${IMAGE_TAG:-latest}
     build:
       context: ./admin_frontend
       dockerfile: Dockerfile
