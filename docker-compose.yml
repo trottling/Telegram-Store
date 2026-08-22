@@ -227,7 +227,10 @@ services:
     # (config.New() отдельно проверяет, что обе переменные не пустые и не
     # плейсхолдер из .env.example).
     command: [
-      "redis-server", "--appendonly", "yes",
+      # По умолчанию notice — и тогда в лог попадает каждое сохранение RDB/AOF
+      # фонового процесса. warning оставляет то, что реально стоит увидеть
+      # (у Redis нет уровня "warn", только полное "warning").
+      "redis-server", "--appendonly", "yes", "--loglevel", "warning",
       "--user", "default", "off",
       "--user", "${REDIS_USERNAME}", "on", ">${REDIS_PASSWORD}", "allcommands", "allkeys", "allchannels"
     ]
@@ -282,6 +285,10 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
+      # По умолчанию info — и тогда в лог попадает каждый scrape каждой цели
+      # (bot/admin-backend/payments-backend/сам себя) раз в интервал. warn
+      # оставляет то, что реально стоит увидеть.
+      - "--log.level=warn"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus

@@ -67,10 +67,15 @@
 	}
 
 	# Приём вебхуков Telegram (BOT_WEBHOOK_URL=https://$DOMAIN_NAME/bot).
+	# Оба паттерна обязательны: Telegram шлёт POST ровно на "/bot", без
+	# хвостового слэша, а "/bot/*" его не матчит (глоб требует буквальный "/"
+	# перед *) — без "/bot" отдельным элементом запрос проваливался в
+	# catch-all handle{} ниже, на admin-frontend, и получал 405 от nginx.
 	# Вызывающая сторона — сервер Telegram, не браузер; секрет проверяет сам
 	# bot (X-Telegram-Bot-Api-Secret-Token, см. bot.WithWebhookSecretToken),
 	# заголовки тут ни на что не влияют.
-	handle_path /bot/* {
+	@bot path /bot /bot/*
+	handle @bot {
 		reverse_proxy bot:{$BOT_WEBHOOK_PORT:8082}
 	}
 

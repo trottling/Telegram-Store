@@ -123,7 +123,7 @@ services:
     ports:
       - "6379:6379"
     command: [
-      "redis-server", "--appendonly", "yes",
+      "redis-server", "--appendonly", "yes", "--loglevel", "warning",
       "--user", "default", "off",
       "--user", "${REDIS_USERNAME}", "on", ">${REDIS_PASSWORD}", "allcommands", "allkeys", "allchannels"
     ]
@@ -147,6 +147,7 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=15d"
+      - "--log.level=warn"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
