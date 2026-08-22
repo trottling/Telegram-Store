@@ -81,6 +81,7 @@ CheckPaymentBtn = "🔄 Проверить оплату"
 CheckPaymentPendingMsg = "⏳ Платёж пока не подтверждён"
 CheckPaymentPaidMsg = "✅ Оплата подтверждена! Баланс пополнен на {{.Amount}} ₽"
 CheckPaymentFailedMsg = "❌ Платёж не прошёл. Попробуйте создать счёт заново"
+RefillPaidMsg = "✅ Баланс пополнен на *{{.Amount}} ₽*\\."
 RefillCheckErrorMsg = "⚠️ Не удалось проверить оплату, попробуйте ещё раз чуть позже."
 
 ErrInsufficientBalanceMsg = "❌ Не хватает баланса на покупку."

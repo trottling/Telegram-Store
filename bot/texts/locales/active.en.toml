@@ -81,6 +81,7 @@ CheckPaymentBtn = "🔄 Check payment"
 CheckPaymentPendingMsg = "⏳ Payment not confirmed yet"
 CheckPaymentPaidMsg = "✅ Payment confirmed! Balance topped up by {{.Amount}} ₽"
 CheckPaymentFailedMsg = "❌ Payment failed. Please create a new invoice"
+RefillPaidMsg = "✅ Balance topped up by *{{.Amount}} ₽*\\."
 RefillCheckErrorMsg = "⚠️ Could not check the payment, please try again later."
 
 ErrInsufficientBalanceMsg = "❌ Not enough balance for this purchase."

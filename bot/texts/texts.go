@@ -131,13 +131,20 @@ const (
 	RefillInvoiceMsg = "RefillInvoiceMsg"
 	PayBtn           = "PayBtn"
 	CheckPaymentBtn  = "CheckPaymentBtn"
-	// Кнопка «Проверить оплату» не трогает само сообщение со счётом — результат
-	// показывается всплывающим уведомлением (AnswerCallbackQuery.Text), поэтому
-	// без ParseMode и без MarkdownV2-экранирования: Telegram рисует его как
-	// обычный текст. TemplateData у CheckPaymentPaidMsg: Amount (FormatAmount).
+	// Кнопка «Проверить оплату» сама по себе не трогает сообщение со счётом —
+	// pending/failed видно только всплывающим уведомлением (AnswerCallbackQuery.Text),
+	// поэтому без ParseMode и без MarkdownV2-экранирования: Telegram рисует его
+	// как обычный текст. TemplateData у CheckPaymentPaidMsg: Amount — не
+	// FormatAmount, а простое "%.2f" (для тоста, а не для MarkdownV2-сообщения).
 	CheckPaymentPendingMsg = "CheckPaymentPendingMsg"
 	CheckPaymentPaidMsg    = "CheckPaymentPaidMsg"
 	CheckPaymentFailedMsg  = "CheckPaymentFailedMsg"
+	// ParseMode=MarkdownV2. TemplateData: Amount (FormatAmount). В отличие от
+	// CheckPaymentPaidMsg выше — это уже правка самого сообщения со счётом
+	// (RefillInvoiceMsg -> RefillPaidMsg) при подтверждённой оплате, кнопки
+	// "Оплатить"/"Проверить оплату" при этом убираются: платить/проверять
+	// больше нечего.
+	RefillPaidMsg = "RefillPaidMsg"
 	// Без ParseMode. Ошибка при обращении к мерчанту по кнопке "Проверить оплату".
 	RefillCheckErrorMsg = "RefillCheckErrorMsg"
 	// Без ParseMode.

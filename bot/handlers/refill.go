@@ -161,12 +161,13 @@ func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update
 
 // CheckPaymentHandler — кнопка «Проверить оплату» под счётом. Вебхук мерчанта
 // остаётся основным путём подтверждения; это подстраховка на случай, если он
-// ещё не пришёл или потерялся (см. ReplenishmentService.CheckInvoice).
-// Само сообщение со счётом не трогаем — ни текст, ни кнопки: результат
-// показываем только всплывающим уведомлением поверх экрана (AnswerCallbackQuery,
-// см. AnswerCallback — CheckPaymentCallbackPrefix там как раз исключён из
-// автоматического пустого ack ради этого). Кнопки должны остаться рабочими и
-// после "оплачено": пользователь мог оплатить ещё раз по ошибке или мимо кассы.
+// ещё не пришёл или потерялся (см. ReplenishmentService.CheckInvoice). Пока
+// счёт pending или проверка не удалась, само сообщение не трогаем — только
+// всплывающее уведомление (AnswerCallbackQuery, см. AnswerCallback —
+// CheckPaymentCallbackPrefix там исключён из автоматического пустого ack ради
+// этого), кнопки остаются рабочими. При подтверждённой оплате — наоборот:
+// это финальное состояние, и карточка меняется на "Баланс пополнен" с уже
+// убранными кнопками (платить/проверять больше нечего).
 func (h *Handlers) CheckPaymentHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
 	chatID, ok := utils.CallbackChatID(update)
 	if !ok {
@@ -203,7 +204,21 @@ func (h *Handlers) CheckPaymentHandler(ctx context.Context, b *bot.Bot, update *
 
 	switch status {
 	case domain.ReplenishmentStatusPaid:
-		answer(texts.T(user.Language, texts.CheckPaymentPaidMsg, map[string]any{"Amount": utils.FormatAmount(amount)}))
+		// Тост — не MarkdownV2 (Telegram не парсит его вообще), поэтому здесь
+		// "%.2f" напрямую, а не utils.FormatAmount: та экранирует точку под
+		// MarkdownV2, и в простом тексте это "\." виднелось бы буквально.
+		answer(texts.T(user.Language, texts.CheckPaymentPaidMsg, map[string]any{"Amount": fmt.Sprintf("%.2f", amount)}))
+		if _, messageID, editOK := utils.CallbackTarget(update); editOK {
+			if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
+				ChatID:      chatID,
+				MessageID:   messageID,
+				Text:        texts.T(user.Language, texts.RefillPaidMsg, map[string]any{"Amount": utils.FormatAmount(amount)}),
+				ParseMode:   models.ParseModeMarkdown,
+				ReplyMarkup: emptyInlineKeyboard,
+			}); err != nil {
+				h.log.Errorf("CheckPaymentHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
+			}
+		}
 	case domain.ReplenishmentStatusFailed, domain.ReplenishmentStatusCancelled:
 		answer(texts.T(user.Language, texts.CheckPaymentFailedMsg, nil))
 	default:
