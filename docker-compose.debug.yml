@@ -1,3 +1,14 @@
+# Кросс-origin дефолты (фронт на :3000, бэк на :8080 — не одно и то же
+# происхождение, в отличие от прод-стека за caddy): config.New() валидирует
+# эти три у каждого Go-бинарника независимо от того, читает ли их конкретно
+# он, так что все четыре нуждаются в них, не только admin-backend.
+# PAYMENTS_BACKEND_URL — не localhost: с точки зрения контейнера-получателя
+# вебхука "localhost" — это он сам, колбэк никогда бы не пришёл.
+x-debug-urls: &debug-urls
+  ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-http://localhost:3000}
+  ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-http://localhost:3000,http://127.0.0.1:3000}
+  PAYMENTS_BACKEND_URL: ${PAYMENTS_BACKEND_URL:-http://payments-backend:8081}
+
 services:
   migrate:
     build:
@@ -8,6 +19,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      <<: *debug-urls
     depends_on:
       db:
         condition: service_healthy
@@ -24,6 +37,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      <<: *debug-urls
     ports:
       - "${BOT_METRICS_PORT:-9100}:${BOT_METRICS_PORT:-9100}"
     depends_on:
@@ -46,6 +61,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      <<: *debug-urls
     ports:
       - "${ADMIN_PANEL_BACKEND_PORT:-8080}:${ADMIN_PANEL_BACKEND_PORT:-8080}"
       - "${ADMIN_METRICS_PORT:-9101}:${ADMIN_METRICS_PORT:-9101}"
@@ -69,6 +86,8 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      <<: *debug-urls
     ports:
       - "${PAYMENTS_BACKEND_PORT:-8081}:${PAYMENTS_BACKEND_PORT:-8081}"
       - "${PAYMENTS_METRICS_PORT:-9102}:${PAYMENTS_METRICS_PORT:-9102}"

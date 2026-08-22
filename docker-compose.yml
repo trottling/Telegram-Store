@@ -5,24 +5,25 @@ x-logging: &default-logging
       max-size: "10m"
       max-file: "3"
 
-# config.New() валидирует ADMIN_PANEL_FRONTEND_URL/CORS_ORIGIN у каждого
-# Go-бинарника (migrate/bot/admin-backend/payments-backend) независимо от
-# того, читает ли конкретно этот бинарник поле — а в проде оба всегда равны
-# https://$DOMAIN_NAME (один хост на всё, см. Caddyfile). Чтобы не держать
-# в .env три одинаковые строки, если переменная там не задана явно —
-# подставляется https://${DOMAIN_NAME}; явное значение в .env, как и раньше,
-# имеет приоритет.
+# config.New() валидирует ADMIN_PANEL_FRONTEND_URL/CORS_ORIGIN/PAYMENTS_BACKEND_URL
+# у каждого Go-бинарника (migrate/bot/admin-backend/payments-backend)
+# независимо от того, читает ли конкретно этот бинарник поле — а в проде все
+# три всегда указывают на один хост (см. Caddyfile). Наружу торчит только
+# DOMAIN_NAME:PUBLIC_PORT — всё остальное (порты admin-backend/bot/
+# payments-backend) резолвится caddy изнутри сети, наружу никогда не смотрит.
+# Явное значение в .env, как и раньше, имеет приоритет над этой подстановкой.
 #
-# ${PUBLIC_PORT:+:${PUBLIC_PORT}} — порт дописывается, только если PUBLIC_PORT
-# вообще задан: пустой (по умолчанию) даёт обычный https://domain без :443,
-# что важно для CORS (браузер не шлёт :443 в Origin для порта по умолчанию —
-# https://domain:443 никогда не совпал бы). Нужен, когда 443 на VPS занят
-# чем-то посторонним (например, свой Xray/VPN) — тогда PUBLIC_PORT=8443 (или
-# любой другой свободный порт) переносит сюда весь публичный трафик магазина,
-# см. PUBLIC_PORT в .env.example.
-x-admin-panel-urls: &admin-panel-urls
-  ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}}
-  ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}}
+# PUBLIC_PORT дописывается всегда (дефолт в .env.example — 443, обычный
+# случай); :443 в URL безопасен и для CORS — admin_backend/middleware.CORS
+# сравнивает origin'ы с нормализацией порта по умолчанию для схемы, а не
+# байт-в-байт, так что "https://domain:443" и "https://domain" от браузера
+# считаются одним и тем же origin'ом. Менять PUBLIC_PORT нужно, только если
+# 443 на сервере занят чем-то посторонним (например, свой Xray/VPN) — тогда
+# весь публичный трафик магазина переезжает на новый порт одной строкой в .env.
+x-public-urls: &public-urls
+  ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
+  ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
+  PAYMENTS_BACKEND_URL: ${PAYMENTS_BACKEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/pay}
 
 # Явные публичные DNS вместо того, что Docker унаследует из /etc/resolv.conf
 # хоста. На части VPS (Ubuntu + systemd-resolved без ожидаемого симлинка)
@@ -54,7 +55,7 @@ services:
       - path: .env
         required: true
     environment:
-      <<: *admin-panel-urls
+      <<: *public-urls
     depends_on:
       db:
         condition: service_healthy
@@ -74,12 +75,12 @@ services:
       - path: .env
         required: true
     environment:
-      <<: *admin-panel-urls
+      <<: *public-urls
       # Домен и caddy уже есть — переключаем бота на вебхуки, если
       # BOT_WEBHOOK_URL не задан явно (см. config.BotWebhookConfig,
       # bot.TelegramBot.Start). docker-compose.debug.yml этот блок не
       # получает и остаётся на long polling — там нет ни домена, ни https.
-      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}/bot}
+      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/bot}
     depends_on:
       db:
         condition: service_healthy
@@ -104,7 +105,7 @@ services:
       - path: .env
         required: true
     environment:
-      <<: *admin-panel-urls
+      <<: *public-urls
     # порт наружу не пробрасываем — снаружи торчит только caddy, до admin-backend
     # он достаёт по имени сервиса внутри public-network
     depends_on:
@@ -131,7 +132,7 @@ services:
       - path: .env
         required: true
     environment:
-      <<: *admin-panel-urls
+      <<: *public-urls
     # порт наружу не пробрасываем — вебхуки мерчантов идут через caddy (путь /pay на $DOMAIN_NAME)
     depends_on:
       db:
@@ -156,7 +157,7 @@ services:
       context: ./admin_frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-https://${DOMAIN_NAME}}
+        VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
     container_name: telegram-store-admin-frontend
     # порт наружу не пробрасываем — статику отдаёт caddy (путь / на $DOMAIN_NAME)
     restart: unless-stopped
@@ -177,12 +178,6 @@ services:
     env_file:
       - path: .env
         required: true
-    environment:
-      # Пусто по умолчанию — Caddyfile слушает {$DOMAIN_NAME} без явного
-      # порта, что означает 443. Если 443 на хосте занят чем-то посторонним
-      # (см. PUBLIC_PORT в .env.example), сюда попадает ":8443" и т.п., и
-      # Caddyfile дописывает это и к адресу сайта, и к редиректу на /start.
-      PUBLIC_PORT_SUFFIX: ${PUBLIC_PORT:+:${PUBLIC_PORT}}
     ports:
       - "80:80"
       - "${PUBLIC_PORT:-443}:${PUBLIC_PORT:-443}"
@@ -355,7 +350,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       # Grafana сама объявляет свои роуты под /stats/ и ожидает, что Caddy
       # проксирует путь как есть, не срезая префикс — см. Caddyfile.
-      GF_SERVER_ROOT_URL: https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}/stats/
+      GF_SERVER_ROOT_URL: https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/stats/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}

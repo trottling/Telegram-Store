@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -18,12 +19,28 @@ import (
 // хватает и одной записи в интервал.
 const rejectedOriginLogInterval = 10 * time.Second
 
+// normalizeOrigin убирает порт по умолчанию для схемы (:443 у https, :80 у
+// http) перед сравнением: браузер никогда не шлёт его в заголовке Origin,
+// даже если PUBLIC_PORT=443 явно прописан в ADMIN_PANEL_CORS_ORIGIN (см.
+// .env.example) — без этой нормализации "https://domain:443" в конфиге
+// никогда бы не совпал с реальным "https://domain" от браузера.
+func normalizeOrigin(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return raw
+	}
+	if (u.Scheme == "https" && u.Port() == "443") || (u.Scheme == "http" && u.Port() == "80") {
+		u.Host = u.Hostname()
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 // CORS разрешает список origin'ов из ADMIN_PANEL_CORS_ORIGIN (через запятую).
 func CORS(allowedOrigins string, log *zap.SugaredLogger) gin.HandlerFunc {
 	allowed := make(map[string]struct{})
 	for o := range strings.SplitSeq(allowedOrigins, ",") {
 		if o = strings.TrimSpace(o); o != "" {
-			allowed[o] = struct{}{}
+			allowed[normalizeOrigin(o)] = struct{}{}
 		}
 	}
 	log.Infow("admin_backend: CORS configured", "allowed_origins", allowedOrigins)
@@ -36,7 +53,7 @@ func CORS(allowedOrigins string, log *zap.SugaredLogger) gin.HandlerFunc {
 
 	return cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
-			if _, ok := allowed[origin]; ok {
+			if _, ok := allowed[normalizeOrigin(origin)]; ok {
 				return true
 			}
 

@@ -5,11 +5,15 @@
 #   /pay/*       -> payments-backend (handle_path режет /pay, дальше уходит
 #                   /api/webhooks/... как есть — payments_backend его и ждёт;
 #                   внешний webhook-URL получается вида .../pay/api/webhooks/crystalpay)
-#   /bot/*       -> bot (приём вебхуков Telegram, см. BOT_WEBHOOK_URL; путь
-#                   не важен, сам хендлер его не разбирает — handle_path чисто
-#                   для единообразия с /pay)
-#   /stats/*     -> grafana (путь НЕ режем — Grafana сама объявляет свои роуты
-#                   под /stats/, см. GF_SERVER_SERVE_FROM_SUB_PATH в docker-compose.yml)
+#   /bot, /bot/* -> bot (приём вебхуков Telegram, см. BOT_WEBHOOK_URL; путь
+#                   не важен, сам хендлер его не разбирает)
+#   /stats,      -> grafana (путь НЕ режем — Grafana сама объявляет свои роуты
+#   /stats/*        под /stats/, см. GF_SERVER_SERVE_FROM_SUB_PATH в docker-compose.yml)
+# И /bot, и /stats матчатся именованным матчером на два паттерна сразу
+# ("/x" и "/x/*") — вызывающая сторона (Telegram, кнопка бота) бьёт ровно в
+# голый путь без хвостового слэша, а glob "/x/*" один его не ловит (нужен
+# буквальный "/" перед *); handle_path тут не подходит — его shorthand
+# принимает только один путь-аргумент, потому явный path-матчер + handle.
 # Один домен — один A-запись/сертификат вместо четырёх, и то, что раньше было
 # кросс-origin (admin-frontend -> admin-backend), стало same-origin: CORS у
 # admin_backend в проде больше не участвует (остаётся только ради
@@ -20,8 +24,10 @@
 # {$VAR:default} — синтаксис дефолта у Caddy через одинарное двоеточие,
 # не через ":-" как в shell/docker-compose.
 #
-# PUBLIC_PORT_SUFFIX (см. docker-compose.yml, сервис caddy) — пусто по
-# умолчанию (443 неявно), либо ":8443" и т.п., если 443 на хосте занят
+# PUBLIC_PORT (.env, дефолт 443 — обычный случай) дописывается к адресу сайта
+# всегда, безусловно: явный ":443" не проблема ни для TLS, ни для CORS (см.
+# admin_backend/middleware.CORS — сравнение с нормализацией порта по
+# умолчанию для схемы). Менять нужно, только если 443 на хосте занят
 # посторонним сервисом (свой прокси/VPN — в отличие от admin-backend/bot,
 # которые всё равно достаются caddy по имени контейнера внутри сети, caddy —
 # единственный, кто реально борется за host-порт). ACME HTTP-01 всё равно
@@ -44,7 +50,7 @@
 	}
 }
 
-{$DOMAIN_NAME}{$PUBLIC_PORT_SUFFIX} {
+{$DOMAIN_NAME}:{$PUBLIC_PORT:443} {
 	import common_headers
 
 	# API админ-панели. Отдаёт только JSON, поэтому ресурсы ему не нужны вовсе —
@@ -66,11 +72,7 @@
 		reverse_proxy payments-backend:{$PAYMENTS_BACKEND_PORT:8081}
 	}
 
-	# Приём вебхуков Telegram (BOT_WEBHOOK_URL=https://$DOMAIN_NAME/bot).
-	# Оба паттерна обязательны: Telegram шлёт POST ровно на "/bot", без
-	# хвостового слэша, а "/bot/*" его не матчит (глоб требует буквальный "/"
-	# перед *) — без "/bot" отдельным элементом запрос проваливался в
-	# catch-all handle{} ниже, на admin-frontend, и получал 405 от nginx.
+	# Приём вебхуков Telegram (BOT_WEBHOOK_URL=https://$DOMAIN_NAME:$PUBLIC_PORT/bot).
 	# Вызывающая сторона — сервер Telegram, не браузер; секрет проверяет сам
 	# bot (X-Telegram-Bot-Api-Secret-Token, см. bot.WithWebhookSecretToken),
 	# заголовки тут ни на что не влияют.
@@ -106,7 +108,13 @@
 	# не как iframe внутри своей страницы, так что этот заголовок их не
 	# касается вовсе. Список origin'ов не проверялся вживую на настоящем
 	# деплое — при проблеме с открытием в Telegram Web проверить консоль.
-	handle /stats/* {
+	#
+	# @stats — тот же приём, что у @bot выше: кнопка "Статистика"
+	# (keyboards.StatsURL) ведёт на голый "/stats" без хвостового слэша, а
+	# "/stats/*" такое не матчит — без второго паттерна запрос проваливался в
+	# catch-all handle{} ниже, и вместо Grafana открывалась админ-панель.
+	@stats path /stats /stats/*
+	handle @stats {
 		header {
 			Referrer-Policy "no-referrer"
 			Content-Security-Policy "frame-ancestors https://web.telegram.org"
@@ -118,7 +126,7 @@
 
 			@denied status 401
 			handle_response @denied {
-				redir * https://{$DOMAIN_NAME}{$PUBLIC_PORT_SUFFIX}/start?to=stats
+				redir * https://{$DOMAIN_NAME}:{$PUBLIC_PORT:443}/start?to=stats
 			}
 		}
 
