@@ -24,22 +24,22 @@ jobs:
         include:
           - name: migrate
             context: .
-            dockerfile: Dockerfile
+            dockerfile: cmd/Dockerfile
             target: migrate
             build-args: ""
           - name: bot
             context: .
-            dockerfile: Dockerfile
+            dockerfile: cmd/Dockerfile
             target: bot
             build-args: ""
           - name: admin-backend
             context: .
-            dockerfile: Dockerfile
+            dockerfile: cmd/Dockerfile
             target: admin_backend
             build-args: ""
           - name: payments-backend
             context: .
-            dockerfile: Dockerfile
+            dockerfile: cmd/Dockerfile
             target: payments_backend
             build-args: ""
           - name: admin-frontend

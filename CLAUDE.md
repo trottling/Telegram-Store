@@ -52,7 +52,7 @@ Frontend (`admin_frontend/`, separate npm project, not part of the Go module):
 ```bash
 cd admin_frontend && npm install
 npm run dev      # Vite dev server on :3000, needs VITE_API_BASE_URL pointed at a running admin_backend (defaults to http://localhost:8080)
-npm run build    # tsc -b + vite build -> dist/ — what admin_frontend/Dockerfile bundles into nginx
+npm run build    # tsc -b + vite build -> dist/ — what admin_frontend/Dockerfile's dist-export target exports, and prod caddy serves directly (see Caddyfile)
 ```
 
 ### Local configuration

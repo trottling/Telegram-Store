@@ -48,7 +48,7 @@ services:
     image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-migrate:${IMAGE_TAG:-latest}
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: cmd/Dockerfile
       target: migrate
     container_name: telegram-store-migrate
     env_file:
@@ -68,7 +68,7 @@ services:
     image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-bot:${IMAGE_TAG:-latest}
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: cmd/Dockerfile
       target: bot
     container_name: telegram-store-bot
     env_file:
@@ -98,7 +98,7 @@ services:
     image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-admin-backend:${IMAGE_TAG:-latest}
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: cmd/Dockerfile
       target: admin_backend
     container_name: telegram-store-admin-backend
     env_file:
@@ -125,7 +125,7 @@ services:
     image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-payments-backend:${IMAGE_TAG:-latest}
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: cmd/Dockerfile
       target: payments_backend
     container_name: telegram-store-payments-backend
     env_file:
