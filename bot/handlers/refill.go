@@ -162,10 +162,24 @@ func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update
 // CheckPaymentHandler — кнопка «Проверить оплату» под счётом. Вебхук мерчанта
 // остаётся основным путём подтверждения; это подстраховка на случай, если он
 // ещё не пришёл или потерялся (см. ReplenishmentService.CheckInvoice).
+// Само сообщение со счётом не трогаем — ни текст, ни кнопки: результат
+// показываем только всплывающим уведомлением поверх экрана (AnswerCallbackQuery,
+// см. AnswerCallback — CheckPaymentCallbackPrefix там как раз исключён из
+// автоматического пустого ack ради этого). Кнопки должны остаться рабочими и
+// после "оплачено": пользователь мог оплатить ещё раз по ошибке или мимо кассы.
 func (h *Handlers) CheckPaymentHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID, messageID, ok := utils.CallbackTarget(update)
+	chatID, ok := utils.CallbackChatID(update)
 	if !ok {
 		return
+	}
+
+	answer := func(text string) {
+		if _, err := b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: update.CallbackQuery.ID,
+			Text:            text,
+		}); err != nil {
+			h.log.Errorf("CheckPaymentHandler: failed to answer callback query %s: %v", update.CallbackQuery.ID, err)
+		}
 	}
 
 	replenishmentID, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
@@ -183,31 +197,16 @@ func (h *Handlers) CheckPaymentHandler(ctx context.Context, b *bot.Bot, update *
 	status, amount, err := h.replenishmentService.CheckInvoice(ctx, chatID, replenishmentID)
 	if err != nil {
 		h.log.Errorw("CheckPaymentHandler: check failed", "error", err, "telegram_id", chatID, "replenishment_id", replenishmentID)
-		if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
-			ChatID: chatID, MessageID: messageID,
-			Text: texts.T(user.Language, texts.RefillCheckErrorMsg, nil),
-		}); err != nil {
-			h.log.Errorf("CheckPaymentHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
-		}
+		answer(texts.T(user.Language, texts.RefillCheckErrorMsg, nil))
 		return
 	}
 
-	params := &bot.EditMessageTextParams{ChatID: chatID, MessageID: messageID, ParseMode: models.ParseModeMarkdown}
 	switch status {
 	case domain.ReplenishmentStatusPaid:
-		params.Text = texts.T(user.Language, texts.RefillPaidMsg, map[string]any{"Amount": utils.FormatAmount(amount)})
-		params.ReplyMarkup = emptyInlineKeyboard
+		answer(texts.T(user.Language, texts.CheckPaymentPaidMsg, map[string]any{"Amount": utils.FormatAmount(amount)}))
 	case domain.ReplenishmentStatusFailed, domain.ReplenishmentStatusCancelled:
-		params.Text = texts.T(user.Language, texts.RefillFailedMsg, nil)
-		params.ReplyMarkup = emptyInlineKeyboard
+		answer(texts.T(user.Language, texts.CheckPaymentFailedMsg, nil))
 	default:
-		// ReplyMarkup не трогаем — кнопки "Оплатить"/"Проверить оплату" остаются
-		// как есть, ссылку на оплату CheckInvoice не хранит и не возвращает.
-		params.Text = texts.T(user.Language, texts.RefillInvoiceMsg, map[string]any{"Amount": utils.FormatAmount(amount)}) +
-			texts.T(user.Language, texts.RefillStillPendingMsg, nil)
-	}
-
-	if _, err = b.EditMessageText(ctx, params); err != nil {
-		h.log.Errorf("CheckPaymentHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
+		answer(texts.T(user.Language, texts.CheckPaymentPendingMsg, nil))
 	}
 }
