@@ -17,18 +17,31 @@ const {Text} = Typography
 //     отдельного моста для Grafana не нужно, она просто позади того же токена.
 // Вне Telegram initData нет вообще — тут не форма логина, а тупик с понятной
 // причиной; отдельной страницы с ручным вводом кода больше не существует.
+//
+// to=admin пропускает обмен, если сессия уже валидна (AuthProvider уже
+// подтвердил токен из localStorage через GET /api/auth/me) — иначе каждый
+// повторный тап по кнопке в Telegram бил бы по POST /api/auth/exchange, а он
+// под RateLimitExchange (10/мин на IP): десяток открытий панели подряд —
+// и админ на минуту заперт снаружи собственной панели. to=stats всегда бьёт
+// в обмен заново — session-cookie отдельно от localStorage-токена, и дешевле
+// гарантированно освежить её, чем рисковать редиректной петлёй со /stats.
 export function StartPage() {
     const [params] = useSearchParams()
     const to = params.get('to') === 'stats' ? 'stats' : 'admin'
     const initData = useRawInitData()
-    const {login} = useAuth()
+    const {admin, loading, login} = useAuth()
     const navigate = useNavigate()
     const [error, setError] = useState<string | null>(null)
     const started = useRef(false)
 
     useEffect(() => {
-        if (started.current) return
+        if (loading || started.current) return
         started.current = true
+
+        if (to === 'admin' && admin) {
+            navigate('/categories', {replace: true})
+            return
+        }
 
         if (!initData) {
             setError('Откройте эту ссылку из Telegram — отправьте боту /admin.')
@@ -44,7 +57,7 @@ export function StartPage() {
                 }
             })
             .catch(() => setError('Не удалось войти: доступ только для администраторов.'))
-    }, [initData, login, navigate, to])
+    }, [loading, admin, initData, login, navigate, to])
 
     if (error) {
         return (
