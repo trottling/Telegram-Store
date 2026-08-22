@@ -4,6 +4,11 @@
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
+  # По умолчанию info — и тогда в лог попадает каждый цикл переоткрытия
+  # позиций/переопроса Docker-контейнеров. warn оставляет то, что реально
+  # стоит увидеть, не влияя на пересылку логов остальных контейнеров — это
+  # отдельный конвейер (см. loki-config.yml, тот же приём).
+  log_level: warn
 
 positions:
   filename: /tmp/positions.yaml

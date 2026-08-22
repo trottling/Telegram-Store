@@ -16,6 +16,19 @@ x-admin-panel-urls: &admin-panel-urls
   ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-https://${DOMAIN_NAME}}
   ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-https://${DOMAIN_NAME}}
 
+# Явные публичные DNS вместо того, что Docker унаследует из /etc/resolv.conf
+# хоста. На части VPS (Ubuntu + systemd-resolved без ожидаемого симлинка)
+# туда попадает "127.0.0.53" как есть — это стаб-резолвер хоста, слушающий
+# только на самом хосте, а не внутри сетевого namespace контейнера, и любой
+# внешний DNS-запрос (ACME у Let's Encrypt/ZeroSSL, Telegram API, платёжные
+# провайдеры, S3) падает "connection refused". Резолв контейнерных имён
+# (db/redis/...) эту переменную не использует — тот идёт через встроенный
+# Docker DNS (127.0.0.11) независимо от неё.
+x-public-dns: &public-dns
+  dns:
+    - 1.1.1.1
+    - 8.8.8.8
+
 services:
   # Одноразовый прогон миграций + бутстрап root-admin, затем выход.
   migrate:
@@ -70,7 +83,7 @@ services:
     networks:
       - public-network
       - backend-network
-    <<: *default-logging
+    <<: [*default-logging, *public-dns]
 
   admin-backend:
     image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-admin-backend:${IMAGE_TAG:-latest}
@@ -123,7 +136,7 @@ services:
     networks:
       - public-network
       - backend-network
-    <<: *default-logging
+    <<: [*default-logging, *public-dns]
 
   admin-frontend:
     # Образ из GHCR собран с пустым VITE_API_BASE_URL (относительный /api/...,
@@ -172,7 +185,7 @@ services:
     restart: unless-stopped
     networks:
       - public-network
-    <<: *default-logging
+    <<: [*default-logging, *public-dns]
 
   db:
     image: postgres:18-alpine
@@ -237,7 +250,7 @@ services:
     networks:
       - backend-network
       - public-network
-    <<: *default-logging
+    <<: [*default-logging, *public-dns]
 
   # Метрики бота (см. BOT_METRICS_PORT) — сам себя тоже скрейпит, см.
   # monitoring/prometheus/prometheus.yml. Наружу не торчит — доступ только
@@ -303,6 +316,10 @@ services:
       - path: .env
         required: true
     environment:
+      # По умолчанию info — и тогда в лог попадает вообще любой рутинный запрос
+      # (datasource healthcheck, session cleanup и т.п.) на уровне HTTP-сервера
+      # Grafana. warn оставляет то, что реально стоит увидеть.
+      GF_LOG_LEVEL: warn
       GF_AUTH_PROXY_ENABLED: "true"
       GF_AUTH_PROXY_HEADER_NAME: X-WEBAUTH-USER
       GF_AUTH_PROXY_HEADER_PROPERTY: username
