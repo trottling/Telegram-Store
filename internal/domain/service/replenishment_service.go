@@ -35,6 +35,12 @@ type ReplenishmentService interface {
 	ListUserReplenishments(ctx context.Context, telegramID int64, offset, limit int) ([]models.Replenishment, error)
 	CountUserReplenishments(ctx context.Context, telegramID int64) (int64, error)
 
+	// GetUserReplenishment — одна запись по id, для карточки в истории (см.
+	// bot/handlers/replenishments.go). ErrReplenishmentNotFound и на
+	// несуществующий id, и на чужой — тот же приём, что в CheckInvoice, чтобы
+	// не подтверждать самим фактом ошибки существование чужого id.
+	GetUserReplenishment(ctx context.Context, telegramID int64, id int64) (*models.Replenishment, error)
+
 	// SumUserMerchantAmount — сколько оплачено юзеру от одного мерчанта
 	// (используется для "всего начислено" в реферальной статистике, Merchant=referral).
 	SumUserMerchantAmount(ctx context.Context, telegramID int64, merchant models.Merchant) (float64, error)

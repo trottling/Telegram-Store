@@ -214,6 +214,17 @@ func (s *ReplenishmentSrv) ListUserReplenishments(ctx context.Context, telegramI
 	return s.replenishmentRepo.ListByUserID(ctx, telegramID, offset, limit)
 }
 
+func (s *ReplenishmentSrv) GetUserReplenishment(ctx context.Context, telegramID int64, id int64) (*models.Replenishment, error) {
+	replenishment, err := s.replenishmentRepo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if replenishment.UserID != telegramID {
+		return nil, domainerrors.ErrReplenishmentNotFound
+	}
+	return replenishment, nil
+}
+
 func (s *ReplenishmentSrv) CountUserReplenishments(ctx context.Context, telegramID int64) (int64, error) {
 	return s.replenishmentRepo.CountByUserID(ctx, telegramID)
 }

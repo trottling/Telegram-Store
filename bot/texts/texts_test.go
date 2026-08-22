@@ -13,7 +13,7 @@ var allMessageIDs = []string{
 	ConfirmBtn, PrevPageBtn, NextPageBtn, ProfileRefreshBtn,
 	StartMsg, ProfileMsg, HelpMsg, PurchasesMsg, ProductMsg, CatalogMsg, CategoryMsg,
 	CatalogEmptyMsg, ProductBoughtMsg, PurchaseDetailMsg, PurchasesEmptyMsg, RefillMsg,
-	ReplenishmentsMsg, ReplenishmentsEmptyMsg, ReplenishmentLineMsg,
+	ReplenishmentsMsg, ReplenishmentsEmptyMsg, ReplenishmentInlineBtn, ReplenishmentDetailMsg,
 	ReplenishmentStatusPending, ReplenishmentStatusPaid, ReplenishmentStatusFailed, ReplenishmentStatusCancelled,
 	RefillMerchantPickerMsg,
 	ReferralMsg, ReferralCreditMsg, ReferralUnavailableMsg,

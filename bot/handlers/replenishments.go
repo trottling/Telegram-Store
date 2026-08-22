@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -34,9 +33,8 @@ func (h *Handlers) ReplenishmentsPageHandler(ctx context.Context, b *bot.Bot, up
 	h.renderReplenishments(ctx, b, chatID, int(offset), messageID)
 }
 
-// renderReplenishments: в отличие от покупок, тут нечего раскрывать по тапу
-// (нет выдаваемого товара) — список рисуется одним текстовым блоком, без
-// инлайн-кнопки на строку, только пагинация.
+// renderReplenishments: по кнопке на пополнение, как у покупок — раскрывается
+// по тапу в ReplenishmentDetailHandler.
 func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID int64, offset int, messageID int) {
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
@@ -56,21 +54,12 @@ func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID 
 		return
 	}
 
-	text := texts.T(user.Language, texts.ReplenishmentsEmptyMsg, nil)
-	if len(items) > 0 {
-		lines := make([]string, len(items))
-		for i, r := range items {
-			lines[i] = texts.T(user.Language, texts.ReplenishmentLineMsg, map[string]any{
-				"Amount":   utils.FormatAmount(r.Amount),
-				"Merchant": texts.MerchantName(user.Language, r.Merchant),
-				"Status":   texts.ReplenishmentStatusName(user.Language, r.Status),
-				"Date":     utils.FormatDate(r.CreatedAt),
-			})
-		}
-		text = texts.T(user.Language, texts.ReplenishmentsMsg, nil) + "\n\n" + strings.Join(lines, "\n")
+	text := texts.T(user.Language, texts.ReplenishmentsMsg, nil)
+	if len(items) == 0 {
+		text = texts.T(user.Language, texts.ReplenishmentsEmptyMsg, nil)
 	}
 
-	kb := keyboards.BuildReplenishmentsKb(user.Language, offset, replenishmentsPageSize, total)
+	kb := keyboards.BuildReplenishmentsKb(user.Language, items, offset, replenishmentsPageSize, total)
 
 	if messageID == 0 {
 		if _, err = b.SendMessage(ctx, &bot.SendMessageParams{
@@ -92,5 +81,54 @@ func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID 
 		ReplyMarkup: kb,
 	}); err != nil {
 		h.log.Errorf("renderReplenishments: failed to edit message %d in chat %d: %v", messageID, chatID, err)
+	}
+}
+
+// ReplenishmentDetailHandler открывает карточку одного пополнения — тот же
+// паттерн, что у PurchaseDetailHandler: редактирует список на месте, «назад»
+// возвращает ту же страницу через ReplenishmentsPageHandler.
+func (h *Handlers) ReplenishmentDetailHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
+
+	offset, id, err := utils.ParseReplenishmentDetailCallback(update.CallbackQuery.Data)
+	if err != nil {
+		h.log.Errorf("ReplenishmentDetailHandler: failed to parse callback: %v", err)
+		return
+	}
+
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("ReplenishmentDetailHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
+	r, err := h.replenishmentService.GetUserReplenishment(ctx, chatID, id)
+	if err != nil {
+		h.log.Errorf("ReplenishmentDetailHandler: failed to get replenishment %d for %d: %v", id, chatID, err)
+		return
+	}
+
+	kb := &models.InlineKeyboardMarkup{
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: texts.T(user.Language, texts.BackBtn, nil), CallbackData: utils.BuildReplenishmentsPageCallback(offset)}},
+		},
+	}
+
+	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		ChatID:    chatID,
+		MessageID: messageID,
+		Text: texts.T(user.Language, texts.ReplenishmentDetailMsg, map[string]any{
+			"Amount":   utils.FormatAmount(r.Amount),
+			"Status":   texts.ReplenishmentStatusName(user.Language, r.Status),
+			"Date":     utils.FormatDate(r.CreatedAt),
+			"Merchant": texts.MerchantName(user.Language, r.Merchant),
+		}),
+		ParseMode:   models.ParseModeMarkdown,
+		ReplyMarkup: kb,
+	}); err != nil {
+		h.log.Errorf("ReplenishmentDetailHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
 	}
 }

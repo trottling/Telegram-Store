@@ -45,7 +45,8 @@ RefillMsg = "💰 Balance top-up is currently unavailable"
 
 ReplenishmentsMsg = "💳 Recent top-ups:"
 ReplenishmentsEmptyMsg = "💳 You have no top-ups yet"
-ReplenishmentLineMsg = "{{.Amount}} ₽ \\| {{.Merchant}} \\| {{.Status}} \\| {{.Date}}"
+ReplenishmentInlineBtn = "{{.Status}} {{.Amount}} ₽"
+ReplenishmentDetailMsg = "💰 *{{.Amount}} ₽*\nStatus: {{.Status}}\n🗓{{.Date}}\n🏦 {{.Merchant}}"
 
 ReplenishmentStatusPending = "⏳ Processing"
 ReplenishmentStatusPaid = "✅ Paid"

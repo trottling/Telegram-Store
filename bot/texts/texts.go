@@ -76,10 +76,15 @@ const (
 
 	ReplenishmentsMsg      = "ReplenishmentsMsg"
 	ReplenishmentsEmptyMsg = "ReplenishmentsEmptyMsg"
-	// ParseMode=MarkdownV2. TemplateData: Amount (FormatAmount), Merchant,
-	// Status (оба — свои фиксированные строки без спецсимволов, экранировать
-	// не нужно), Date (FormatDate).
-	ReplenishmentLineMsg = "ReplenishmentLineMsg"
+	// Подпись кнопки в списке "Мои пополнения" (по одной на строку, как у
+	// PurchaseInlineBtn). TemplateData: Status (ReplenishmentStatusEmoji, без
+	// перевода), Amount — простое "%.2f", не FormatAmount: подпись кнопки не
+	// MarkdownV2, экранирование там не нужно и не парсится.
+	ReplenishmentInlineBtn = "ReplenishmentInlineBtn"
+	// Карточка одного пополнения по тапу на кнопку из списка. ParseMode=MarkdownV2.
+	// TemplateData: Amount (FormatAmount), Status/Merchant (готовые строки из
+	// ReplenishmentStatusName/MerchantName, экранировать не нужно), Date (FormatDate).
+	ReplenishmentDetailMsg = "ReplenishmentDetailMsg"
 
 	ReplenishmentStatusPending   = "ReplenishmentStatusPending"
 	ReplenishmentStatusPaid      = "ReplenishmentStatusPaid"

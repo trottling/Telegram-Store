@@ -37,3 +37,17 @@ func ReplenishmentStatusName(lang string, status domain.ReplenishmentStatus) str
 		return string(status)
 	}
 }
+
+// ReplenishmentStatusEmoji — голый эмодзи без текста, для подписи кнопки в
+// списке "Мои пополнения" (ReplenishmentStatusName там избыточен — кнопок
+// на странице до десяти, а не одна). Языка не требует, эмодзи не переводится.
+func ReplenishmentStatusEmoji(status domain.ReplenishmentStatus) string {
+	switch status {
+	case domain.ReplenishmentStatusPaid:
+		return "✅"
+	case domain.ReplenishmentStatusPending:
+		return "⏳"
+	default: // failed, cancelled
+		return "❌"
+	}
+}

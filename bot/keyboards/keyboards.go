@@ -137,10 +137,20 @@ func BuildPurchasesKb(lang string, batches []domain.PurchaseBatchSummary, offset
 	return &models.InlineKeyboardMarkup{InlineKeyboard: rows}
 }
 
-// BuildReplenishmentsKb — только пагинация, без кнопки на строку (нечего
-// раскрывать по тапу — см. комментарий в renderReplenishments).
-func BuildReplenishmentsKb(lang string, offset, limit int, total int64) *models.InlineKeyboardMarkup {
+// BuildReplenishmentsKb — по кнопке на пополнение (эмодзи статуса + сумма,
+// см. ReplenishmentInlineBtn/ReplenishmentStatusEmoji), тот же паттерн, что
+// у BuildPurchasesKb.
+func BuildReplenishmentsKb(lang string, items []domain.Replenishment, offset, limit int, total int64) *models.InlineKeyboardMarkup {
 	rows := make([][]models.InlineKeyboardButton, 0)
+	for _, r := range items {
+		rows = append(rows, []models.InlineKeyboardButton{{
+			Text: texts.T(lang, texts.ReplenishmentInlineBtn, map[string]any{
+				"Status": texts.ReplenishmentStatusEmoji(r.Status),
+				"Amount": fmt.Sprintf("%.2f", r.Amount), // подпись кнопки, не MarkdownV2 — без FormatAmount
+			}),
+			CallbackData: utils.BuildReplenishmentDetailCallback(offset, r.ID),
+		}})
+	}
 
 	var navRow []models.InlineKeyboardButton
 	if offset > 0 {

@@ -8,15 +8,16 @@ import (
 
 // Префиксы callback_data для регистрации хендлеров.
 const (
-	ProductCallbackPrefix            = "product_"
-	BuyCallbackPrefix                = "buy_"
-	BuyQtyCallbackPrefix             = "buyqty_"
-	PurchaseCallbackPrefix           = "purchase_"
-	PurchasesPageCallbackPrefix      = "purchasespage_"
-	CategoryCallbackPrefix           = "category_"
-	RefillMerchantCallbackPrefix     = "refillmerchant_"
-	ReplenishmentsPageCallbackPrefix = "replenishmentspage_"
-	CheckPaymentCallbackPrefix       = "checkpay_"
+	ProductCallbackPrefix             = "product_"
+	BuyCallbackPrefix                 = "buy_"
+	BuyQtyCallbackPrefix              = "buyqty_"
+	PurchaseCallbackPrefix            = "purchase_"
+	PurchasesPageCallbackPrefix       = "purchasespage_"
+	CategoryCallbackPrefix            = "category_"
+	RefillMerchantCallbackPrefix      = "refillmerchant_"
+	ReplenishmentsPageCallbackPrefix  = "replenishmentspage_"
+	CheckPaymentCallbackPrefix        = "checkpay_"
+	ReplenishmentDetailCallbackPrefix = "replenishmentdetail_"
 )
 
 // CatalogRootCallback — без id-суффикса, матчится точно, не через ParseCallbackQuery.
@@ -122,6 +123,35 @@ func ParseBatchCallbackQuery(query string) (offset int, batchID string, err erro
 	offset, err = strconv.Atoi(offsetStr)
 	if err != nil {
 		return 0, "", fmt.Errorf("invalid callback format")
+	}
+	return offset, id, nil
+}
+
+// BuildReplenishmentDetailCallback несёт offset страницы (для кнопки «назад»,
+// как у покупок) и внутренний ID Replenishment — оба числовые, в отличие от
+// батча покупок с UUID, так что достаточно разрезать по "_" один раз.
+func BuildReplenishmentDetailCallback(offset int, id int64) string {
+	return fmt.Sprintf("%s%d_%d", ReplenishmentDetailCallbackPrefix, offset, id)
+}
+
+func ParseReplenishmentDetailCallback(query string) (offset int, id int64, err error) {
+	rest, ok := strings.CutPrefix(query, ReplenishmentDetailCallbackPrefix)
+	if !ok {
+		return 0, 0, fmt.Errorf("invalid callback format")
+	}
+
+	offsetStr, idStr, ok := strings.Cut(rest, "_")
+	if !ok || idStr == "" {
+		return 0, 0, fmt.Errorf("invalid callback format")
+	}
+
+	offset, err = strconv.Atoi(offsetStr)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid callback format")
+	}
+	id, err = strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid callback format")
 	}
 	return offset, id, nil
 }

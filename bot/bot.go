@@ -127,6 +127,7 @@ func New(
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.StartProfileCallback, bot.MatchTypeExact, handler.ProfileCallbackHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.RefillMerchantCallbackPrefix, bot.MatchTypePrefix, handler.RefillMerchantHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReplenishmentsPageCallbackPrefix, bot.MatchTypePrefix, handler.ReplenishmentsPageHandler)
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReplenishmentDetailCallbackPrefix, bot.MatchTypePrefix, handler.ReplenishmentDetailHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.CheckPaymentCallbackPrefix, bot.MatchTypePrefix, handler.CheckPaymentHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.ReferralCloseCallback, bot.MatchTypeExact, handler.ReferralCloseHandler)
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, utils.SettingsLanguageCallback, bot.MatchTypeExact, handler.SettingsLanguageHandler)
