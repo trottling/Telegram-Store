@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	initdata "github.com/telegram-mini-apps/init-data-golang"
@@ -17,12 +18,11 @@ import (
 // initDataTTL — как давно создана initData, если больше - ошибка.
 const initDataExpIn = 24 * time.Hour
 
-// sessionTTL — срок жизни сессии панели после обмена кода.
+// sessionTTL — срок жизни сессии панели после обмена initData.
 const sessionTTL = 24 * time.Hour
 
-// Лимит на обмен кода. Режет автоподбор, а не человека: код 6-значный и живёт
-// 30 секунд, живому админу хватает одной попытки на вход. Атакующему остаётся
-// порядка пяти догадок на срок жизни кода из миллиона возможных.
+// Лимит на обмен initData. Подобрать initData нельзя (её подписывает
+// Telegram) — это защита от злоупотребления самим эндпоинтом, а не от перебора.
 const (
 	exchangeAttemptLimit  = 10
 	exchangeAttemptWindow = time.Minute
@@ -59,7 +59,16 @@ func (s *AdminAuthSrv) ExchangeInitData(ctx context.Context, initData string) (s
 
 	user, err := s.userRepo.GetByID(ctx, telegramID)
 	if err != nil {
-		return "", nil, err
+		// И "такого пользователя нет", и неожиданный сбой репозитория схлопываются
+		// в один и тот же доменный ErrNotAdmin — тот же принцип, что и у
+		// ValidateSession ниже: единственный неаутентифицированный роут в
+		// приложении не должен ни отдавать наружу сырую ошибку БД вместо
+		// доменной, ни давать возможность различить "нет такого Telegram ID" от
+		// "есть, но не админ" через код ответа.
+		if !errors.Is(err, domainerrors.ErrUserNotFound) {
+			s.log.Errorw("admin_auth_service: initData exchange failed to load user", "error", err, "telegram_id", telegramID)
+		}
+		return "", nil, domainerrors.ErrNotAdmin
 	}
 	if !user.IsAdmin() {
 		return "", nil, domainerrors.ErrNotAdmin
