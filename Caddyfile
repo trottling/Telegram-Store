@@ -19,6 +19,13 @@
 #
 # {$VAR:default} — синтаксис дефолта у Caddy через одинарное двоеточие,
 # не через ":-" как в shell/docker-compose.
+#
+# PUBLIC_PORT_SUFFIX (см. docker-compose.yml, сервис caddy) — пусто по
+# умолчанию (443 неявно), либо ":8443" и т.п., если 443 на хосте занят
+# посторонним сервисом (свой прокси/VPN — в отличие от admin-backend/bot,
+# которые всё равно достаются caddy по имени контейнера внутри сети, caddy —
+# единственный, кто реально борется за host-порт). ACME HTTP-01 всё равно
+# идёт по 80, его PUBLIC_PORT не трогает.
 {
 	email {$ACME_EMAIL}
 }
@@ -37,7 +44,7 @@
 	}
 }
 
-{$DOMAIN_NAME} {
+{$DOMAIN_NAME}{$PUBLIC_PORT_SUFFIX} {
 	import common_headers
 
 	# API админ-панели. Отдаёт только JSON, поэтому ресурсы ему не нужны вовсе —
@@ -106,7 +113,7 @@
 
 			@denied status 401
 			handle_response @denied {
-				redir * https://{$DOMAIN_NAME}/start?to=stats
+				redir * https://{$DOMAIN_NAME}{$PUBLIC_PORT_SUFFIX}/start?to=stats
 			}
 		}
 

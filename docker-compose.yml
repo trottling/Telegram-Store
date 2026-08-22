@@ -12,9 +12,17 @@ x-logging: &default-logging
 # в .env три одинаковые строки, если переменная там не задана явно —
 # подставляется https://${DOMAIN_NAME}; явное значение в .env, как и раньше,
 # имеет приоритет.
+#
+# ${PUBLIC_PORT:+:${PUBLIC_PORT}} — порт дописывается, только если PUBLIC_PORT
+# вообще задан: пустой (по умолчанию) даёт обычный https://domain без :443,
+# что важно для CORS (браузер не шлёт :443 в Origin для порта по умолчанию —
+# https://domain:443 никогда не совпал бы). Нужен, когда 443 на VPS занят
+# чем-то посторонним (например, свой Xray/VPN) — тогда PUBLIC_PORT=8443 (или
+# любой другой свободный порт) переносит сюда весь публичный трафик магазина,
+# см. PUBLIC_PORT в .env.example.
 x-admin-panel-urls: &admin-panel-urls
-  ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-https://${DOMAIN_NAME}}
-  ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-https://${DOMAIN_NAME}}
+  ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}}
+  ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}}
 
 # Явные публичные DNS вместо того, что Docker унаследует из /etc/resolv.conf
 # хоста. На части VPS (Ubuntu + systemd-resolved без ожидаемого симлинка)
@@ -71,7 +79,7 @@ services:
       # BOT_WEBHOOK_URL не задан явно (см. config.BotWebhookConfig,
       # bot.TelegramBot.Start). docker-compose.debug.yml этот блок не
       # получает и остаётся на long polling — там нет ни домена, ни https.
-      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-https://${DOMAIN_NAME}/bot}
+      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}/bot}
     depends_on:
       db:
         condition: service_healthy
@@ -169,9 +177,15 @@ services:
     env_file:
       - path: .env
         required: true
+    environment:
+      # Пусто по умолчанию — Caddyfile слушает {$DOMAIN_NAME} без явного
+      # порта, что означает 443. Если 443 на хосте занят чем-то посторонним
+      # (см. PUBLIC_PORT в .env.example), сюда попадает ":8443" и т.п., и
+      # Caddyfile дописывает это и к адресу сайта, и к редиректу на /start.
+      PUBLIC_PORT_SUFFIX: ${PUBLIC_PORT:+:${PUBLIC_PORT}}
     ports:
       - "80:80"
-      - "443:443"
+      - "${PUBLIC_PORT:-443}:${PUBLIC_PORT:-443}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
@@ -235,6 +249,12 @@ services:
     build:
       context: ./backup
       dockerfile: Dockerfile
+    # crond из dcron сам себя переводит в отдельную группу процессов (setpgid)
+    # при старте — ядро отказывает в этом PID 1 контейнера на части хостов
+    # ("setpgid: Operation not permitted", вечный restart-loop). init: true
+    # подставляет перед CMD настоящий init (tini) как PID 1, crond после этого
+    # получает нормальный PID 2 и спокойно себя переводит в группу.
+    init: true
     container_name: telegram-store-backup
     env_file:
       - path: .env
@@ -328,7 +348,7 @@ services:
       GF_USERS_ALLOW_SIGN_UP: "false"
       # Grafana сама объявляет свои роуты под /stats/ и ожидает, что Caddy
       # проксирует путь как есть, не срезая префикс — см. Caddyfile.
-      GF_SERVER_ROOT_URL: https://${DOMAIN_NAME}/stats/
+      GF_SERVER_ROOT_URL: https://${DOMAIN_NAME}${PUBLIC_PORT:+:${PUBLIC_PORT}}/stats/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
