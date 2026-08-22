@@ -122,7 +122,13 @@
 
 		forward_auth admin-backend:{$ADMIN_PANEL_BACKEND_PORT:8080} {
 			uri /api/auth/me
-			copy_headers X-Admin-Username
+			# Без ">" copy_headers копирует заголовок под тем же именем —
+			# admin_backend отдаёт X-Admin-Username, а Grafana в режиме
+			# auth.proxy слушает GF_AUTH_PROXY_HEADER_NAME=X-WEBAUTH-USER
+			# (docker-compose.yml), так что переименование обязательно.
+			copy_headers {
+				X-Admin-Username>X-WEBAUTH-USER
+			}
 
 			@denied status 401
 			handle_response @denied {
