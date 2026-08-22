@@ -16,6 +16,7 @@ const (
 	CategoryCallbackPrefix           = "category_"
 	RefillMerchantCallbackPrefix     = "refillmerchant_"
 	ReplenishmentsPageCallbackPrefix = "replenishmentspage_"
+	CheckPaymentCallbackPrefix       = "checkpay_"
 )
 
 // CatalogRootCallback — без id-суффикса, матчится точно, не через ParseCallbackQuery.
@@ -74,6 +75,12 @@ func BuildPurchasesPageCallback(offset int) string {
 
 func BuildReplenishmentsPageCallback(offset int) string {
 	return fmt.Sprintf("%s%d", ReplenishmentsPageCallbackPrefix, offset)
+}
+
+// BuildCheckPaymentCallback несёт внутренний ID Replenishment — ParseCallbackQuery
+// его и достаёт, отдельного Parse-хелпера не нужно.
+func BuildCheckPaymentCallback(replenishmentID int64) string {
+	return fmt.Sprintf("%s%d", CheckPaymentCallbackPrefix, replenishmentID)
 }
 
 // BuildRefillMerchantCallback — merchant буквенный (crystalpay/yookassa/...), без underscore внутри.

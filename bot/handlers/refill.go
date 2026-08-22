@@ -12,6 +12,10 @@ import (
 	domain "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
+// emptyInlineKeyboard — см. комментарий в RefillMerchantHandler: nil-слайс в
+// InlineKeyboardMarkup уходит в JSON как null, Telegram API его не принимает.
+var emptyInlineKeyboard = &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}}
+
 // refillMerchants — мерчанты, доступные для выбора в боте, в порядке показа.
 // MerchantReferral сюда не входит — начисления оттуда не создаются через CreateInvoice.
 var refillMerchants = []struct {
@@ -144,14 +148,66 @@ func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    chatID,
 		MessageID: messageID,
-		Text:      texts.T(user.Language, texts.AskRefillAmountMsg, map[string]any{"Hint": amountRangeHint(user.Language, mc)}),
-		// InlineKeyboard должен быть непустым (не nil) слайсом: у пустой
-		// структуры models.InlineKeyboardMarkup{} это поле нулевое и уходит в
-		// JSON как null, а Telegram API отвечает "inline_keyboard must be of
-		// type Array" — правка убирает клавиатуру карточки мерчанта молча
-		// падала, FSM-состояние на ввод суммы при этом уже выставлено.
-		ReplyMarkup: &models.InlineKeyboardMarkup{InlineKeyboard: [][]models.InlineKeyboardButton{}},
+		Text: texts.T(user.Language, texts.AskRefillAmountMsg, map[string]any{"Hint": amountRangeHint(user.Language, mc)}),
+		// emptyInlineKeyboard, не nil: правка убирает клавиатуру карточки
+		// мерчанта, а nil в этом поле уходит в JSON как null и Telegram API
+		// отвечает "inline_keyboard must be of type Array" — FSM-состояние на
+		// ввод суммы при этом уже выставлено, и повтор с ним не сработает молча.
+		ReplyMarkup: emptyInlineKeyboard,
 	}); err != nil {
 		h.log.Errorf("RefillMerchantHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
+	}
+}
+
+// CheckPaymentHandler — кнопка «Проверить оплату» под счётом. Вебхук мерчанта
+// остаётся основным путём подтверждения; это подстраховка на случай, если он
+// ещё не пришёл или потерялся (см. ReplenishmentService.CheckInvoice).
+func (h *Handlers) CheckPaymentHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
+	chatID, messageID, ok := utils.CallbackTarget(update)
+	if !ok {
+		return
+	}
+
+	replenishmentID, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
+	if err != nil {
+		h.log.Errorf("CheckPaymentHandler: failed to parse callback: %v", err)
+		return
+	}
+
+	user, err := h.userService.GetProfile(ctx, chatID)
+	if err != nil {
+		h.log.Errorf("CheckPaymentHandler: failed to get profile for %d: %v", chatID, err)
+		return
+	}
+
+	status, amount, err := h.replenishmentService.CheckInvoice(ctx, chatID, replenishmentID)
+	if err != nil {
+		h.log.Errorw("CheckPaymentHandler: check failed", "error", err, "telegram_id", chatID, "replenishment_id", replenishmentID)
+		if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID: chatID, MessageID: messageID,
+			Text: texts.T(user.Language, texts.RefillCheckErrorMsg, nil),
+		}); err != nil {
+			h.log.Errorf("CheckPaymentHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
+		}
+		return
+	}
+
+	params := &bot.EditMessageTextParams{ChatID: chatID, MessageID: messageID, ParseMode: models.ParseModeMarkdown}
+	switch status {
+	case domain.ReplenishmentStatusPaid:
+		params.Text = texts.T(user.Language, texts.RefillPaidMsg, map[string]any{"Amount": utils.FormatAmount(amount)})
+		params.ReplyMarkup = emptyInlineKeyboard
+	case domain.ReplenishmentStatusFailed, domain.ReplenishmentStatusCancelled:
+		params.Text = texts.T(user.Language, texts.RefillFailedMsg, nil)
+		params.ReplyMarkup = emptyInlineKeyboard
+	default:
+		// ReplyMarkup не трогаем — кнопки "Оплатить"/"Проверить оплату" остаются
+		// как есть, ссылку на оплату CheckInvoice не хранит и не возвращает.
+		params.Text = texts.T(user.Language, texts.RefillInvoiceMsg, map[string]any{"Amount": utils.FormatAmount(amount)}) +
+			texts.T(user.Language, texts.RefillStillPendingMsg, nil)
+	}
+
+	if _, err = b.EditMessageText(ctx, params); err != nil {
+		h.log.Errorf("CheckPaymentHandler: failed to edit message %d in chat %d: %v", messageID, chatID, err)
 	}
 }

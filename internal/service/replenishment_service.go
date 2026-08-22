@@ -46,19 +46,19 @@ func NewReplenishmentSrv(
 
 const replenishmentDescription = "Пополнение баланса"
 
-func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount float64) (string, error) {
+func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount float64) (string, int64, error) {
 	if amount <= 0 {
-		return "", domainerrors.ErrInvalidAmount
+		return "", 0, domainerrors.ErrInvalidAmount
 	}
 
 	provider, ok := s.providers[merchant]
 	if !ok {
-		return "", domainerrors.ErrInvalidMerchant
+		return "", 0, domainerrors.ErrInvalidMerchant
 	}
 
 	paymentURL, invoiceID, err := provider.CreateInvoice(ctx, telegramID, amount, replenishmentDescription)
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	replenishment := &models.Replenishment{
@@ -76,10 +76,56 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 			"error", err, "user_id", telegramID, "merchant", merchant,
 			"invoice_id", invoiceID, "amount", amount,
 		)
-		return "", err
+		return "", 0, err
 	}
 
-	return paymentURL, nil
+	return paymentURL, replenishment.ID, nil
+}
+
+// CheckInvoice — см. doc-комментарий интерфейса. CheckStatus у мерчанта
+// вызывается только если счёт всё ещё pending — иначе лишний внешний запрос
+// за уже известным ответом.
+func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, replenishmentID int64) (models.ReplenishmentStatus, float64, error) {
+	replenishment, err := s.replenishmentRepo.GetByID(ctx, replenishmentID)
+	if err != nil {
+		return "", 0, err
+	}
+	if replenishment.UserID != telegramID {
+		// Чужой счёт — ведём себя как с несуществующим, а не 403: не палим,
+		// что id вообще существует.
+		return "", 0, domainerrors.ErrReplenishmentNotFound
+	}
+	if replenishment.Status != models.ReplenishmentStatusPending {
+		return replenishment.Status, replenishment.Amount, nil
+	}
+
+	provider, ok := s.providers[replenishment.Merchant]
+	if !ok {
+		return "", 0, domainerrors.ErrInvalidMerchant
+	}
+
+	status, err := provider.CheckStatus(ctx, replenishment.InvoiceID)
+	if err != nil {
+		return "", 0, err
+	}
+
+	switch status {
+	case payment.PaymentStatusPaid:
+		// paidAmount=0 — CheckStatus большинства мерчантов сумму не
+		// возвращает; Confirm в этом случае зачисляет записанную сумму (см.
+		// её собственный doc-комментарий).
+		if err = s.Confirm(ctx, replenishment.Merchant, replenishment.InvoiceID, 0); err != nil {
+			return "", 0, err
+		}
+		return models.ReplenishmentStatusPaid, replenishment.Amount, nil
+	case payment.PaymentStatusFailed, payment.PaymentStatusCancelled:
+		if err = s.Fail(ctx, replenishment.Merchant, replenishment.InvoiceID); err != nil {
+			return "", 0, err
+		}
+		return models.ReplenishmentStatusFailed, replenishment.Amount, nil
+	default:
+		return models.ReplenishmentStatusPending, replenishment.Amount, nil
+	}
 }
 
 // Confirm зачисляет баланс и помечает счёт оплаченным одной транзакцией.

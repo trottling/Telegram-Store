@@ -10,7 +10,18 @@ import (
 type ReplenishmentService interface {
 	// CreateInvoice проверяет merchant включён/сумма в пределах min/max
 	// (см. Settings), создаёт счёт у мерчанта и pending-строку Replenishment.
-	CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount float64) (paymentURL string, err error)
+	// replenishmentID — её ID, нужен боту для кнопки «Проверить оплату» (см. CheckInvoice).
+	CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount float64) (paymentURL string, replenishmentID int64, err error)
+
+	// CheckInvoice — ручная проверка статуса по кнопке в боте, на случай если
+	// вебхук мерчанта ещё не пришёл или потерялся. Не подменяет вебхук: если
+	// счёт уже не pending, просто возвращает записанный статус; иначе
+	// спрашивает CheckStatus у самого мерчанта и, если тот сообщает
+	// paid/failed, доводит дело тем же Confirm/Fail. telegramID — чей это
+	// запрос, чтобы один пользователь не мог дёргать чужой счёт по id. amount —
+	// записанная сумма счёта, боту нужна перерисовать текст карточки без
+	// лишнего похода в БД.
+	CheckInvoice(ctx context.Context, telegramID int64, replenishmentID int64) (status models.ReplenishmentStatus, amount float64, err error)
 
 	// Confirm/Fail — вызываются вебхуком мерчанта. Confirm идемпотентен:
 	// повторный вызов на уже обработанной строке баланс не трогает.

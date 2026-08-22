@@ -21,7 +21,8 @@ var allMessageIDs = []string{
 	PleaseStartMsg, BannedMsg,
 	AskQuantityMsg, InsufficientStockMsg, ConfirmPurchaseMsg, InvalidQuantityMsg,
 	AskRefillAmountMsg, AmountRangeBothMsg, AmountRangeMinMsg, AmountRangeMaxMsg, AmountRangeAnyMsg,
-	InvalidAmountMsg, RefillInvoiceMsg, PayBtn,
+	InvalidAmountMsg, RefillInvoiceMsg, PayBtn, CheckPaymentBtn,
+	RefillPaidMsg, RefillFailedMsg, RefillStillPendingMsg, RefillCheckErrorMsg,
 	ErrInsufficientBalanceMsg, ErrOutOfStockMsg, ErrProductInactiveMsg, ErrTooManyProductsMsg, ErrGenericMsg,
 	SettingsMsg, LanguagePickerMsg, LanguageSetMsg, LanguageRUBtn, LanguageENBtn,
 }

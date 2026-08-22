@@ -130,6 +130,18 @@ const (
 	// ParseMode=MarkdownV2. TemplateData: Amount (FormatAmount).
 	RefillInvoiceMsg = "RefillInvoiceMsg"
 	PayBtn           = "PayBtn"
+	CheckPaymentBtn  = "CheckPaymentBtn"
+	// ParseMode=MarkdownV2. TemplateData: Amount (FormatAmount).
+	RefillPaidMsg = "RefillPaidMsg"
+	// ParseMode=MarkdownV2, статический текст.
+	RefillFailedMsg = "RefillFailedMsg"
+	// ParseMode=MarkdownV2, статический текст. Добавляется к RefillInvoiceMsg
+	// при повторной проверке, пока счёт всё ещё pending — чтобы EditMessageText
+	// реально поменял текст (иначе Telegram вернёт "message is not modified",
+	// раз сумма та же), и чтобы тап по кнопке был явно виден пользователю.
+	RefillStillPendingMsg = "RefillStillPendingMsg"
+	// Без ParseMode. Ошибка при обращении к мерчанту по кнопке "Проверить оплату".
+	RefillCheckErrorMsg = "RefillCheckErrorMsg"
 	// Без ParseMode.
 	ErrInsufficientBalanceMsg = "ErrInsufficientBalanceMsg"
 	ErrOutOfStockMsg          = "ErrOutOfStockMsg"

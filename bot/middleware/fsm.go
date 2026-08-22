@@ -199,7 +199,7 @@ func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID
 	}
 
 	merchant := domain.Merchant(st.Merchant)
-	paymentURL, err := m.replenishmentService.CreateInvoice(ctx, chatID, merchant, amount)
+	paymentURL, replenishmentID, err := m.replenishmentService.CreateInvoice(ctx, chatID, merchant, amount)
 	if err != nil {
 		if errors.Is(err, domainerrors.ErrAmountOutOfRange) {
 			// Сумма вне min/max — состояние не сбрасываем, дадим ввести другую.
@@ -215,7 +215,10 @@ func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID
 	_ = m.stateStore.ClearFSMState(ctx, chatID)
 
 	kb := &models.InlineKeyboardMarkup{
-		InlineKeyboard: [][]models.InlineKeyboardButton{{{Text: texts.T(lang, texts.PayBtn, nil), URL: paymentURL}}},
+		InlineKeyboard: [][]models.InlineKeyboardButton{
+			{{Text: texts.T(lang, texts.PayBtn, nil), URL: paymentURL}},
+			{{Text: texts.T(lang, texts.CheckPaymentBtn, nil), CallbackData: utils.BuildCheckPaymentCallback(replenishmentID)}},
+		},
 	}
 	m.send(ctx, b, chatID, texts.T(lang, texts.RefillInvoiceMsg, map[string]any{"Amount": utils.FormatAmount(amount)}), kb)
 }

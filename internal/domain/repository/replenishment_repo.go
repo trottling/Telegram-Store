@@ -10,6 +10,9 @@ import (
 type ReplenishmentRepository interface {
 	Create(ctx context.Context, replenishment *models.Replenishment) error
 	GetByMerchantInvoiceID(ctx context.Context, merchant models.Merchant, invoiceID string) (*models.Replenishment, error)
+	// GetByID — для кнопки «Проверить оплату» в боте: callback несёт
+	// внутренний ID (компактнее, чем merchant+invoiceID в одной строке).
+	GetByID(ctx context.Context, id int64) (*models.Replenishment, error)
 
 	// UpdateStatus переводит строку FROM pending -> status; changed=false,
 	// если строка уже была не pending (повторный вебхук — не двойное начисление).

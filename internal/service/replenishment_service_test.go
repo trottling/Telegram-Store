@@ -55,6 +55,9 @@ func (r *fakeReplRepo) UpdateStatus(_ context.Context, _ int64, status models.Re
 func (r *fakeReplRepo) Create(context.Context, *models.Replenishment) error {
 	panic("не используется")
 }
+func (r *fakeReplRepo) GetByID(context.Context, int64) (*models.Replenishment, error) {
+	panic("не используется")
+}
 func (r *fakeReplRepo) ListByUserID(context.Context, int64, int, int) ([]models.Replenishment, error) {
 	panic("не используется")
 }

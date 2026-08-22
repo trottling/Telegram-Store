@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -101,9 +100,10 @@ func (p *DummyProvider) confirmAfterDelay(invoiceID string) {
 	}
 }
 
-// CheckStatus не вызывается ни для одного сценария: DummyWebhook уже знает
-// статус (сам его и породил), перепроверка через CheckStatus нужна только
-// CrystalPay. Существует ради полноты интерфейса PaymentProvider.
+// CheckStatus у dummy не спрашивает никого — это не настоящий мерчант,
+// подтверждение приходит только через confirmAfterDelay -> self-webhook.
+// Всегда отвечает Pending: кнопка «Проверить оплату» в боте не должна уметь
+// досрочно завершить оплату раньше таймера, иначе тестовая задержка теряет смысл.
 func (p *DummyProvider) CheckStatus(context.Context, string) (domainpayment.PaymentStatus, error) {
-	return "", fmt.Errorf("dummy: CheckStatus is not supported")
+	return domainpayment.PaymentStatusPending, nil
 }

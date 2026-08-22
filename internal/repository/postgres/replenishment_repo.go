@@ -42,6 +42,20 @@ func (r *ReplenishmentRepo) GetByMerchantInvoiceID(ctx context.Context, merchant
 	return &replenishment, nil
 }
 
+func (r *ReplenishmentRepo) GetByID(ctx context.Context, id int64) (*models.Replenishment, error) {
+	replenishment, err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).
+		Where("id = ?", id).
+		First(ctx)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domainerrors.ErrReplenishmentNotFound
+		}
+		r.log.Errorw("replenishment_repo: get by id failed", "error", err, "id", id)
+		return nil, err
+	}
+	return &replenishment, nil
+}
+
 // UpdateStatus — WHERE status = 'pending' защищает от повторной обработки
 // вебхука: второй вызов на уже обработанной строке changed=false, err=nil.
 func (r *ReplenishmentRepo) UpdateStatus(ctx context.Context, id int64, status models.ReplenishmentStatus, completedAt *time.Time) (bool, error) {
