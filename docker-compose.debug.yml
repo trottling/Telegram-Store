@@ -102,10 +102,15 @@ services:
     networks:
       - debug-network
 
+  # Тут, в отличие от docker-compose.yml, нет основного caddy, который мог бы
+  # отдать статику сам (фронт и бэк на разных портах, без домена/TLS) —
+  # standalone-таргет поднимает свой маленький Caddy just для этого (см.
+  # admin_frontend/Dockerfile и admin_frontend/Caddyfile).
   admin-frontend:
     build:
       context: ./admin_frontend
       dockerfile: Dockerfile
+      target: standalone
       args:
         VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-http://localhost:8080}
     container_name: telegram-store-admin-frontend

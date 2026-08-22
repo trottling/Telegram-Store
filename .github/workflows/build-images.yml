@@ -45,7 +45,11 @@ jobs:
           - name: admin-frontend
             context: ./admin_frontend
             dockerfile: Dockerfile
-            target: ""
+            # dist-export — та же статика, что и раньше, но без собственного
+            # сервера: контейнер копирует dist/ в volume для основного caddy
+            # (см. Caddyfile) и завершается. standalone-таргет (со своим Caddy)
+            # используется только docker-compose.debug.yml и не публикуется.
+            target: dist-export
             build-args: "VITE_API_BASE_URL="
     steps:
       - uses: actions/checkout@v7.0.1

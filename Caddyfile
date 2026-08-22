@@ -1,6 +1,8 @@
-# TLS-терминатор перед admin-frontend/admin-backend/payments-backend/bot/grafana.
-# Один хост ($DOMAIN_NAME) вместо четырёх поддоменов — роутинг по пути:
-#   /            -> admin-frontend (SPA, ничего больше не претендует на корень)
+# TLS-терминатор + сам сервер статики панели, перед admin-backend/
+# payments-backend/bot/grafana. Один хост ($DOMAIN_NAME) вместо четырёх
+# поддоменов — роутинг по пути:
+#   /            -> собранная SPA-панель (файлы, не отдельный сервис — см.
+#                   handle "/" ниже; ничего больше не претендует на корень)
 #   /api/*       -> admin-backend  (сам уже ожидает префикс /api, путь не режем)
 #   /pay/*       -> payments-backend (handle_path режет /pay, дальше уходит
 #                   /api/webhooks/... как есть — payments_backend его и ждёт;
@@ -146,7 +148,11 @@
 	}
 
 	# Панель. Всё, что не /api, /pay, /stats — сюда, включая клиентские
-	# роуты SPA (nginx у admin-frontend сам фолбэчит на index.html).
+	# роуты SPA. Раньше здесь стоял reverse_proxy на отдельный контейнер с
+	# nginx; теперь caddy отдаёт собранную статику сам — admin-frontend в
+	# docker-compose.yml лишь копирует dist/ в volume и завершается
+	# (root/try_files/file_server ниже — тот же SPA-фолбэк на index.html,
+	# что раньше делал nginx.conf).
 	handle {
 		header {
 			# no-referrer, а не strict-origin: в URL панели попадают telegram ID и
@@ -173,6 +179,8 @@
 			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-ancestors https://web.telegram.org; base-uri 'self'; form-action 'self'"
 		}
 
-		reverse_proxy admin-frontend:80
+		root * /srv/admin-frontend
+		try_files {path} /index.html
+		file_server
 	}
 }

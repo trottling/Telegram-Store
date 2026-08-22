@@ -1,0 +1,15 @@
+# Только для standalone-таргета Dockerfile (docker-compose.debug.yml) — в
+# проде эту же роль (SPA-фолбэк на index.html) выполняет корневой Caddyfile
+# внутри основного caddy, отдельного сервера для статики там нет.
+{
+	auto_https off
+	log {
+		level {$ADMIN_FRONTEND_LOG_LEVEL:WARN}
+	}
+}
+
+:80 {
+	root * /srv
+	try_files {path} /index.html
+	file_server
+}

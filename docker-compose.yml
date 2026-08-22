@@ -147,6 +147,11 @@ services:
       - backend-network
     <<: [*default-logging, *public-dns]
 
+  # Не долгоживущий сервис: копирует собранную статику панели в volume, который
+  # читает основной caddy (см. Caddyfile, handle "/"), и завершается —
+  # Exited(0) в docker ps тут норма, тот же паттерн, что и у migrate. Раньше
+  # это был отдельный nginx-контейнер за reverse_proxy; своего порта/сервера
+  # больше нет.
   admin-frontend:
     # Образ из GHCR собран с пустым VITE_API_BASE_URL (относительный /api/...,
     # один и тот же домен что у панели, что у API — см. workflow) и годится
@@ -156,17 +161,13 @@ services:
     build:
       context: ./admin_frontend
       dockerfile: Dockerfile
+      target: dist-export
       args:
         VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
     container_name: telegram-store-admin-frontend
-    environment:
-      ADMIN_FRONTEND_LOG_LEVEL: ${ADMIN_FRONTEND_LOG_LEVEL:-warn}
-    # порт наружу не пробрасываем — статику отдаёт caddy (путь / на $DOMAIN_NAME)
-    restart: unless-stopped
-    networks:
-      - public-network
-    depends_on:
-      - admin-backend
+    restart: "no"
+    volumes:
+      - admin_frontend_dist:/output
     <<: *default-logging
 
   # TLS-терминатор: единственный сервис с портами наружу (80/443), автовыпуск
@@ -185,14 +186,24 @@ services:
       - "${PUBLIC_PORT:-443}:${PUBLIC_PORT:-443}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - admin_frontend_dist:/srv/admin-frontend:ro
       - caddy_data:/data
       - caddy_config:/config
+    # admin-frontend — не долгоживущий сервис (копирует dist/ и выходит, см.
+    # его комментарий выше), поэтому condition отличается: caddy должен
+    # дождаться, что копирование реально завершилось, а не просто что
+    # контейнер запустился, иначе первый старт отдал бы пустой /srv/admin-frontend.
     depends_on:
-      - bot
-      - admin-backend
-      - payments-backend
-      - admin-frontend
-      - grafana
+      bot:
+        condition: service_started
+      admin-backend:
+        condition: service_started
+      payments-backend:
+        condition: service_started
+      admin-frontend:
+        condition: service_completed_successfully
+      grafana:
+        condition: service_started
     restart: unless-stopped
     networks:
       - public-network
@@ -399,6 +410,7 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  admin_frontend_dist:
   caddy_data:
   caddy_config:
   backup_data:
