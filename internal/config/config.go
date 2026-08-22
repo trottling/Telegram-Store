@@ -23,6 +23,7 @@ type Config struct {
 	Redis      *RedisConfig
 	AdminPanel *AdminPanelConfig
 	Payments   *PaymentsConfig
+	Webhook    *BotWebhookConfig
 	Metrics    *MetricsConfig
 	Logger     *LoggerConfig
 }
@@ -30,6 +31,22 @@ type Config struct {
 type TelegramConfig struct {
 	Token       string
 	RootAdminID int64
+}
+
+// BotWebhookConfig — вебхуки Telegram вместо long polling. URL пуст — бот
+// работает через getUpdates (см. TelegramBot.Start): так по умолчанию и
+// всегда в docker-compose.debug.yml — там нет ни домена, ни HTTPS, а Telegram
+// принимает вебхуки только по https. В docker-compose.yml (за caddy, домен
+// уже есть) URL подставляется сам из DOMAIN_NAME, см. x-admin-panel-urls-подобную
+// подстановку там же.
+type BotWebhookConfig struct {
+	// URL — внешний адрес, на который Telegram шлёт апдейты (SetWebhook).
+	URL string
+	// Secret — X-Telegram-Bot-Api-Secret-Token, которым Telegram подписывает
+	// каждый запрос на URL; обязателен, если URL задан.
+	Secret string
+	// Port — порт, на котором бот поднимает свой HTTP-сервер приёма вебхуков.
+	Port int
 }
 
 type PostgresConfig struct {
@@ -139,6 +156,13 @@ func New() (*Config, error) {
 		return nil, err
 	}
 
+	webhookURL := os.Getenv("BOT_WEBHOOK_URL")
+	webhookSecret := os.Getenv("BOT_WEBHOOK_SECRET")
+	webhookPort, err := getEnvInt("BOT_WEBHOOK_PORT", 8082)
+	if err != nil {
+		return nil, err
+	}
+
 	metricsPort, err := getEnvInt("BOT_METRICS_PORT", 9100)
 	if err != nil {
 		return nil, err
@@ -186,6 +210,12 @@ func New() (*Config, error) {
 			Port:        paymentsPort,
 			URL:         paymentsURL,
 			MetricsPort: paymentsMetricsPort,
+		},
+
+		Webhook: &BotWebhookConfig{
+			URL:    webhookURL,
+			Secret: webhookSecret,
+			Port:   webhookPort,
 		},
 
 		Metrics: &MetricsConfig{
@@ -238,6 +268,7 @@ func New() (*Config, error) {
 		{"BOT_METRICS_PORT", cfg.Metrics.Port},
 		{"ADMIN_METRICS_PORT", cfg.AdminPanel.MetricsPort},
 		{"PAYMENTS_METRICS_PORT", cfg.Payments.MetricsPort},
+		{"BOT_WEBHOOK_PORT", cfg.Webhook.Port},
 	}
 	for _, p := range ports {
 		if err = validatePort(p.key, p.value); err != nil {
@@ -270,6 +301,23 @@ func New() (*Config, error) {
 	}
 	if err = validateProxyList("ADMIN_PANEL_TRUSTED_PROXIES", cfg.AdminPanel.TrustedProxies); err != nil {
 		return nil, err
+	}
+
+	if cfg.Webhook.URL != "" {
+		if err = validateURL("BOT_WEBHOOK_URL", cfg.Webhook.URL); err != nil {
+			return nil, err
+		}
+		// Telegram отклоняет SetWebhook на не-https адрес — так что здесь это
+		// ловится сразу при старте, а не непонятной ошибкой Telegram API в логах.
+		if u, _ := url.Parse(cfg.Webhook.URL); u.Scheme != "https" {
+			return nil, fmt.Errorf("BOT_WEBHOOK_URL must use https, Telegram rejects webhooks over plain http")
+		}
+		if cfg.Webhook.Secret == "" {
+			return nil, fmt.Errorf("BOT_WEBHOOK_SECRET is required when BOT_WEBHOOK_URL is set")
+		}
+		if cfg.Webhook.Secret == secretPlaceholder {
+			return nil, fmt.Errorf("BOT_WEBHOOK_SECRET is still the .env.example placeholder, generate a real one: openssl rand -base64 32")
+		}
 	}
 
 	return cfg, nil

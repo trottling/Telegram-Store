@@ -48,6 +48,11 @@ services:
         required: true
     environment:
       <<: *admin-panel-urls
+      # Домен и caddy уже есть — переключаем бота на вебхуки, если
+      # BOT_WEBHOOK_URL не задан явно (см. config.BotWebhookConfig,
+      # bot.TelegramBot.Start). docker-compose.debug.yml этот блок не
+      # получает и остаётся на long polling — там нет ни домена, ни https.
+      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-https://${DOMAIN_NAME}/bot}
     depends_on:
       db:
         condition: service_healthy
@@ -129,8 +134,9 @@ services:
 
   # TLS-терминатор: единственный сервис с портами наружу (80/443), автовыпуск
   # сертификатов Let's Encrypt по ACME HTTP-01/TLS-ALPN. Домен и почта — из
-  # DOMAIN_NAME/ACME_EMAIL (см. .env); один хост на всё, панель/API/вебхуки/
-  # Grafana разведены по пути (/, /api, /pay, /stats) прямо в Caddyfile.
+  # DOMAIN_NAME/ACME_EMAIL (см. .env); один хост на всё, панель/API/вебхуки
+  # платежей/вебхуки Telegram/Grafana разведены по пути (/, /api, /pay, /bot,
+  # /stats) прямо в Caddyfile.
   caddy:
     image: caddy:2-alpine
     container_name: telegram-store-caddy
@@ -145,6 +151,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
+      - bot
       - admin-backend
       - payments-backend
       - admin-frontend

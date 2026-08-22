@@ -47,6 +47,7 @@ func main() {
 			provideRedisConfig,
 			provideAdminPanelConfig,
 			providePaymentsConfig,
+			provideBotWebhookConfig,
 			provideMetricsConfig,
 			provideLoggerConfig,
 
@@ -86,7 +87,7 @@ func main() {
 
 			bot.New,
 		),
-		fx.Invoke(runBot, RunMetricsServer),
+		fx.Invoke(runBot, RunMetricsServer, RunWebhookServer),
 	)
 
 	// Ошибку сборки графа и упавшего Invoke (например, недоступный Postgres)

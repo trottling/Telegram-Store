@@ -1,10 +1,13 @@
-# TLS-терминатор перед admin-frontend/admin-backend/payments-backend/grafana.
+# TLS-терминатор перед admin-frontend/admin-backend/payments-backend/bot/grafana.
 # Один хост ($DOMAIN_NAME) вместо четырёх поддоменов — роутинг по пути:
 #   /            -> admin-frontend (SPA, ничего больше не претендует на корень)
 #   /api/*       -> admin-backend  (сам уже ожидает префикс /api, путь не режем)
 #   /pay/*       -> payments-backend (handle_path режет /pay, дальше уходит
 #                   /api/webhooks/... как есть — payments_backend его и ждёт;
 #                   внешний webhook-URL получается вида .../pay/api/webhooks/crystalpay)
+#   /bot/*       -> bot (приём вебхуков Telegram, см. BOT_WEBHOOK_URL; путь
+#                   не важен, сам хендлер его не разбирает — handle_path чисто
+#                   для единообразия с /pay)
 #   /stats/*     -> grafana (путь НЕ режем — Grafana сама объявляет свои роуты
 #                   под /stats/, см. GF_SERVER_SERVE_FROM_SUB_PATH в docker-compose.yml)
 # Один домен — один A-запись/сертификат вместо четырёх, и то, что раньше было
@@ -54,6 +57,14 @@
 	# единообразия. handle_path режет "/pay" перед проксированием.
 	handle_path /pay/* {
 		reverse_proxy payments-backend:{$PAYMENTS_BACKEND_PORT:8081}
+	}
+
+	# Приём вебхуков Telegram (BOT_WEBHOOK_URL=https://$DOMAIN_NAME/bot).
+	# Вызывающая сторона — сервер Telegram, не браузер; секрет проверяет сам
+	# bot (X-Telegram-Bot-Api-Secret-Token, см. bot.WithWebhookSecretToken),
+	# заголовки тут ни на что не влияют.
+	handle_path /bot/* {
+		reverse_proxy bot:{$BOT_WEBHOOK_PORT:8082}
 	}
 
 	# Grafana. Своей формы логина не показывает вообще — вход тем же кодом из

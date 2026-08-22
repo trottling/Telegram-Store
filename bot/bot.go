@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -37,6 +38,7 @@ type TelegramBot struct {
 	bot                  *bot.Bot
 	middlewares          *middleware.Middlewares
 	config               *config.Config
+	webhookConfig        *config.BotWebhookConfig
 	log                  *zap.SugaredLogger
 	userService          service.UserService
 	productService       service.ProductService
@@ -56,6 +58,7 @@ func New(
 	stateStore domainfsm.Store,
 	telegramConfig *config.TelegramConfig,
 	adminPanelConfig *config.AdminPanelConfig,
+	webhookConfig *config.BotWebhookConfig,
 	log *zap.SugaredLogger,
 ) (*TelegramBot, error) {
 
@@ -65,7 +68,12 @@ func New(
 
 	middlewares := middleware.New(userService, purchaseService, productService, replenishmentService, stateStore, log)
 
-	b, err := bot.New(telegramConfig.Token, bot.WithMiddlewares(middlewares.Track, middlewares.Recover, middlewares.Metrics, middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM))
+	opts := []bot.Option{bot.WithMiddlewares(middlewares.Track, middlewares.Recover, middlewares.Metrics, middlewares.Logging, middlewares.AnswerCallback, middlewares.BanCheck, middlewares.FSM)}
+	if webhookConfig.URL != "" {
+		opts = append(opts, bot.WithWebhookSecretToken(webhookConfig.Secret))
+	}
+
+	b, err := bot.New(telegramConfig.Token, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +83,16 @@ func New(
 	me, err := b.GetMe(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("get bot username: %w", err)
+	}
+
+	if webhookConfig.URL == "" {
+		// Если раньше бот работал вебхуком (или его переключили обратно на
+		// polling), Telegram отказывает getUpdates, пока вебхук
+		// зарегистрирован ("can't use getUpdates method while webhook is
+		// active") — снимаем его на всякий случай, no-op если ничего не было.
+		if _, err = b.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{}); err != nil {
+			return nil, fmt.Errorf("delete telegram webhook: %w", err)
+		}
 	}
 
 	handler := handlers.New(userService, purchaseService, productService, categoryService, settingsService, replenishmentService, stateStore, kb, log, adminPanelConfig, me.Username)
@@ -117,6 +135,7 @@ func New(
 		log:                  log,
 		bot:                  b,
 		middlewares:          middlewares,
+		webhookConfig:        webhookConfig,
 		userService:          userService,
 		productService:       productService,
 		purchaseService:      purchaseService,
@@ -126,10 +145,32 @@ func New(
 	}, nil
 }
 
-// Start запускает long-polling и блокируется до отмены ctx.
+// Start блокируется до отмены ctx: вебхуком (см. RunWebhookServer в
+// cmd/bot), если BotWebhookConfig.URL задан, иначе long-polling'ом.
 func (bt *TelegramBot) Start(ctx context.Context) {
 	bt.log.Info("starting bot")
+	if bt.webhookConfig.URL != "" {
+		bt.bot.StartWebhook(ctx)
+		return
+	}
 	bt.bot.Start(ctx)
+}
+
+// WebhookHandler — HTTP-хендлер приёма апдейтов от Telegram (проверяет
+// X-Telegram-Bot-Api-Secret-Token сам, см. bot.WithWebhookSecretToken выше).
+// Используется только в режиме вебхука, см. cmd/bot/webhook_lifecycle.go.
+func (bt *TelegramBot) WebhookHandler() http.HandlerFunc {
+	return bt.bot.WebhookHandler()
+}
+
+// RegisterWebhook сообщает Telegram текущий URL. Идемпотентно — безопасно
+// вызывать на каждом старте.
+func (bt *TelegramBot) RegisterWebhook(ctx context.Context) error {
+	_, err := bt.bot.SetWebhook(ctx, &bot.SetWebhookParams{
+		URL:         bt.webhookConfig.URL,
+		SecretToken: bt.webhookConfig.Secret,
+	})
+	return err
 }
 
 // WaitInFlight ждёт, пока догребут уже начатые update'ы. Отмена ctx у Start
