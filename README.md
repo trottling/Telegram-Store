@@ -70,7 +70,7 @@ docker compose up -d
 
 Требует, чтобы образы в GHCR были публичными (Settings пакета на GitHub), либо `docker login ghcr.io` на сервере с токеном, у которого есть `read:packages`. Если репозиторий — не `github.com/trottling/Telegram-Store` (форк), добавьте в `.env` строку `IMAGE_REGISTRY=ghcr.io/<ваш-аккаунт>` (в `.env.example` её нет — по умолчанию образы берутся из оригинального репозитория).
 
-Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin-backend`, `payments-backend`, `admin-frontend`, `caddy` (TLS-терминатор), `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`) и стек наблюдаемости — `prometheus`/`loki`/`promtail`/`grafana` (конфиги — в `monitoring/`).
+Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin-backend`, `payments-backend`, одноразовый `admin-frontend` (копирует собранную статику панели в volume и завершается — `Exited(0)` в `docker ps` здесь норма, не ошибка), `caddy` (TLS-терминатор и сервер этой статики — постоянного контейнера под панель больше нет), `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`) и стек наблюдаемости — `prometheus`/`loki`/`promtail`/`grafana` (конфиги — в `monitoring/`).
 
 После запуска:
 
