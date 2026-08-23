@@ -46,7 +46,7 @@ RefillMsg = "💰 Пополнение баланса сейчас недост�
 ReplenishmentsMsg = "💳 Последние пополнения:"
 ReplenishmentsEmptyMsg = "💳 У вас пока нет пополнений"
 ReplenishmentInlineBtn = "{{.Status}} {{.Amount}} ₽"
-ReplenishmentDetailMsg = "💰 *{{.Amount}} ₽*\n📝 Статус: {{.Status}}\n🗓{{.Date}}\n🏦 {{.Merchant}}"
+ReplenishmentDetailMsg = "💰 Сумма: *{{.Amount}} ₽*\n📝 Статус: *{{.Status}}*\n🗓 Время: *{{.Date}}*\n🏦 Платёж через: *{{.Merchant}}*"
 
 ReplenishmentStatusPending = "⏳ В обработке"
 ReplenishmentStatusPaid = "✅ Оплачено"
