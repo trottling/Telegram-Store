@@ -23,7 +23,11 @@ type ReplenishmentSrv struct {
 	providers  map[models.Merchant]payment.PaymentProvider
 	transactor repository.Transactor
 	cache      domaincache.UserCache
-	log        *zap.SugaredLogger
+	// checkCooldown — минимальный интервал между CheckStatus по одному счёту
+	// (см. CheckInvoice). CreateInvoice его не вызывает, поэтому, как и
+	// providers, в backend-процессе может быть nil.
+	checkCooldown domaincache.ReplenishmentCheckCooldown
+	log           *zap.SugaredLogger
 }
 
 func NewReplenishmentSrv(
@@ -32,6 +36,7 @@ func NewReplenishmentSrv(
 	transactor repository.Transactor,
 	providers map[models.Merchant]payment.PaymentProvider,
 	cache domaincache.UserCache,
+	checkCooldown domaincache.ReplenishmentCheckCooldown,
 	log *zap.SugaredLogger,
 ) *ReplenishmentSrv {
 	return &ReplenishmentSrv{
@@ -40,6 +45,7 @@ func NewReplenishmentSrv(
 		transactor:        transactor,
 		providers:         providers,
 		cache:             cache,
+		checkCooldown:     checkCooldown,
 		log:               log,
 	}
 }
@@ -97,6 +103,18 @@ func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, r
 	}
 	if replenishment.Status != models.ReplenishmentStatusPending {
 		return replenishment.Status, replenishment.Amount, nil
+	}
+
+	// Кулдаун — не поход к мерчанту при каждом тапе по кнопке. Счёт остаётся
+	// pending, ошибки тут нет: пользователь просто проверял слишком часто.
+	if s.checkCooldown != nil {
+		acquired, err := s.checkCooldown.TryAcquire(ctx, replenishmentID)
+		if err != nil {
+			return "", 0, err
+		}
+		if !acquired {
+			return models.ReplenishmentStatusPending, replenishment.Amount, nil
+		}
 	}
 
 	provider, ok := s.providers[replenishment.Merchant]

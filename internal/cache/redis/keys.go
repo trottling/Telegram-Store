@@ -44,3 +44,9 @@ func adminSessionKey(hash string) string { return fmt.Sprintf("admin_session:%s"
 func adminExchangeAttemptsKey(key string) string {
 	return fmt.Sprintf("admin_exchange_attempts:%s", key)
 }
+
+// кулдаун кнопки «Проверить оплату»
+
+func replenishmentCheckCooldownKey(replenishmentID int64) string {
+	return fmt.Sprintf("replenishment_check_cooldown:%d", replenishmentID)
+}

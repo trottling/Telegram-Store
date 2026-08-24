@@ -302,3 +302,15 @@ func (c *Cache) IncrExchangeAttempts(ctx context.Context, key string, window tim
 	}
 	return attempt, nil
 }
+
+// TryAcquire — SETNX атомарен: в окне TTL только первый вызов вернёт true,
+// остальные до истечения — false, без гонки между параллельными тапами
+// одной кнопки.
+func (c *Cache) TryAcquire(ctx context.Context, replenishmentID int64) (bool, error) {
+	acquired, err := c.client.SetNX(ctx, replenishmentCheckCooldownKey(replenishmentID), 1, replenishmentCheckCooldownTTL).Result()
+	if err != nil {
+		c.log.Errorw("cache: redis SETNX failed (replenishment check cooldown)", "error", err, "replenishment_id", replenishmentID)
+		return false, err
+	}
+	return acquired, nil
+}

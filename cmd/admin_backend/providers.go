@@ -23,13 +23,13 @@ func provideRedisConfig(cfg *config.Config) *config.RedisConfig           { retu
 func provideAdminPanelConfig(cfg *config.Config) *config.AdminPanelConfig { return cfg.AdminPanel }
 func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { return cfg.Loggers.AdminBackend }
 
-// provideReplenishmentService — providers=nil (не тип из графа, а буквально
-// nil): admin_backend счета не создаёт и вебхуки не принимает (см.
-// payments_backend), только отдаёт листинг — CreateInvoice отсюда не
-// вызывается. fx.Annotate тут не подходит — это не просто приведение типа,
-// а реальный "пустой" аргумент.
+// provideReplenishmentService — providers=nil и checkCooldown=nil (не типы
+// из графа, а буквально nil): admin_backend счета не создаёт и вебхуки не
+// принимает (см. payments_backend), только отдаёт листинг — ни
+// CreateInvoice, ни CheckInvoice отсюда не вызываются. fx.Annotate тут не
+// подходит — это не просто приведение типа, а реальные "пустые" аргументы.
 func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *zap.SugaredLogger) service.ReplenishmentService {
-	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, log)
+	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, nil, log)
 }
 
 // provideMetricsServer — свой /metrics-сервер admin_backend (бизнес-метрики

@@ -132,6 +132,7 @@ func newTestSrv(db *fakeDB, balanceErr error) *ReplenishmentSrv {
 		&fakeTransactor{db: db},
 		nil,
 		&fakeUserCache{db: db},
+		nil, // checkCooldown — CheckInvoice в этих тестах не вызывается
 		log,
 	)
 }

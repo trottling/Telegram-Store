@@ -22,6 +22,9 @@ type Middlewares struct {
 	log                  *zap.SugaredLogger
 	// inFlight — update'ы в обработке, см. Track/WaitInFlight.
 	inFlight sync.WaitGroup
+	// sem — семафор на maxConcurrentUpdates одновременно обрабатываемых
+	// update'ов, см. Track.
+	sem chan struct{}
 }
 
 func New(
@@ -39,6 +42,7 @@ func New(
 		replenishmentService: replenishmentService,
 		stateStore:           stateStore,
 		log:                  log,
+		sem:                  make(chan struct{}, maxConcurrentUpdates),
 	}
 }
 

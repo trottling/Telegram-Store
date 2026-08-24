@@ -15,6 +15,22 @@ import (
 // gormSlowQueryThreshold — с какой длительности GORM считает запрос медленным.
 const gormSlowQueryThreshold = 200 * time.Millisecond
 
+// Пул соединений: без явных лимитов database/sql держит их без ограничения
+// сверху, и всплеск одновременно обрабатываемых update'ов бота (см.
+// bot/middleware.Track) мог бы забрать себе куда больше своей доли
+// max_connections самого Postgres (дефолт 100), которую делят ещё
+// admin_backend и payments_backend — каждый со своим отдельным пулом (эта
+// функция общая, но каждый процесс вызывает её один раз и получает свой
+// *sql.DB). Цифры подобраны под целевой деплой — 1 CPU/2 GB VPS: суммарно
+// три постоянных потребителя пула укладываются в 45 соединений, с запасом
+// до дефолтного лимита сервера.
+const (
+	dbMaxOpenConns    = 15
+	dbMaxIdleConns    = 5
+	dbConnMaxLifetime = 30 * time.Minute
+	dbConnMaxIdleTime = 5 * time.Minute
+)
+
 // gormLogWriter направляет вывод GORM в zap. Своим логгером GORM пишет в
 // stderr через стандартный log: с ANSI-раскраской независимо от того, терминал
 // там или pipe, и мимо LOG_LEVEL. В контейнере это была вторая струя логов
@@ -40,5 +56,19 @@ func NewClient(cfg *config.PostgresConfig, log *zap.SugaredLogger) (*gorm.DB, er
 		Colorful:      false,
 	})
 
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: gormLog})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: gormLog})
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(dbMaxOpenConns)
+	sqlDB.SetMaxIdleConns(dbMaxIdleConns)
+	sqlDB.SetConnMaxLifetime(dbConnMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(dbConnMaxIdleTime)
+
+	return db, nil
 }

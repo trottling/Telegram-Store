@@ -31,12 +31,13 @@ func provideCrystalPayProvider(settingsService service.SettingsService, payments
 	return payment.NewCrystalPayProvider(settingsService, paymentsCfg.URL)
 }
 
-// provideReplenishmentService — providers=nil (не тип из графа, а буквально
-// nil): payments_backend счета не создаёт (только принимает вебхуки),
-// CreateInvoice отсюда не вызывается. fx.Annotate тут не подходит — это не
-// просто приведение типа, а реальный "пустой" аргумент.
+// provideReplenishmentService — providers=nil и checkCooldown=nil (не типы
+// из графа, а буквально nil): payments_backend счета не создаёт (только
+// принимает вебхуки), ни CreateInvoice, ни CheckInvoice отсюда не
+// вызываются. fx.Annotate тут не подходит — это не просто приведение типа,
+// а реальные "пустые" аргументы.
 func provideReplenishmentService(repo repository.ReplenishmentRepository, userRepo repository.UserRepository, transactor repository.Transactor, cache domaincache.UserCache, log *zap.SugaredLogger) service.ReplenishmentService {
-	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, log)
+	return svc.NewReplenishmentSrv(repo, userRepo, transactor, nil, cache, nil, log)
 }
 
 // provideMetricsServer — свой /metrics-сервер payments_backend (пополнения по

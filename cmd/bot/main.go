@@ -64,6 +64,7 @@ func main() {
 				fx.As(new(domaincache.ProductCache)),
 				fx.As(new(domaincache.CategoryCache)),
 				fx.As(new(domaincache.SettingsCache)),
+				fx.As(new(domaincache.ReplenishmentCheckCooldown)),
 				fx.As(new(domainfsm.Store)),
 				fx.As(new(svc.MultiCache)),
 			),
