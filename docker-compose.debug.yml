@@ -195,7 +195,7 @@ services:
       - debug-network
 
   vector:
-    image: timberio/vector:0.46.1-alpine
+    image: timberio/vector:0.57.0-alpine
     container_name: telegram-store-vector
     environment:
       VECTOR_LOG: ${VECTOR_LOG_LEVEL:-warn}
