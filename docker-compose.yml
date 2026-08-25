@@ -5,34 +5,19 @@ x-logging: &default-logging
       max-size: "10m"
       max-file: "3"
 
-# config.New() валидирует ADMIN_PANEL_FRONTEND_URL/CORS_ORIGIN/PAYMENTS_BACKEND_URL
-# у каждого Go-бинарника (migrate/bot/admin-backend/payments-backend)
-# независимо от того, читает ли конкретно этот бинарник поле — а в проде все
-# три всегда указывают на один хост (см. Caddyfile). Наружу торчит только
-# DOMAIN_NAME:PUBLIC_PORT — всё остальное (порты admin-backend/bot/
-# payments-backend) резолвится caddy изнутри сети, наружу никогда не смотрит.
-# Явное значение в .env, как и раньше, имеет приоритет над этой подстановкой.
-#
 # PUBLIC_PORT дописывается всегда (дефолт в .env.example — 443, обычный
 # случай); :443 в URL безопасен и для CORS — admin_backend/middleware.CORS
 # сравнивает origin'ы с нормализацией порта по умолчанию для схемы, а не
 # байт-в-байт, так что "https://domain:443" и "https://domain" от браузера
 # считаются одним и тем же origin'ом. Менять PUBLIC_PORT нужно, только если
-# 443 на сервере занят чем-то посторонним (например, свой Xray/VPN) — тогда
+# 443 на сервере занят чем-то посторонним — тогда
 # весь публичный трафик магазина переезжает на новый порт одной строкой в .env.
 x-public-urls: &public-urls
-  ADMIN_PANEL_FRONTEND_URL: ${ADMIN_PANEL_FRONTEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
-  ADMIN_PANEL_CORS_ORIGIN: ${ADMIN_PANEL_CORS_ORIGIN:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
-  PAYMENTS_BACKEND_URL: ${PAYMENTS_BACKEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/pay}
+  ADMIN_PANEL_FRONTEND_URL: https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}
+  ADMIN_PANEL_CORS_ORIGIN: https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}
+  PAYMENTS_BACKEND_URL: https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/pay
 
-# Явные публичные DNS вместо того, что Docker унаследует из /etc/resolv.conf
-# хоста. На части VPS (Ubuntu + systemd-resolved без ожидаемого симлинка)
-# туда попадает "127.0.0.53" как есть — это стаб-резолвер хоста, слушающий
-# только на самом хосте, а не внутри сетевого namespace контейнера, и любой
-# внешний DNS-запрос (ACME у Let's Encrypt/ZeroSSL, Telegram API, платёжные
-# провайдеры, S3) падает "connection refused". Резолв контейнерных имён
-# (db/redis/...) эту переменную не использует — тот идёт через встроенный
-# Docker DNS (127.0.0.11) независимо от неё.
+# Явные публичные DNS вместо того, что Docker унаследует
 x-public-dns: &public-dns
   dns:
     - 1.1.1.1
@@ -45,7 +30,7 @@ services:
     # тянет готовый образ из GHCR (см. .github/workflows/build-images.yml) —
     # для слабого VPS сборка Go на месте не нужна. `docker compose build`
     # по-прежнему работает и соберёт локально под тем же тегом, если нужно.
-    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-migrate:${IMAGE_TAG:-latest}
+    image: ghcr.io/trottling/telegram-store-migrate:latest
     build:
       context: .
       dockerfile: cmd/Dockerfile
@@ -68,7 +53,7 @@ services:
           memory: 160M
 
   bot:
-    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-bot:${IMAGE_TAG:-latest}
+    image: ghcr.io/trottling/telegram-store-bot:latest
     build:
       context: .
       dockerfile: cmd/Dockerfile
@@ -81,7 +66,7 @@ services:
       <<: *public-urls
       GOMAXPROCS: 1
       GOMEMLIMIT: 130MiB
-      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/bot}
+      BOT_WEBHOOK_URL: https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/bot
     depends_on:
       db:
         condition: service_healthy
@@ -97,10 +82,10 @@ services:
       resources:
         limits:
           memory: 160M
-    <<: [*default-logging, *public-dns]
+    <<: [ *default-logging, *public-dns ]
 
   admin-backend:
-    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-admin-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/trottling/telegram-store-admin-backend:latest
     build:
       context: .
       dockerfile: cmd/Dockerfile
@@ -133,7 +118,7 @@ services:
     <<: *default-logging
 
   payments-backend:
-    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-payments-backend:${IMAGE_TAG:-latest}
+    image: ghcr.io/trottling/telegram-store-payments-backend:latest
     build:
       context: .
       dockerfile: cmd/Dockerfile
@@ -162,7 +147,7 @@ services:
       resources:
         limits:
           memory: 128M
-    <<: [*default-logging, *public-dns]
+    <<: [ *default-logging, *public-dns ]
 
   # Не долгоживущий сервис: копирует собранную статику панели в volume, который
   # читает основной caddy (см. Caddyfile, handle "/"), и завершается —
@@ -174,13 +159,13 @@ services:
     # один и тот же домен что у панели, что у API — см. workflow) и годится
     # для любого DOMAIN_NAME без пересборки. build.args ниже — только для
     # локального `docker compose build`.
-    image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-admin-frontend:${IMAGE_TAG:-latest}
+    image: ghcr.io/trottling/telegram-store-admin-frontend:latest
     build:
       context: ./admin_frontend
       dockerfile: Dockerfile
       target: dist-export
       args:
-        VITE_API_BASE_URL: ${ADMIN_PANEL_BACKEND_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}}
+        VITE_API_BASE_URL: https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}
     container_name: telegram-store-admin-frontend
     restart: "no"
     volumes:
@@ -232,7 +217,7 @@ services:
       resources:
         limits:
           memory: 96M
-    <<: [*default-logging, *public-dns]
+    <<: [ *default-logging, *public-dns ]
 
   db:
     image: postgres:18-alpine
@@ -240,7 +225,7 @@ services:
     # -c log_min_messages=... — тот же приём, что и command у redis ниже:
     # переопределяем один GUC через аргумент запуска, не через смонтированный
     # postgresql.conf.
-    command: ["postgres", "-c", "log_min_messages=${POSTGRES_LOG_LEVEL:-warning}"]
+    command: [ "postgres", "-c", "log_min_messages=${POSTGRES_LOG_LEVEL:-warning}" ]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -310,7 +295,7 @@ services:
       - path: .env
         required: true
     environment:
-      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      RETENTION_DAYS: 7
     volumes:
       - backup_data:/backups
     depends_on:
@@ -324,7 +309,7 @@ services:
       resources:
         limits:
           memory: 224M
-    <<: [*default-logging, *public-dns]
+    <<: [ *default-logging, *public-dns ]
 
   # Метрики бота (см. BOT_METRICS_PORT) — сам себя тоже скрейпит, см.
   # monitoring/prometheus/prometheus.yml. Наружу не торчит — доступ только
@@ -358,9 +343,9 @@ services:
   loki:
     image: grafana/loki:3.7.6
     container_name: telegram-store-loki
-    command: ["-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true"]
+    command: [ "-config.file=/etc/loki/local-config.yaml", "-config.expand-env=true" ]
     environment:
-      LOKI_RETENTION_DAYS: ${LOKI_RETENTION_DAYS:-14}
+      LOKI_RETENTION_DAYS: 14
       LOKI_LOG_LEVEL: ${LOKI_LOG_LEVEL:-warn}
     volumes:
       - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
@@ -387,7 +372,7 @@ services:
       # событие. warn (VECTOR_LOG_LEVEL) оставляет то, что реально стоит
       # увидеть — VECTOR_LOG это родное имя переменной у самого Vector.
       VECTOR_LOG: ${VECTOR_LOG_LEVEL:-warn}
-    command: ["--config-yaml", "/etc/vector/vector.yaml"]
+    command: [ "--config-yaml", "/etc/vector/vector.yaml" ]
     volumes:
       - ./monitoring/vector/vector.yaml:/etc/vector/vector.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
