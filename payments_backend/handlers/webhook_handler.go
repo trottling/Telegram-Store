@@ -87,7 +87,7 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 	switch status {
 	case payment.PaymentStatusPaid:
 		// CheckStatus суммы не возвращает — сверять нечего.
-		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantCrystalPay, payload.ID, 0)
+		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantCrystalPay, payload.ID, models.Money{})
 	case payment.PaymentStatusFailed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantCrystalPay, payload.ID)
 	}
@@ -121,7 +121,11 @@ func (h *Handlers) TinkoffWebhook(c *gin.Context) {
 	switch notification.Status {
 	case tinkoff.StatusConfirmed:
 		// Tinkoff считает в копейках, наши суммы — в рублях.
-		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantTinkoff, invoiceID, float64(notification.Amount)/100)
+		var paidAmount models.Money
+		if paidAmount, err = models.MoneyFromCents(int64(notification.Amount)); err != nil {
+			break
+		}
+		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantTinkoff, invoiceID, paidAmount)
 	case tinkoff.StatusRejected, tinkoff.StatusAuthFail, tinkoff.StatusCanceled, tinkoff.StatusDeadlineExpired, tinkoff.StatusReversed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantTinkoff, invoiceID)
 	}
@@ -170,16 +174,16 @@ func (h *Handlers) YooKassaWebhook(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-// yooKassaPaidAmount — сумма из ответа ЮKassa в рублях; 0, если её нет,
-// не парсится или валюта не рублёвая (сверять тогда нечего).
-func yooKassaPaidAmount(pay *yoopayment.Payment) float64 {
+// yooKassaPaidAmount — сумма из ответа ЮKassa в рублях; нулевое значение,
+// если её нет, не парсится или валюта не рублёвая (сверять тогда нечего).
+func yooKassaPaidAmount(pay *yoopayment.Payment) models.Money {
 	if pay.Amount == nil || pay.Amount.Currency != "RUB" {
-		return 0
+		return models.Money{}
 	}
 
-	amount, err := strconv.ParseFloat(pay.Amount.Value, 64)
+	amount, err := models.NewMoney(pay.Amount.Value)
 	if err != nil {
-		return 0
+		return models.Money{}
 	}
 	return amount
 }

@@ -73,7 +73,7 @@ func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, 
 		text = texts.T(user.Language, texts.CategoryMsg, map[string]any{
 			"Name":        utils.EscapeMarkdown(category.Name),
 			"Description": utils.EscapeMarkdown(category.Description),
-			"Balance":     utils.FormatAmount(user.Balance),
+			"Balance":     utils.FormatAmount(user.Balance()),
 		})
 		if category.ParentID != nil {
 			backCallback = utils.BuildCategoryCallback(*category.ParentID)
@@ -168,7 +168,7 @@ func (h *Handlers) renderProductDetail(ctx context.Context, b *bot.Bot, chatID i
 		"StockIndicator": utils.StockIndicator(available),
 		"Available":      available,
 		"Description":    utils.EscapeMarkdown(product.Description),
-		"Balance":        utils.FormatAmount(user.Balance),
+		"Balance":        utils.FormatAmount(user.Balance()),
 	})
 
 	if messageID == 0 {

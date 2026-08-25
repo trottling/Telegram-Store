@@ -47,7 +47,7 @@ func (p *TinkoffProvider) newClient(cfg models.TinkoffSettings) *tinkoff.Client 
 	)
 }
 
-func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID int64, amount float64, description string) (string, string, error) {
+func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID int64, amount models.Money, description string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err
@@ -56,14 +56,14 @@ func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID int64, amoun
 	if !cfg.Enabled {
 		return "", "", domainerrors.ErrMerchantDisabled
 	}
-	if amount < cfg.MinAmount || (cfg.MaxAmount > 0 && amount > cfg.MaxAmount) {
+	if amount.LessThan(cfg.MinAmount) || (!cfg.MaxAmount.IsZero() && amount.GreaterThan(cfg.MaxAmount)) {
 		return "", "", domainerrors.ErrAmountOutOfRange
 	}
 
 	client := p.newClient(cfg)
 
 	resp, err := client.InitWithContext(ctx, &tinkoff.InitRequest{
-		Amount:          uint64(math.Round(amount * 100)), // копейки
+		Amount:          uint64(math.Round(amount.Float64() * 100)), // копейки
 		OrderID:         orderID(userID),
 		Description:     description,
 		PayType:         tinkoff.PayTypeOneStep,

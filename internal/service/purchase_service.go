@@ -75,11 +75,11 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		return nil, nil, domainerrors.ErrProductInactive
 	}
 
-	totalPrice := product.Price * float64(count)
+	totalPrice := product.Price.Mul(count)
 	// Ниже totalPrice пересчитывается внутри транзакции по свежей цене; списание
 	// всё равно защищено guard'ом balance >= сумма в UpdateBalance.
-	if user.Balance < totalPrice {
-		logCtx.Warnw("purchase_service: buy rejected, not enough balance", "balance", user.Balance)
+	if user.Balance().LessThan(totalPrice) {
+		logCtx.Warnw("purchase_service: buy rejected, not enough balance", "balance", user.Balance())
 		return nil, nil, domainerrors.ErrNotEnoughBalance
 	}
 
@@ -98,7 +98,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		if !product.IsActive {
 			return domainerrors.ErrProductInactive
 		}
-		totalPrice = product.Price * float64(count)
+		totalPrice = product.Price.Mul(count)
 
 		// Один запрос на весь count вместо count отдельных: ReserveItems сам
 		// резервирует и помечает проданными до count единиц атомарно (тот же
@@ -138,7 +138,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 			purchases = append(purchases, p)
 		}
 
-		return s.userRepo.UpdateBalance(ctx, telegramID, -totalPrice)
+		return s.userRepo.UpdateBalance(ctx, telegramID, totalPrice.Decimal().Neg())
 	})
 	if err != nil {
 		if errors.Is(err, domainerrors.ErrProductOutOfStock) {
@@ -180,7 +180,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 // Вызывается после коммита покупки, отдельной транзакцией — см. Buy. Свои две
 // записи держит вместе, чтобы у реферера не оказалось начисленных денег без
 // строки в истории пополнений.
-func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, purchaseAmount float64) *models.ReferralCredit {
+func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, purchaseAmount models.Money) *models.ReferralCredit {
 	if referrerID == nil {
 		return nil
 	}
@@ -195,13 +195,13 @@ func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, pur
 		return nil
 	}
 
-	credit := purchaseAmount * float64(settings.Referral.Percent) / 100
-	if credit <= 0 {
+	credit := purchaseAmount.Percent(settings.Referral.Percent)
+	if credit.IsZero() {
 		return nil
 	}
 
 	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
-		if updErr := s.userRepo.UpdateBalance(ctx, referrer.TelegramID, credit); updErr != nil {
+		if updErr := s.userRepo.UpdateBalance(ctx, referrer.TelegramID, credit.Decimal()); updErr != nil {
 			return updErr
 		}
 
@@ -234,10 +234,10 @@ func (s *PurchaseSrv) GetBatch(ctx context.Context, telegramID int64, batchID st
 	return s.purchaseRepo.GetByBatchID(ctx, telegramID, batchID)
 }
 
-func (s *PurchaseSrv) GetUserStats(ctx context.Context, telegramID int64) (purchaseCount int, totalSpent float64, err error) {
+func (s *PurchaseSrv) GetUserStats(ctx context.Context, telegramID int64) (purchaseCount int, totalSpent models.Money, err error) {
 	count, totalSpent, err := s.purchaseRepo.StatsByUserID(ctx, telegramID)
 	if err != nil {
-		return 0, 0, err
+		return 0, models.Money{}, err
 	}
 	return int(count), totalSpent, nil
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/trottling/Telegram-Store/bot/keyboards"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 const purchasesPageSize = 10
@@ -115,14 +116,14 @@ func (h *Handlers) PurchaseDetailHandler(ctx context.Context, b *bot.Bot, update
 	}
 
 	contents := make([]string, len(purchases))
-	var total float64
+	total := domainmodels.Money{}
 	for i, p := range purchases {
 		content := ""
 		if p.Item != nil {
 			content = p.Item.Content
 		}
 		contents[i] = fmt.Sprintf("`%s`", utils.EscapeMarkdownCode(content))
-		total += p.Amount
+		total = total.Add(p.Amount)
 	}
 
 	kb := &models.InlineKeyboardMarkup{

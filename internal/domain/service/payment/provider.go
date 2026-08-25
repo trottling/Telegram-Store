@@ -1,6 +1,10 @@
 package payment
 
-import "context"
+import (
+	"context"
+
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+)
 
 type PaymentStatus string
 
@@ -12,6 +16,6 @@ const (
 )
 
 type PaymentProvider interface {
-	CreateInvoice(ctx context.Context, userID int64, amount float64, description string) (paymentURL, invoiceID string, err error)
+	CreateInvoice(ctx context.Context, userID int64, amount models.Money, description string) (paymentURL, invoiceID string, err error)
 	CheckStatus(ctx context.Context, invoiceID string) (PaymentStatus, error)
 }

@@ -26,7 +26,7 @@ func (h *Handlers) DummyWebhook(c *gin.Context) {
 		return
 	}
 
-	err := h.replenishmentService.Confirm(c.Request.Context(), models.MerchantDummy, req.InvoiceID, 0)
+	err := h.replenishmentService.Confirm(c.Request.Context(), models.MerchantDummy, req.InvoiceID, models.Money{})
 	if !h.replenishmentOK(models.MerchantDummy, req.InvoiceID, err) {
 		c.Status(http.StatusInternalServerError)
 		return

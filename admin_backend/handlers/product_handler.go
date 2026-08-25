@@ -46,7 +46,12 @@ func (h *Handlers) CreateProduct(c *gin.Context) {
 	if !h.decodeJSON(c, &req) {
 		return
 	}
-	product, err := h.adminService.CreateProduct(c.Request.Context(), admin.TelegramID, req.CategoryID, req.Name, req.Description, req.Price)
+	price, err := models.NewMoneyFromFloat(req.Price)
+	if err != nil {
+		h.writeError(c, err)
+		return
+	}
+	product, err := h.adminService.CreateProduct(c.Request.Context(), admin.TelegramID, req.CategoryID, req.Name, req.Description, price)
 	if err != nil {
 		h.writeError(c, err)
 		return
@@ -65,7 +70,12 @@ func (h *Handlers) UpdateProduct(c *gin.Context) {
 	if !h.decodeJSON(c, &req) {
 		return
 	}
-	product, err := h.adminService.UpdateProduct(c.Request.Context(), admin.TelegramID, id, req.CategoryID, req.Name, req.Description, req.Price, req.IsActive)
+	price, err := models.NewMoneyFromFloat(req.Price)
+	if err != nil {
+		h.writeError(c, err)
+		return
+	}
+	product, err := h.adminService.UpdateProduct(c.Request.Context(), admin.TelegramID, id, req.CategoryID, req.Name, req.Description, price, req.IsActive)
 	if err != nil {
 		h.writeError(c, err)
 		return

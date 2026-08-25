@@ -53,7 +53,7 @@ func (h *Handlers) sendProfile(ctx context.Context, b *bot.Bot, chatID int64, by
 		Text: texts.T(user.Language, texts.ProfileMsg, map[string]any{
 			"Username":   utils.EscapeMarkdown(user.Username),
 			"TelegramID": user.TelegramID,
-			"Balance":    utils.FormatAmount(user.Balance),
+			"Balance":    utils.FormatAmount(user.Balance()),
 			"Count":      count,
 			"Spent":      utils.FormatAmount(spent),
 		}),

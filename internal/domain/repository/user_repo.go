@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
@@ -11,7 +13,11 @@ type UserRepository interface {
 	GetByID(ctx context.Context, telegramID int64) (*models.User, error)
 	Create(ctx context.Context, user *models.User) error
 	Update(ctx context.Context, user *models.User) error
-	UpdateBalance(ctx context.Context, telegramID int64, delta float64) error
+	// UpdateBalance — атомарный UPDATE ... SET balance = balance + delta
+	// WHERE balance >= -delta; это единственная безопасная при конкуренции
+	// защита от ухода в минус, поэтому delta — знаковая корректировка
+	// (decimal.Decimal), а не Money: Money не бывает отрицательным.
+	UpdateBalance(ctx context.Context, telegramID int64, delta decimal.Decimal) error
 	List(ctx context.Context, offset, limit int) ([]models.User, error)
 	Count(ctx context.Context) (int64, error)
 

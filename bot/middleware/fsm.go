@@ -178,7 +178,7 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 		Text: texts.T(lang, texts.ConfirmPurchaseMsg, map[string]any{
 			"Name":     utils.EscapeMarkdown(product.Name),
 			"Quantity": qty,
-			"Amount":   utils.FormatAmount(product.Price * float64(qty)),
+			"Amount":   utils.FormatAmount(product.Price.Mul(qty)),
 		}),
 		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: keyboards.BuildBuyConfirmKb(lang),
@@ -191,8 +191,8 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 // у мерчанта, выбранного на предыдущем шаге (st.Merchant).
 func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID int64, lang, text string, st *domainfsm.State) {
 	normalized := strings.ReplaceAll(strings.TrimSpace(text), ",", ".")
-	amount, err := strconv.ParseFloat(normalized, 64)
-	if err != nil || amount <= 0 {
+	amount, err := domain.NewMoney(normalized)
+	if err != nil || amount.IsZero() {
 		// Состояние не сбрасываем — даём попробовать ещё раз.
 		m.send(ctx, b, chatID, texts.T(lang, texts.InvalidAmountMsg, nil), nil)
 		return

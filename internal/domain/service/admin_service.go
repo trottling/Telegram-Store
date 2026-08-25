@@ -3,12 +3,16 @@ package service
 import (
 	"context"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // AdminService: adminID — Telegram ID действующего админа, targetTelegramID — объект действия.
 type AdminService interface {
-	AddBalance(ctx context.Context, adminID, targetTelegramID int64, amount float64) error
+	// AddBalance — amount знаковый (админ может и списать, не только начислить),
+	// поэтому decimal.Decimal, а не models.Money: Money отрицательным не бывает.
+	AddBalance(ctx context.Context, adminID, targetTelegramID int64, amount decimal.Decimal) error
 	BanUser(ctx context.Context, adminID, targetTelegramID int64) error
 	UnbanUser(ctx context.Context, adminID, targetTelegramID int64) error
 
@@ -22,8 +26,8 @@ type AdminService interface {
 	SetReferralsEnabled(ctx context.Context, adminID, targetTelegramID int64, enabled bool) error
 
 	// CRUD товаров — categoryID может быть nil (без категории)
-	CreateProduct(ctx context.Context, adminID int64, categoryID *int64, name, description string, price float64) (*models.Product, error)
-	UpdateProduct(ctx context.Context, adminID int64, productID int64, categoryID *int64, name, description string, price float64, isActive bool) (*models.Product, error)
+	CreateProduct(ctx context.Context, adminID int64, categoryID *int64, name, description string, price models.Money) (*models.Product, error)
+	UpdateProduct(ctx context.Context, adminID int64, productID int64, categoryID *int64, name, description string, price models.Money, isActive bool) (*models.Product, error)
 	DeleteProduct(ctx context.Context, adminID int64, productID int64) error
 	AddProductItems(ctx context.Context, adminID int64, productID int64, contents []string) error
 

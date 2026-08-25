@@ -31,20 +31,26 @@ docker compose up --build   # run migrate + bot + admin-backend + payments-backe
 There is no Makefile or linter config in the repo — use the `go` toolchain directly.
 
 **Testing**: coverage is deliberately narrow, not aspirational. Tests exist only where a bug is invisible to
-review and to manual clicking — concurrency, transaction rollback, and one library behaviour the whole design
-leans on. Three files, and each one is a regression test for a specific incident: `internal/service/
+review and to manual clicking — concurrency, transaction rollback, decimal/invariant edge cases, and one library
+behaviour the whole design leans on. Seven files: `internal/service/
 replenishment_service_test.go` (a webhook credit that fails mid-way must roll the status back, or the retry
 silently succeeds and the money is gone — hand-written fakes over the `domain/repository` interfaces, whose
 fake transactor models Postgres rollback), `internal/cache/redis/cache_test.go` (`ConsumeFSMState` hands the
 state to exactly one of N concurrent callers — needs a real Redis command surface, hence `miniredis`, the only
 test-only dependency), `bot/utils/update_test.go` (`CallbackQuery.Message.Message` really is nil for an
 inaccessible message — builds the `Update` from raw JSON on purpose, since that nil comes out of
-`MaybeInaccessibleMessage.UnmarshalJSON` and a struct literal would not reproduce it), and
+`MaybeInaccessibleMessage.UnmarshalJSON` and a struct literal would not reproduce it),
 `admin_backend/middleware/ratelimit_test.go` (a spoofed `X-Forwarded-For` must not buy a fresh rate-limit
 bucket — this one exists because the control is worthless if `SetTrustedProxies` is ever dropped, and that is
-invisible in a diff), and `bot/middleware/track_test.go` (the handler ctx must survive cancellation of the
+invisible in a diff), `bot/middleware/track_test.go` (the handler ctx must survive cancellation of the
 polling ctx, and the in-flight counter must be released even on panic — otherwise one panic would hold shutdown
-for the whole drain timeout). Do not add breadth for its own sake; do add a test when a fix's correctness cannot be
+for the whole drain timeout), and two regression suites for the `Money`/`User` value objects added alongside the
+anemic-model refactor: `internal/domain/models/money_test.go` (decimal precision and the negative-result guard on
+`Sub`, plus the GORM Scan/Value and JSON round-trips `Money` has to get exactly right to stay a drop-in for the old
+`float64` fields) and `internal/domain/models/user_test.go` (the invariant checks inside `Ban`/`Promote`/`Demote`/
+`Debit` — self-target, root-admin-target, insufficient balance — since a wrong guard there is exactly the kind of
+bug the anemic-model refactor was meant to make impossible, and reading the diff alone won't catch an inverted
+condition). Do not add breadth for its own sake; do add a test when a fix's correctness cannot be
 seen by reading the diff. `-race` needs `CGO_ENABLED=1` and a C compiler, which this dev machine does not have.
 
 Frontend (`admin_frontend/`, separate npm project, not part of the Go module):
@@ -76,10 +82,28 @@ Two dashboards are provisioned from `monitoring/grafana/provisioning/dashboards/
 **Ports-and-adapters (hexagonal)**: interfaces live under `internal/domain/`, concrete implementations live in parallel packages. When implementing a repository or service, put the interface in `internal/domain/...` (if not already defined) and the struct that satisfies it in the corresponding non-domain package — do not define new interfaces outside `internal/domain`. `bot/`, `admin_backend/`, and `payments_backend/` all depend only on `internal/domain/service` — never on `internal/domain/repository`, `internal/repository/postgres`, or a concrete `internal/service` implementation directly. `cmd/bot/`, `cmd/admin_backend/`, `cmd/payments_backend/`, and `cmd/migrate/` are the four composition roots: each one is the only package allowed to import `internal/repository/postgres` and `internal/service`, wiring concrete repos/services and handing only the domain interfaces down — each is split across main.go/providers.go/lifecycle.go (see below), not a single file, but still one `package main` per binary, so the rule is unchanged, just no longer file-granular. `payments_backend` deliberately wires a much narrower slice of repos/services than `admin_backend` — see its own paragraph below.
 
 ```
-internal/domain/models/       GORM entities (User, Category, Product, ProductItem, Purchase, AdminLog) — the
+internal/domain/models/       GORM entities (Category, Product, ProductItem, Purchase, AdminLog, ...) — the
                                entities' GORM struct tags living here is an accepted trade-off, but AutoMigrate()
                                itself lives in internal/repository/postgres, not here: driving a schema migration
-                               against a specific database is an adapter concern, not a domain one
+                               against a specific database is an adapter concern, not a domain one. `User` is the
+                               one deliberate exception to "one struct, GORM tags and all": its `balance`/`role`
+                               fields are unexported, mutable only through invariant-checked methods (Debit/Credit,
+                               Ban/Unban/Promote/Demote — see the Data model section below), and it carries no GORM
+                               tags at all — its persistence counterpart (`userRecord`, exported fields + tags) lives
+                               in internal/repository/postgres, the one place hexagonal architecture actually wants
+                               a DB-shaped struct. `User` still needs to survive two JSON round-trips a plain
+                               exported-field struct gets for free (admin_backend responses, internal/cache/redis's
+                               *User cache payload) — it implements MarshalJSON/UnmarshalJSON itself for that,
+                               producing the exact same wire shape the old tagged struct did. `money.go` (also this
+                               package) defines `Money`, the non-negative decimal value object every monetary field
+                               in the codebase uses instead of float64 (User.Balance, Product.Price, Purchase.Amount,
+                               Replenishment.Amount, Settings' per-merchant Min/MaxAmount, ...) — it implements
+                               sql.Scanner/driver.Valuer and MarshalJSON/UnmarshalJSON too, so GORM and JSON treat it
+                               as an opaque scalar the same way they already treat gorm.DeletedAt, with no
+                               persistence-split needed for the entities that merely hold money rather than guard an
+                               invariant on it. A *signed* adjustment (UserRepository.UpdateBalance's delta,
+                               AdminSrv.AddBalance's amount) is deliberately a bare decimal.Decimal, not Money —
+                               Money itself can never be negative
 internal/domain/repository/   repository interfaces + Transactor (unit-of-work over *gorm.DB.Transaction) +
                                AnalyticsRepository (GetSnapshot — SQL aggregates for admin_backend's Prometheus
                                Collector, see internal/metrics/admin below; wired only into cmd/admin_backend)
@@ -111,7 +135,13 @@ internal/domain/errors/       sentinel error values, mapped to user-facing text 
 internal/repository/postgres/ GORM-backed implementations, using the Generics API (gorm.G[T]) for CRUD — aggregate
                                queries (e.g. grouping purchases into batches, dashboard stats) use the classic
                                *gorm.DB chainable builder (Model/Select/Joins/Where/Group/Scan) instead, since
-                               gorm.G[T] assumes one row = one T. There are exactly two .Raw(...).Scan(...) cases,
+                               gorm.G[T] assumes one row = one T. UserRepo is the one repo whose gorm.G[T] doesn't
+                               use the domain type directly: T is the unexported userRecord (defined in
+                               user_repo.go, exported gorm-tagged fields, never leaves this package), and every
+                               method maps userRecord<->*models.User at the boundary (toDomain/fromDomain) — see
+                               the internal/domain/models entry above for why. migrate.go's AutoMigrate and
+                               analytics_repo.go's aggregate queries use userRecord too, for the same reason.
+                               There are exactly two .Raw(...).Scan(...) cases,
                                both because neither API above can express the SQL: the recursive CTE for category
                                tree visibility, and ProductRepo.ReserveItems — an `UPDATE ... WHERE id IN (SELECT
                                ... LIMIT count FOR UPDATE SKIP LOCKED) RETURNING *` that claims up to count stock
@@ -411,7 +441,9 @@ All repositories and services are fully implemented (not stubs) and logging (`*z
 
 ### Data model
 
-`User` is keyed by `TelegramID` directly — there's no separate internal auto-increment ID; every FK that points at a user (`Purchase.UserID`, `AdminLog.AdminID`/`TargetID`) stores the Telegram ID. `User.Role` is a single, mutually exclusive privilege level (`banned`/`user`/`admin`/`root_admin`, `models.Role`) — there's exactly one `root_admin` at a time (the `TELEGRAM_ROOT_ADMIN_ID` from config, bootstrapped into this column by `cmd/migrate`'s `UserRepository.EnsureRootAdminExists`). `User.IsBanned()`/`IsAdmin()`/`IsRootAdmin()` are the derived-boolean helper methods everything else checks against, not the raw `Role` field. Because `Role` is one field, banning an Admin/RootAdmin overwrites their admin rights rather than sitting next to them, and un-banning always restores plain `user`, never whatever role they held before (see `AdminSrv.BanUser`/`UnbanUser`).
+`User` is keyed by `TelegramID` directly — there's no separate internal auto-increment ID; every FK that points at a user (`Purchase.UserID`, `AdminLog.AdminID`/`TargetID`) stores the Telegram ID. `User.role` (unexported — see the `internal/domain/models` entry above) is a single, mutually exclusive privilege level (`banned`/`user`/`admin`/`root_admin`, `models.Role`) — there's exactly one `root_admin` at a time (the `TELEGRAM_ROOT_ADMIN_ID` from config, bootstrapped by `cmd/migrate`'s `UserRepository.EnsureRootAdminExists`, which talks to `userRecord` directly and never goes through the domain methods below — there's no "actor" to check against during bootstrap). `User.IsBanned()`/`IsAdmin()`/`IsRootAdmin()` are the derived-boolean helper methods everything else checks against, not the raw role. The only way to change it is `User.Ban(actor)`/`Unban()`/`Promote(actor)`/`Demote(actor)` — each one carries the guard clauses that used to be hand-duplicated in `AdminSrv`'s four methods (self-target, root-admin-target, already-admin, not-admin), so `AdminSrv.BanUser`/`UnbanUser`/`MakeAdmin`/`RevokeAdmin` now just load the actor + target and call the matching method; a wrong-order or missing guard is a bug in `User`, not in four separate call sites. Because role is one field, banning an Admin/RootAdmin overwrites their admin rights rather than sitting next to them (`Ban` returns `ErrCannotBanRootAdmin` rather than doing this to a root admin), and `Unban` always restores plain `user`, never whatever role they held before.
+
+`User.Balance()` returns the current `Money` (see `internal/domain/models` above); `Credit`/`Debit` mutate it on an already-loaded `*User` with the same invariant Sub already enforces (`Debit` fails with `ErrNotEnoughBalance` rather than letting the balance go negative). **This is not the money-safety guarantee** — that's still `UserRepository.UpdateBalance`'s atomic `UPDATE ... WHERE balance >= -delta`, the only thing safe against two concurrent debits racing each other on the same row; `Credit`/`Debit` exist so an in-memory `*User` a caller is about to display or log doesn't drift out of sync with what it just told `UpdateBalance` to do, and so `PurchaseSrv.Buy`'s pre-transaction fast-fail check reads as `user.Debit(totalPrice)` instead of a bare comparison. Don't mistake the two for redundant — remove `UpdateBalance`'s SQL guard and `Debit` alone will not stop an oversell under concurrency.
 
 `User.ReferrerID *int64` records who invited this user (nil if none) — set exactly once, at row creation, and never touched again (see `UserSrv.GetOrCreate` and the referral paragraph below). `User.ReferralsEnabled` (`default:true`, relies on GORM substituting the tag's default for an omitted/zero-value bool field on `Create` — the same mechanism `Role`'s `default:'user'` already depends on) gates whether *this user, as a referrer*, still earns credit; it's flipped by `AdminSrv.SetReferralsEnabled`, mirroring `BanUser`/`UnbanUser`'s shape.
 
@@ -443,7 +475,7 @@ Auth is Telegram-Mini-App-based, entirely Redis-backed, nothing in Postgres — 
 
 `admin_backend/middleware.Auth` resolves the session token via `AdminAuthService.ValidateSession`, which requires all three of: the JWT signature/expiry to check out (`admintoken.ParseSessionJWT`, rejects a forged or expired token before any I/O), the token's hash to still have a live Redis entry (this is what makes the token revocable at all — a signed JWT can't be un-issued, so `Logout` works by deleting this entry instead), and the resolved user to still satisfy `IsAdmin()` in Postgres. The token itself comes from `Authorization: Bearer <session token>` (the SPA) or, failing that, a `session` cookie (`middleware.SessionCookieName`) — `handlers.Exchange` sets both on a successful exchange, same JWT in each. `GET /api/auth/me`'s 200-vs-401 response *is* the login check from the frontend's perspective; it also sets `X-Admin-Username` on success, which is what lets **Grafana reuse this exact login** — Caddy's `forward_auth` in front of `/stats` calls this same endpoint with the cookie, copies that header into `X-WEBAUTH-USER`, and Grafana (`GF_AUTH_PROXY_ENABLED`) trusts it instead of showing its own login form. Because the cookie is host-only and covers the whole origin, no Grafana-specific auth bridge exists at all: `/start?to=stats` performs the *same* `/api/auth/exchange` as `to=admin`, that response already sets the cookie, and the subsequent `window.location.href = '/stats/'` navigation just carries it along — `forward_auth` sees a valid session on the very first request. An unauthenticated visit gets redirected to `/start?to=stats` (re-attempts the exchange if `initData` is still available, i.e. still inside the Telegram WebView; otherwise dead-ends with an error, there is no manual fallback). **This redirect needs an explicit `handle_response`/`redir` override inside the `forward_auth` block** — `forward_auth`'s default behavior on a denied check is to mirror the upstream's exact response (here, `admin_backend`'s raw `{"code":"unauthorized",...}` JSON) straight to the client, which is not something Caddy's own `handle_errors` ever sees (a proxied 401 is a successful proxy operation from Caddy's point of view, not a caddyhttp.Error) — confirmed live by testing without the override first. See the docker-compose paragraph above for the rest of the observability stack. `POST /api/auth/logout` deletes the Redis session entry early (revoking both the header-based and cookie-based session at once, since they're the same Redis entry) and clears the cookie.
 
-`AdminService.MakeAdmin`/`RevokeAdmin`/`BanUser`/`UnbanUser` only ever change `User.Role` — they hand back no credential; a newly promoted admin gets in by sending `/admin` themselves. `MakeAdmin` is root-admin-only (`ErrOnlyRootAdminCanPromote` otherwise, checked against the acting admin's own persisted role) — without that, any admin could promote arbitrary users, who could promote further admins, with nothing containing the spread. Because `Role` is a single field, `BanUser`/`RevokeAdmin` both refuse to target the root admin (`ErrCannotBanRootAdmin`/`ErrCannotRevokeRootAdmin`) or the acting admin's own account (`ErrCannotBanSelf`/`ErrCannotRevokeSelf`) — banning or revoking would otherwise overwrite/strip root status with no one left able to grant it back. `UnbanUser` always restores plain `user`, never whatever role the target held before being banned — a banned former admin needs `MakeAdmin` run again after unban. A demoted admin's still-live session keeps validating JWT-wise until its TTL, but `ValidateSession` re-checks the role against Postgres on every call, so it's rejected on their very next request regardless.
+`AdminService.MakeAdmin`/`RevokeAdmin`/`BanUser`/`UnbanUser` load actor + target and delegate to `User.Promote`/`Demote`/`Ban`/`Unban` (see the Data model section above) — they hand back no credential; a newly promoted admin gets in by sending `/admin` themselves. `MakeAdmin` is root-admin-only (`Promote` returns `ErrOnlyRootAdminCanPromote` otherwise, checked against the acting admin's own persisted role) — without that, any admin could promote arbitrary users, who could promote further admins, with nothing containing the spread. Because role is a single field, `Ban`/`Demote` both refuse to target the root admin (`ErrCannotBanRootAdmin`/`ErrCannotRevokeRootAdmin`) or the acting admin's own account (`ErrCannotBanSelf`/`ErrCannotRevokeSelf`) — banning or revoking would otherwise overwrite/strip root status with no one left able to grant it back. `Unban` always restores plain `user`, never whatever role the target held before being banned — a banned former admin needs `MakeAdmin` run again after unban. A demoted admin's still-live session keeps validating JWT-wise until its TTL, but `ValidateSession` re-checks the role against Postgres on every call, so it's rejected on their very next request regardless.
 
 `AdminService.DeleteCategory`/`DeleteProduct` refuse to delete a non-empty category or a product with purchase history (`ErrCategoryNotEmpty`/`ErrProductHasPurchases`) rather than surfacing a raw FK error — reassign/delete children first, or deactivate (`IsActive`) instead of deleting a product that's already sold.
 

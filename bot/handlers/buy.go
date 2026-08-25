@@ -11,6 +11,7 @@ import (
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 	botmetrics "github.com/trottling/Telegram-Store/internal/metrics/bot"
 )
 
@@ -129,7 +130,7 @@ func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID i
 		Text: texts.T(lang, texts.ConfirmPurchaseMsg, map[string]any{
 			"Name":     utils.EscapeMarkdown(product.Name),
 			"Quantity": qty,
-			"Amount":   utils.FormatAmount(product.Price * float64(qty)),
+			"Amount":   utils.FormatAmount(product.Price.Mul(qty)),
 		}),
 		ParseMode:   models.ParseModeMarkdown,
 		ReplyMarkup: keyboards.BuildBuyConfirmKb(lang),
@@ -199,11 +200,11 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 
 	botmetrics.PurchasesTotal.WithLabelValues("success").Inc()
 	botmetrics.PurchaseUnitsTotal.Add(float64(len(purchases)))
-	var amount float64
+	amount := domainmodels.Money{}
 	for _, p := range purchases {
-		amount += p.Amount
+		amount = amount.Add(p.Amount)
 	}
-	botmetrics.PurchaseAmountTotal.Add(amount)
+	botmetrics.PurchaseAmountTotal.Add(amount.Float64())
 
 	contents := make([]string, len(purchases))
 	for i, p := range purchases {
@@ -229,7 +230,7 @@ func (h *Handlers) BuyConfirmHandler(ctx context.Context, b *bot.Bot, update *mo
 
 	if credit != nil {
 		botmetrics.ReferralCreditsTotal.Inc()
-		botmetrics.ReferralCreditAmountTotal.Add(credit.Amount)
+		botmetrics.ReferralCreditAmountTotal.Add(credit.Amount.Float64())
 
 		// Уведомление рефереру — на его собственном языке, не языке покупателя.
 		referrerLang := texts.LangRU

@@ -16,7 +16,7 @@ type Purchase struct {
 	ProductID int64          `gorm:"index;not null" json:"product_id"`
 	ItemID    *int64         `gorm:"uniqueIndex" json:"item_id,omitempty"` // конкретный выданный товар
 	BatchID   string         `gorm:"size:36;index" json:"batch_id"`
-	Amount    float64        `gorm:"type:decimal(12,2);not null" json:"amount"`
+	Amount    Money          `gorm:"type:decimal(12,2);not null" json:"amount"`
 	Status    PurchaseStatus `gorm:"size:20;default:'pending';not null" json:"status"`
 	// index — межпользовательский листинг админки сортирует по этой колонке.
 	CreatedAt   time.Time  `gorm:"index" json:"created_at"`
@@ -33,9 +33,9 @@ type PurchaseBatchSummary struct {
 	BatchID     string    `json:"batch_id"`
 	ProductID   int64     `json:"product_id"`
 	ProductName string    `json:"product_name"`
-	UnitPrice   float64   `json:"unit_price"`
+	UnitPrice   Money     `json:"unit_price"`
 	Quantity    int       `json:"quantity"`
-	TotalAmount float64   `json:"total_amount"`
+	TotalAmount Money     `json:"total_amount"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
@@ -56,7 +56,7 @@ type PurchaseAdminItem struct {
 	ProductName string         `json:"product_name"`
 	ItemID      *int64         `json:"item_id,omitempty"`
 	BatchID     string         `json:"batch_id"`
-	Amount      float64        `json:"amount"`
+	Amount      Money          `json:"amount"`
 	Status      PurchaseStatus `json:"status"`
 	CreatedAt   time.Time      `json:"created_at"`
 	CompletedAt *time.Time     `json:"completed_at,omitempty"`

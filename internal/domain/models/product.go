@@ -7,7 +7,7 @@ type Product struct {
 	CategoryID  *int64    `gorm:"index" json:"category_id,omitempty"` // nil = uncategorized
 	Name        string    `gorm:"size:255;not null" json:"name"`
 	Description string    `gorm:"type:text" json:"description"`
-	Price       float64   `gorm:"type:decimal(12,2);not null" json:"price"`
+	Price       Money     `gorm:"type:decimal(12,2);not null" json:"price"`
 	IsActive    bool      `gorm:"default:true;not null" json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
 
@@ -35,7 +35,7 @@ type ProductAdminSummary struct {
 	CategoryName   string    `json:"category_name,omitempty"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
-	Price          float64   `json:"price"`
+	Price          Money     `json:"price"`
 	IsActive       bool      `json:"is_active"`
 	AvailableCount int       `json:"available_count"`
 	CreatedAt      time.Time `json:"created_at"`

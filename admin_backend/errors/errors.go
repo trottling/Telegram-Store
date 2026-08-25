@@ -31,6 +31,7 @@ func DomainErrorToResponse(err error) (int, *dto.ErrorResponse) {
 		errors.Is(err, domainerrors.ErrCannotBanRootAdmin),
 		errors.Is(err, domainerrors.ErrCannotBanSelf),
 		errors.Is(err, domainerrors.ErrInvalidAmount),
+		errors.Is(err, domainerrors.ErrNegativeAmount),
 		errors.Is(err, domainerrors.ErrInvalidProductInput),
 		errors.Is(err, domainerrors.ErrNoItemsProvided),
 		errors.Is(err, domainerrors.ErrCategoryNotEmpty),

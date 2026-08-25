@@ -52,8 +52,8 @@ func NewReplenishmentSrv(
 
 const replenishmentDescription = "Пополнение баланса"
 
-func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount float64) (string, int64, error) {
-	if amount <= 0 {
+func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount models.Money) (string, int64, error) {
+	if amount.IsZero() {
 		return "", 0, domainerrors.ErrInvalidAmount
 	}
 
@@ -91,15 +91,15 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 // CheckInvoice — см. doc-комментарий интерфейса. CheckStatus у мерчанта
 // вызывается только если счёт всё ещё pending — иначе лишний внешний запрос
 // за уже известным ответом.
-func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, replenishmentID int64) (models.ReplenishmentStatus, float64, error) {
+func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, replenishmentID int64) (models.ReplenishmentStatus, models.Money, error) {
 	replenishment, err := s.replenishmentRepo.GetByID(ctx, replenishmentID)
 	if err != nil {
-		return "", 0, err
+		return "", models.Money{}, err
 	}
 	if replenishment.UserID != telegramID {
 		// Чужой счёт — ведём себя как с несуществующим, а не 403: не палим,
 		// что id вообще существует.
-		return "", 0, domainerrors.ErrReplenishmentNotFound
+		return "", models.Money{}, domainerrors.ErrReplenishmentNotFound
 	}
 	if replenishment.Status != models.ReplenishmentStatusPending {
 		return replenishment.Status, replenishment.Amount, nil
@@ -110,7 +110,7 @@ func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, r
 	if s.checkCooldown != nil {
 		acquired, err := s.checkCooldown.TryAcquire(ctx, replenishmentID)
 		if err != nil {
-			return "", 0, err
+			return "", models.Money{}, err
 		}
 		if !acquired {
 			return models.ReplenishmentStatusPending, replenishment.Amount, nil
@@ -119,26 +119,26 @@ func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, r
 
 	provider, ok := s.providers[replenishment.Merchant]
 	if !ok {
-		return "", 0, domainerrors.ErrInvalidMerchant
+		return "", models.Money{}, domainerrors.ErrInvalidMerchant
 	}
 
 	status, err := provider.CheckStatus(ctx, replenishment.InvoiceID)
 	if err != nil {
-		return "", 0, err
+		return "", models.Money{}, err
 	}
 
 	switch status {
 	case payment.PaymentStatusPaid:
-		// paidAmount=0 — CheckStatus большинства мерчантов сумму не
-		// возвращает; Confirm в этом случае зачисляет записанную сумму (см.
-		// её собственный doc-комментарий).
-		if err = s.Confirm(ctx, replenishment.Merchant, replenishment.InvoiceID, 0); err != nil {
-			return "", 0, err
+		// paidAmount — нулевое значение: CheckStatus большинства мерчантов
+		// сумму не возвращает; Confirm в этом случае зачисляет записанную
+		// сумму (см. её собственный doc-комментарий).
+		if err = s.Confirm(ctx, replenishment.Merchant, replenishment.InvoiceID, models.Money{}); err != nil {
+			return "", models.Money{}, err
 		}
 		return models.ReplenishmentStatusPaid, replenishment.Amount, nil
 	case payment.PaymentStatusFailed, payment.PaymentStatusCancelled:
 		if err = s.Fail(ctx, replenishment.Merchant, replenishment.InvoiceID); err != nil {
-			return "", 0, err
+			return "", models.Money{}, err
 		}
 		return models.ReplenishmentStatusFailed, replenishment.Amount, nil
 	default:
@@ -154,7 +154,7 @@ func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, r
 // счёт оплаченным отдельным коммитом, а начисление упадёт, то ретрай вебхука
 // получит changed=false и молча вернёт 200 — деньги списаны у клиента и
 // потеряны без следа.
-func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant, invoiceID string, paidAmount float64) error {
+func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant, invoiceID string, paidAmount models.Money) error {
 	replenishment, err := s.replenishmentRepo.GetByMerchantInvoiceID(ctx, merchant, invoiceID)
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant
 	// Начисляем всегда записанную сумму — именно её подтверждал пользователь.
 	// Расхождение само по себе зачислению не мешает, но означает, что наша
 	// запись и данные мерчанта разошлись, и это стоит увидеть в логах.
-	if paidAmount > 0 && paidAmount != replenishment.Amount {
+	if !paidAmount.IsZero() && !paidAmount.Equal(replenishment.Amount) {
 		s.log.Warnw("replenishment_service: merchant reported a different amount",
 			"merchant", merchant, "invoice_id", invoiceID,
 			"recorded_amount", replenishment.Amount, "reported_amount", paidAmount,
@@ -177,7 +177,7 @@ func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant
 		if txErr != nil || !changed {
 			return txErr
 		}
-		if txErr = s.userRepo.UpdateBalance(ctx, replenishment.UserID, replenishment.Amount); txErr != nil {
+		if txErr = s.userRepo.UpdateBalance(ctx, replenishment.UserID, replenishment.Amount.Decimal()); txErr != nil {
 			return txErr
 		}
 		credited = true
@@ -191,7 +191,7 @@ func (s *ReplenishmentSrv) Confirm(ctx context.Context, merchant models.Merchant
 	// обработанного вебхука (см. doc-комментарий Confirm). Считать по err==nil
 	// без этой проверки задваивало бы метрику на каждом ретрае мерчанта.
 	paymentsmetrics.ReplenishmentsTotal.WithLabelValues(string(merchant), "paid").Inc()
-	paymentsmetrics.ReplenishmentAmountTotal.WithLabelValues(string(merchant)).Add(replenishment.Amount)
+	paymentsmetrics.ReplenishmentAmountTotal.WithLabelValues(string(merchant)).Add(replenishment.Amount.Float64())
 
 	// Инвалидация только после коммита: до него в Postgres ещё старый баланс,
 	// и параллельный читатель залил бы его обратно в кэш.
@@ -247,7 +247,7 @@ func (s *ReplenishmentSrv) CountUserReplenishments(ctx context.Context, telegram
 	return s.replenishmentRepo.CountByUserID(ctx, telegramID)
 }
 
-func (s *ReplenishmentSrv) SumUserMerchantAmount(ctx context.Context, telegramID int64, merchant models.Merchant) (float64, error) {
+func (s *ReplenishmentSrv) SumUserMerchantAmount(ctx context.Context, telegramID int64, merchant models.Merchant) (models.Money, error) {
 	return s.replenishmentRepo.SumPaidByUserMerchant(ctx, telegramID, merchant)
 }
 

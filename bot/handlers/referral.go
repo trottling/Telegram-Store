@@ -68,7 +68,7 @@ func (h *Handlers) ReferralHandler(ctx context.Context, b *bot.Bot, update *mode
 			"Percent":  settings.Referral.Percent,
 			"Link":     link,
 			"Invited":  invited,
-			"Credited": fmt.Sprintf("%.2f", totalCredited),
+			"Credited": totalCredited.String(),
 		}),
 		ReplyMarkup: kb,
 	}); err != nil {

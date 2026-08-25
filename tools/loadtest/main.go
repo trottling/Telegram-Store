@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
@@ -126,12 +127,12 @@ func main() {
 func seedUsers(ctx context.Context, userRepo *pgdb.UserRepo, n int, topUp float64) {
 	for i := range n {
 		id := int64(loadtestUserBase + i)
-		user := &models.User{TelegramID: id, Username: fmt.Sprintf("loadtest_%d", i), Language: "ru"}
+		user := models.NewUser(id, fmt.Sprintf("loadtest_%d", i), "ru", nil)
 		// Ошибка тут обычно значит "уже существует с прошлого прогона" — не
 		// повод останавливаться, баланс всё равно доливаем ниже.
 		_ = userRepo.Create(ctx, user)
 		if topUp > 0 {
-			_ = userRepo.UpdateBalance(ctx, id, topUp)
+			_ = userRepo.UpdateBalance(ctx, id, decimal.NewFromFloat(topUp))
 		}
 	}
 }
@@ -140,7 +141,11 @@ func seedUsers(ctx context.Context, userRepo *pgdb.UserRepo, n int, topUp float6
 // прогон buyload заводит свой, старые от прошлых прогонов не мешают
 // (у каждого свой product_id, посчитать проданное можно только по нему).
 func seedProduct(ctx context.Context, productRepo *pgdb.ProductRepo, stock int) int64 {
-	product := &models.Product{Name: fmt.Sprintf("loadtest-product-%d", time.Now().UnixNano()), Price: 10.00, IsActive: true}
+	price, err := models.NewMoneyFromFloat(10.00)
+	if err != nil {
+		fatalf("seed product: %v", err)
+	}
+	product := &models.Product{Name: fmt.Sprintf("loadtest-product-%d", time.Now().UnixNano()), Price: price, IsActive: true}
 	if err := productRepo.Create(ctx, product); err != nil {
 		fatalf("seed product: %v", err)
 	}

@@ -17,7 +17,7 @@ type PurchaseRepository interface {
 	// StatsByUserID — количество покупок и сумма завершённых, одним агрегатом.
 	// Считать это выборкой всех строк нельзя: карточку профиля открывают часто,
 	// а у активного покупателя строк тысячи.
-	StatsByUserID(ctx context.Context, userID int64) (count int64, totalSpent float64, err error)
+	StatsByUserID(ctx context.Context, userID int64) (count int64, totalSpent models.Money, err error)
 	// CountByProductID — есть ли история покупок (проверка перед удалением товара).
 	CountByProductID(ctx context.Context, productID int64) (int64, error)
 	// ListBatchesByUserID/CountBatchesByUserID — по батчам, не по сырым строкам.

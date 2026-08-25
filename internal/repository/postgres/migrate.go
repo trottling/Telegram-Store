@@ -80,7 +80,7 @@ func refreshCollationVersions(db *gorm.DB, log *zap.SugaredLogger) {
 // cmd/migrate/main.go - тонкая обвязка
 func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootAdminID int64) error {
 	if err := db.AutoMigrate(
-		&models.User{},
+		&userRecord{},
 		&models.Category{},
 		&models.Product{},
 		&models.ProductItem{},

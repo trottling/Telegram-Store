@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"fmt"
 	"strings"
 	"time"
+
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // mdV2Escaper экранирует спецсимволы MarkdownV2 вне сущностей:
@@ -55,8 +56,8 @@ func EscapeMarkdownCode(s string) string {
 // FormatAmount форматирует сумму до сотых с экранированной точкой — вне
 // сущности литеральная "." ломает парсинг MarkdownV2 так же, как и любой
 // другой спецсимвол.
-func FormatAmount(v float64) string {
-	return EscapeMarkdown(fmt.Sprintf("%.2f", v))
+func FormatAmount(v models.Money) string {
+	return EscapeMarkdown(v.String())
 }
 
 // FormatDate — дата/время в привычном виде, с экранированными точками под MarkdownV2.

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
@@ -69,7 +70,7 @@ type crystalPayInfoResponse struct {
 	State  string   `json:"state"`
 }
 
-func (p *CrystalPayProvider) CreateInvoice(ctx context.Context, _ int64, amount float64, description string) (string, string, error) {
+func (p *CrystalPayProvider) CreateInvoice(ctx context.Context, _ int64, amount models.Money, description string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err
@@ -78,14 +79,14 @@ func (p *CrystalPayProvider) CreateInvoice(ctx context.Context, _ int64, amount 
 	if !cfg.Enabled {
 		return "", "", domainerrors.ErrMerchantDisabled
 	}
-	if amount < cfg.MinAmount || (cfg.MaxAmount > 0 && amount > cfg.MaxAmount) {
+	if amount.LessThan(cfg.MinAmount) || (!cfg.MaxAmount.IsZero() && amount.GreaterThan(cfg.MaxAmount)) {
 		return "", "", domainerrors.ErrAmountOutOfRange
 	}
 
 	req := crystalPayCreateRequest{
 		AuthLogin:   cfg.Login,
 		AuthSecret:  cfg.Secret,
-		Amount:      amount,
+		Amount:      amount.Float64(),
 		Type:        crystalPayInvoiceType,
 		Lifetime:    crystalPayInvoiceLifetimeMinutes,
 		Description: description,

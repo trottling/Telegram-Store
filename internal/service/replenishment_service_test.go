@@ -6,9 +6,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"go.uber.org/zap"
 )
+
+// mustMoney — тестовый хелпер, конструктор Money в тестах other-package не
+// вызвать напрямую (поле d неэкспортируемое).
+func mustMoney(s string) models.Money {
+	m, err := models.NewMoney(s)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
 
 // fakeDB — минимальная модель того, что делает Postgres: fakeTransactor снимает
 // с неё копию и восстанавливает, если функция транзакции вернула ошибку.
@@ -16,7 +28,7 @@ import (
 // откатывает и отметку "оплачено", оставляя счёт пригодным для ретрая.
 type fakeDB struct {
 	status         models.ReplenishmentStatus
-	balance        float64
+	balance        decimal.Decimal
 	balanceCalls   int
 	invalidateCall int
 }
@@ -41,7 +53,7 @@ type fakeReplRepo struct {
 }
 
 func (r *fakeReplRepo) GetByMerchantInvoiceID(context.Context, models.Merchant, string) (*models.Replenishment, error) {
-	return &models.Replenishment{ID: 7, UserID: 100, Amount: 250, Status: r.db.status}, nil
+	return &models.Replenishment{ID: 7, UserID: 100, Amount: mustMoney("250"), Status: r.db.status}, nil
 }
 
 func (r *fakeReplRepo) UpdateStatus(_ context.Context, _ int64, status models.ReplenishmentStatus, _ *time.Time) (bool, error) {
@@ -64,7 +76,7 @@ func (r *fakeReplRepo) ListByUserID(context.Context, int64, int, int) ([]models.
 func (r *fakeReplRepo) CountByUserID(context.Context, int64) (int64, error) {
 	panic("не используется")
 }
-func (r *fakeReplRepo) SumPaidByUserMerchant(context.Context, int64, models.Merchant) (float64, error) {
+func (r *fakeReplRepo) SumPaidByUserMerchant(context.Context, int64, models.Merchant) (models.Money, error) {
 	panic("не используется")
 }
 func (r *fakeReplRepo) ListAllAdmin(context.Context, models.ReplenishmentAdminFilter, int, int) ([]models.ReplenishmentAdminItem, error) {
@@ -79,12 +91,12 @@ type fakeUserRepo struct {
 	failErr error
 }
 
-func (r *fakeUserRepo) UpdateBalance(_ context.Context, _ int64, delta float64) error {
+func (r *fakeUserRepo) UpdateBalance(_ context.Context, _ int64, delta decimal.Decimal) error {
 	r.db.balanceCalls++
 	if r.failErr != nil {
 		return r.failErr
 	}
-	r.db.balance += delta
+	r.db.balance = r.db.balance.Add(delta)
 	return nil
 }
 
@@ -142,14 +154,14 @@ func TestConfirmCreditsOnce(t *testing.T) {
 	db := &fakeDB{status: models.ReplenishmentStatusPending}
 	srv := newTestSrv(db, nil)
 
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); err != nil {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", models.Money{}); err != nil {
 		t.Fatalf("первый Confirm вернул ошибку: %v", err)
 	}
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); err != nil {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", models.Money{}); err != nil {
 		t.Fatalf("повторный Confirm вернул ошибку: %v", err)
 	}
 
-	if db.balance != 250 {
+	if !db.balance.Equal(decimal.NewFromInt(250)) {
 		t.Errorf("баланс = %v, ожидалось 250 (начислено ровно один раз)", db.balance)
 	}
 	if db.status != models.ReplenishmentStatusPaid {
@@ -168,14 +180,14 @@ func TestConfirmRollsBackOnBalanceFailure(t *testing.T) {
 	balanceErr := errors.New("соединение с БД потеряно")
 	srv := newTestSrv(db, balanceErr)
 
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); !errors.Is(err, balanceErr) {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", models.Money{}); !errors.Is(err, balanceErr) {
 		t.Fatalf("Confirm вернул %v, ожидалась ошибка начисления", err)
 	}
 
 	if db.status != models.ReplenishmentStatusPending {
 		t.Fatalf("статус = %q, ожидался pending: откат обязателен, иначе ретрай уже не начислит", db.status)
 	}
-	if db.balance != 0 {
+	if !db.balance.IsZero() {
 		t.Errorf("баланс = %v, ожидался 0", db.balance)
 	}
 	if db.invalidateCall != 0 {
@@ -184,10 +196,10 @@ func TestConfirmRollsBackOnBalanceFailure(t *testing.T) {
 
 	// Счёт остался pending, поэтому ретрай мерчанта доводит дело до конца.
 	srv = newTestSrv(db, nil)
-	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", 0); err != nil {
+	if err := srv.Confirm(context.Background(), models.MerchantCrystalPay, "inv-1", models.Money{}); err != nil {
 		t.Fatalf("ретрай после сбоя вернул ошибку: %v", err)
 	}
-	if db.balance != 250 {
+	if !db.balance.Equal(decimal.NewFromInt(250)) {
 		t.Errorf("баланс после ретрая = %v, ожидалось 250", db.balance)
 	}
 }

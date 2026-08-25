@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -32,8 +31,8 @@ var refillMerchants = []struct {
 // креды, но Enabled/Min/MaxAmount совпадают по смыслу).
 type merchantLimits struct {
 	Enabled bool
-	Min     float64
-	Max     float64
+	Min     domain.Money
+	Max     domain.Money
 }
 
 func merchantConfig(settings *domain.Settings, merchant domain.Merchant) merchantLimits {
@@ -54,12 +53,12 @@ func merchantConfig(settings *domain.Settings, merchant domain.Merchant) merchan
 // amountRangeHint — подсказка допустимой суммы для AskRefillAmountMsg.
 func amountRangeHint(lang string, mc merchantLimits) string {
 	switch {
-	case mc.Min > 0 && mc.Max > 0:
-		return texts.T(lang, texts.AmountRangeBothMsg, map[string]any{"Min": fmt.Sprintf("%.2f", mc.Min), "Max": fmt.Sprintf("%.2f", mc.Max)})
-	case mc.Min > 0:
-		return texts.T(lang, texts.AmountRangeMinMsg, map[string]any{"Min": fmt.Sprintf("%.2f", mc.Min)})
-	case mc.Max > 0:
-		return texts.T(lang, texts.AmountRangeMaxMsg, map[string]any{"Max": fmt.Sprintf("%.2f", mc.Max)})
+	case !mc.Min.IsZero() && !mc.Max.IsZero():
+		return texts.T(lang, texts.AmountRangeBothMsg, map[string]any{"Min": mc.Min.String(), "Max": mc.Max.String()})
+	case !mc.Min.IsZero():
+		return texts.T(lang, texts.AmountRangeMinMsg, map[string]any{"Min": mc.Min.String()})
+	case !mc.Max.IsZero():
+		return texts.T(lang, texts.AmountRangeMaxMsg, map[string]any{"Max": mc.Max.String()})
 	default:
 		return texts.T(lang, texts.AmountRangeAnyMsg, nil)
 	}
@@ -148,7 +147,7 @@ func (h *Handlers) RefillMerchantHandler(ctx context.Context, b *bot.Bot, update
 	if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 		ChatID:    chatID,
 		MessageID: messageID,
-		Text: texts.T(user.Language, texts.AskRefillAmountMsg, map[string]any{"Hint": amountRangeHint(user.Language, mc)}),
+		Text:      texts.T(user.Language, texts.AskRefillAmountMsg, map[string]any{"Hint": amountRangeHint(user.Language, mc)}),
 		// emptyInlineKeyboard, не nil: правка убирает клавиатуру карточки
 		// мерчанта, а nil в этом поле уходит в JSON как null и Telegram API
 		// отвечает "inline_keyboard must be of type Array" — FSM-состояние на
@@ -207,7 +206,7 @@ func (h *Handlers) CheckPaymentHandler(ctx context.Context, b *bot.Bot, update *
 		// Тост — не MarkdownV2 (Telegram не парсит его вообще), поэтому здесь
 		// "%.2f" напрямую, а не utils.FormatAmount: та экранирует точку под
 		// MarkdownV2, и в простом тексте это "\." виднелось бы буквально.
-		answer(texts.T(user.Language, texts.CheckPaymentPaidMsg, map[string]any{"Amount": fmt.Sprintf("%.2f", amount)}))
+		answer(texts.T(user.Language, texts.CheckPaymentPaidMsg, map[string]any{"Amount": amount.String()}))
 		if _, messageID, editOK := utils.CallbackTarget(update); editOK {
 			if _, err = b.EditMessageText(ctx, &bot.EditMessageTextParams{
 				ChatID:      chatID,

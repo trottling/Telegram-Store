@@ -37,7 +37,7 @@ func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username st
 		if !errors.Is(err, domainerrors.ErrUserNotFound) {
 			return nil, false, err
 		}
-		user = &models.User{TelegramID: telegramID, Username: username, Language: language, ReferrerID: s.validReferrer(ctx, telegramID, referrerID)}
+		user = models.NewUser(telegramID, username, language, s.validReferrer(ctx, telegramID, referrerID))
 		if err = s.userRepo.Create(ctx, user); err != nil {
 			return nil, false, err
 		}
@@ -132,4 +132,3 @@ func (s *UserSrv) CountReferrals(ctx context.Context, telegramID int64) (int64, 
 func (s *UserSrv) ListReferrals(ctx context.Context, telegramID int64, offset, limit int) ([]models.User, error) {
 	return s.userRepo.ListReferrals(ctx, telegramID, offset, limit)
 }
-

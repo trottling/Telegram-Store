@@ -32,7 +32,7 @@ type Replenishment struct {
 	UserID    int64               `gorm:"index;not null" json:"user_id"`
 	Merchant  Merchant            `gorm:"type:varchar(20);not null" json:"merchant"`
 	InvoiceID string              `gorm:"size:128;index" json:"invoice_id"` // ID счёта у мерчанта
-	Amount    float64             `gorm:"type:decimal(12,2);not null" json:"amount"`
+	Amount    Money               `gorm:"type:decimal(12,2);not null" json:"amount"`
 	Status    ReplenishmentStatus `gorm:"type:varchar(20);default:'pending';not null" json:"status"`
 	// index — межпользовательский листинг админки сортирует по этой колонке.
 	CreatedAt   time.Time  `gorm:"index" json:"created_at"`
@@ -54,7 +54,7 @@ type ReplenishmentAdminItem struct {
 	Username    string              `json:"username"`
 	Merchant    Merchant            `json:"merchant"`
 	InvoiceID   string              `json:"invoice_id"`
-	Amount      float64             `json:"amount"`
+	Amount      Money               `json:"amount"`
 	Status      ReplenishmentStatus `json:"status"`
 	CreatedAt   time.Time           `json:"created_at"`
 	CompletedAt *time.Time          `json:"completed_at,omitempty"`

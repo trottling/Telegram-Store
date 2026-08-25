@@ -2,12 +2,12 @@ package payment
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rvinnie/yookassa-sdk-go/yookassa"
 	yoocommon "github.com/rvinnie/yookassa-sdk-go/yookassa/common"
 	yoopayment "github.com/rvinnie/yookassa-sdk-go/yookassa/payment"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
 )
@@ -23,7 +23,7 @@ func NewYooKassaProvider(settingsService service.SettingsService) *YooKassaProvi
 	return &YooKassaProvider{settingsService: settingsService}
 }
 
-func (p *YooKassaProvider) CreateInvoice(ctx context.Context, _ int64, amount float64, description string) (string, string, error) {
+func (p *YooKassaProvider) CreateInvoice(ctx context.Context, _ int64, amount models.Money, description string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err
@@ -32,14 +32,14 @@ func (p *YooKassaProvider) CreateInvoice(ctx context.Context, _ int64, amount fl
 	if !cfg.Enabled {
 		return "", "", domainerrors.ErrMerchantDisabled
 	}
-	if amount < cfg.MinAmount || (cfg.MaxAmount > 0 && amount > cfg.MaxAmount) {
+	if amount.LessThan(cfg.MinAmount) || (!cfg.MaxAmount.IsZero() && amount.GreaterThan(cfg.MaxAmount)) {
 		return "", "", domainerrors.ErrAmountOutOfRange
 	}
 
 	handler := yookassa.NewPaymentHandler(yookassa.NewClient(cfg.ShopID, cfg.SecretKey))
 
 	pay, err := handler.CreatePayment(ctx, &yoopayment.Payment{
-		Amount:       &yoocommon.Amount{Value: fmt.Sprintf("%.2f", amount), Currency: "RUB"},
+		Amount:       &yoocommon.Amount{Value: amount.String(), Currency: "RUB"},
 		Description:  description,
 		Capture:      true,
 		Confirmation: &yoopayment.Redirect{Type: yoopayment.TypeRedirect},

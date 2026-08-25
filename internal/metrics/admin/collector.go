@@ -72,17 +72,17 @@ func (c *AnalyticsCollector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
-	ch <- prometheus.MustNewConstMetric(c.totalRevenue, prometheus.GaugeValue, snap.TotalRevenue)
+	ch <- prometheus.MustNewConstMetric(c.totalRevenue, prometheus.GaugeValue, snap.TotalRevenue.Float64())
 	ch <- prometheus.MustNewConstMetric(c.totalPurchases, prometheus.GaugeValue, float64(snap.TotalPurchases))
 	ch <- prometheus.MustNewConstMetric(c.totalUsers, prometheus.GaugeValue, float64(snap.TotalUsers))
 	ch <- prometheus.MustNewConstMetric(c.bannedUsers, prometheus.GaugeValue, float64(snap.BannedUsers))
 	ch <- prometheus.MustNewConstMetric(c.adminUsers, prometheus.GaugeValue, float64(snap.AdminUsers))
-	ch <- prometheus.MustNewConstMetric(c.totalBalance, prometheus.GaugeValue, snap.TotalBalance)
+	ch <- prometheus.MustNewConstMetric(c.totalBalance, prometheus.GaugeValue, snap.TotalBalance.Float64())
 	ch <- prometheus.MustNewConstMetric(c.availableStock, prometheus.GaugeValue, float64(snap.AvailableStock))
 	for _, p := range snap.TopProducts {
-		ch <- prometheus.MustNewConstMetric(c.topProduct, prometheus.GaugeValue, p.Revenue, p.Name)
+		ch <- prometheus.MustNewConstMetric(c.topProduct, prometheus.GaugeValue, p.Revenue.Float64(), p.Name)
 	}
 	for _, cat := range snap.TopCategories {
-		ch <- prometheus.MustNewConstMetric(c.topCategory, prometheus.GaugeValue, cat.Revenue, cat.Name)
+		ch <- prometheus.MustNewConstMetric(c.topCategory, prometheus.GaugeValue, cat.Revenue.Float64(), cat.Name)
 	}
 }

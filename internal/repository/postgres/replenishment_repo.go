@@ -91,8 +91,8 @@ func (r *ReplenishmentRepo) CountByUserID(ctx context.Context, userID int64) (in
 }
 
 // SumPaidByUserMerchant — сумма оплаченных пополнений (COALESCE — 0, если строк нет).
-func (r *ReplenishmentRepo) SumPaidByUserMerchant(ctx context.Context, userID int64, merchant models.Merchant) (float64, error) {
-	var sum float64
+func (r *ReplenishmentRepo) SumPaidByUserMerchant(ctx context.Context, userID int64, merchant models.Merchant) (models.Money, error) {
+	var sum models.Money
 	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Replenishment{}).
 		Where("user_id = ? AND merchant = ? AND status = ?", userID, merchant, models.ReplenishmentStatusPaid).
 		Select("COALESCE(SUM(amount), 0)").

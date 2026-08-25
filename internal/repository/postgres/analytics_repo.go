@@ -24,7 +24,7 @@ func (r *AnalyticsRepo) GetSnapshot(ctx context.Context, topN int) (*models.Anal
 	snap := &models.AnalyticsSnapshot{}
 
 	var sales struct {
-		TotalRevenue   float64
+		TotalRevenue   models.Money
 		TotalPurchases int64
 	}
 	if err := r.db.WithContext(ctx).Model(&models.Purchase{}).
@@ -41,9 +41,9 @@ func (r *AnalyticsRepo) GetSnapshot(ctx context.Context, topN int) (*models.Anal
 		TotalUsers   int64
 		BannedUsers  int64
 		AdminUsers   int64
-		TotalBalance float64
+		TotalBalance models.Money
 	}
-	if err := r.db.WithContext(ctx).Model(&models.User{}).
+	if err := r.db.WithContext(ctx).Model(&userRecord{}).
 		Select("COUNT(*) AS total_users, "+
 			"COUNT(*) FILTER (WHERE role = ?) AS banned_users, "+
 			"COUNT(*) FILTER (WHERE role IN (?, ?)) AS admin_users, "+

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json/v2"
 
+	"github.com/shopspring/decimal"
+
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -68,8 +70,8 @@ func (s *AdminSrv) logAction(ctx context.Context, adminID int64, action string, 
 	s.log.Infow("admin_service: action performed", "admin_id", adminID, "action", action, "target_id", *targetID)
 }
 
-func (s *AdminSrv) AddBalance(ctx context.Context, adminID, targetTelegramID int64, amount float64) error {
-	if amount == 0 {
+func (s *AdminSrv) AddBalance(ctx context.Context, adminID, targetTelegramID int64, amount decimal.Decimal) error {
+	if amount.IsZero() {
 		return domainerrors.ErrInvalidAmount
 	}
 
@@ -86,26 +88,22 @@ func (s *AdminSrv) AddBalance(ctx context.Context, adminID, targetTelegramID int
 	return nil
 }
 
-// BanUser ставит роль Banned напрямую (роль одна — банит и снимает права
-// админа заодно). Отказывает на root admin и на самого себя — иначе некому
-// будет вернуть права обратно.
+// BanUser банит через User.Ban — тот сам отказывает на root admin и на
+// самого себя (иначе некому будет вернуть права обратно) и снимает права
+// админа заодно (роль одна на всех).
 func (s *AdminSrv) BanUser(ctx context.Context, adminID, targetTelegramID int64) error {
-	if targetTelegramID == adminID {
-		return domainerrors.ErrCannotBanSelf
+	actor, err := s.userRepo.GetByID(ctx, adminID)
+	if err != nil {
+		return err
 	}
-
 	target, err := s.userRepo.GetByID(ctx, targetTelegramID)
 	if err != nil {
 		return err
 	}
-	if target.IsRootAdmin() {
-		return domainerrors.ErrCannotBanRootAdmin
-	}
-	if target.IsBanned() {
-		return nil
+	if err = target.Ban(actor); err != nil {
+		return err
 	}
 
-	target.Role = models.RoleBanned
 	if err = s.userRepo.Update(ctx, target); err != nil {
 		return err
 	}
@@ -126,7 +124,7 @@ func (s *AdminSrv) UnbanUser(ctx context.Context, adminID, targetTelegramID int6
 		return nil
 	}
 
-	target.Role = models.RoleUser
+	target.Unban()
 	if err = s.userRepo.Update(ctx, target); err != nil {
 		return err
 	}
@@ -136,26 +134,22 @@ func (s *AdminSrv) UnbanUser(ctx context.Context, adminID, targetTelegramID int6
 	return nil
 }
 
-// MakeAdmin выдаёт права админа — только для root admin, иначе цепочка
-// promote была бы неконтролируемой.
+// MakeAdmin выдаёт права админа через User.Promote — тот сам отказывает,
+// если actor не root admin (иначе цепочка promote была бы неконтролируемой).
 func (s *AdminSrv) MakeAdmin(ctx context.Context, adminID, targetTelegramID int64) error {
 	actingAdmin, err := s.userRepo.GetByID(ctx, adminID)
 	if err != nil {
 		return err
-	}
-	if !actingAdmin.IsRootAdmin() {
-		return domainerrors.ErrOnlyRootAdminCanPromote
 	}
 
 	target, err := s.userRepo.GetByID(ctx, targetTelegramID)
 	if err != nil {
 		return err
 	}
-	if target.IsAdmin() {
-		return domainerrors.ErrAlreadyAdmin
+	if err = target.Promote(actingAdmin); err != nil {
+		return err
 	}
 
-	target.Role = models.RoleAdmin
 	if err = s.userRepo.Update(ctx, target); err != nil {
 		return err
 	}
@@ -165,24 +159,21 @@ func (s *AdminSrv) MakeAdmin(ctx context.Context, adminID, targetTelegramID int6
 	return nil
 }
 
-// RevokeAdmin снимает права админа. Нельзя снять с root admin или с себя.
+// RevokeAdmin снимает права админа через User.Demote — тот сам отказывает на
+// root admin и на самого себя.
 func (s *AdminSrv) RevokeAdmin(ctx context.Context, adminID, targetTelegramID int64) error {
-	if targetTelegramID == adminID {
-		return domainerrors.ErrCannotRevokeSelf
+	actor, err := s.userRepo.GetByID(ctx, adminID)
+	if err != nil {
+		return err
 	}
-
 	target, err := s.userRepo.GetByID(ctx, targetTelegramID)
 	if err != nil {
 		return err
 	}
-	if target.IsRootAdmin() {
-		return domainerrors.ErrCannotRevokeRootAdmin
-	}
-	if !target.IsAdmin() {
-		return domainerrors.ErrNotAdmin
+	if err = target.Demote(actor); err != nil {
+		return err
 	}
 
-	target.Role = models.RoleUser
 	if err = s.userRepo.Update(ctx, target); err != nil {
 		return err
 	}
@@ -218,8 +209,8 @@ func (s *AdminSrv) SetReferralsEnabled(ctx context.Context, adminID, targetTeleg
 	return nil
 }
 
-func (s *AdminSrv) CreateProduct(ctx context.Context, adminID int64, categoryID *int64, name, description string, price float64) (*models.Product, error) {
-	if name == "" || price <= 0 {
+func (s *AdminSrv) CreateProduct(ctx context.Context, adminID int64, categoryID *int64, name, description string, price models.Money) (*models.Product, error) {
+	if name == "" || price.IsZero() {
 		return nil, domainerrors.ErrInvalidProductInput
 	}
 	if categoryID != nil {
@@ -238,8 +229,8 @@ func (s *AdminSrv) CreateProduct(ctx context.Context, adminID int64, categoryID 
 	return product, nil
 }
 
-func (s *AdminSrv) UpdateProduct(ctx context.Context, adminID int64, productID int64, categoryID *int64, name, description string, price float64, isActive bool) (*models.Product, error) {
-	if name == "" || price <= 0 {
+func (s *AdminSrv) UpdateProduct(ctx context.Context, adminID int64, productID int64, categoryID *int64, name, description string, price models.Money, isActive bool) (*models.Product, error) {
+	if name == "" || price.IsZero() {
 		return nil, domainerrors.ErrInvalidProductInput
 	}
 	if categoryID != nil {

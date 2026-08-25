@@ -22,7 +22,7 @@ type PurchaseService interface {
 	GetUserPurchases(ctx context.Context, telegramID int64, offset, limit int) ([]models.PurchaseBatchSummary, error)
 	CountUserPurchaseBatches(ctx context.Context, telegramID int64) (int64, error)
 	GetBatch(ctx context.Context, telegramID int64, batchID string) ([]models.Purchase, error)
-	GetUserStats(ctx context.Context, telegramID int64) (purchaseCount int, totalSpent float64, err error)
+	GetUserStats(ctx context.Context, telegramID int64) (purchaseCount int, totalSpent models.Money, err error)
 	GetByID(ctx context.Context, purchaseID int64) (*models.Purchase, error)
 
 	// ListAllAdmin/CountAllAdmin/GetAdminByID — межпользовательский вид для админ-панели.

@@ -5,12 +5,12 @@ package models
 // Prometheus-скрейп, не кэшируется — единственный потребитель дёргает его
 // раз в scrape_interval, отдельное кэширование не нужно.
 type AnalyticsSnapshot struct {
-	TotalRevenue   float64
+	TotalRevenue   Money
 	TotalPurchases int64
 	TotalUsers     int64
 	BannedUsers    int64
 	AdminUsers     int64
-	TotalBalance   float64
+	TotalBalance   Money
 	AvailableStock int64
 	TopProducts    []RevenueByName
 	TopCategories  []RevenueByName
@@ -19,6 +19,6 @@ type AnalyticsSnapshot struct {
 // RevenueByName — одна строка топа (продукт или категория) по выручке.
 type RevenueByName struct {
 	Name      string
-	Revenue   float64
+	Revenue   Money
 	UnitsSold int64
 }

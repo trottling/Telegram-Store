@@ -1,7 +1,6 @@
 package keyboards
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -119,7 +118,7 @@ func BuildPurchasesKb(lang string, batches []domain.PurchaseBatchSummary, offset
 	for _, batch := range batches {
 		rows = append(rows, []models.InlineKeyboardButton{{
 			Text: texts.T(lang, texts.PurchaseInlineBtn, map[string]any{
-				"Amount":      fmt.Sprintf("%.2f", batch.TotalAmount), // подпись кнопки, не MarkdownV2 — без FormatAmount
+				"Amount":      batch.TotalAmount.String(), // подпись кнопки, не MarkdownV2 — без FormatAmount
 				"Quantity":    batch.Quantity,
 				"ProductName": batch.ProductName,
 			}),
@@ -151,7 +150,7 @@ func BuildReplenishmentsKb(lang string, items []domain.Replenishment, offset, li
 		rows = append(rows, []models.InlineKeyboardButton{{
 			Text: texts.T(lang, texts.ReplenishmentInlineBtn, map[string]any{
 				"Status": texts.ReplenishmentStatusEmoji(r.Status),
-				"Amount": fmt.Sprintf("%.2f", r.Amount), // подпись кнопки, не MarkdownV2 — без FormatAmount
+				"Amount": r.Amount.String(), // подпись кнопки, не MarkdownV2 — без FormatAmount
 			}),
 			CallbackData: utils.BuildReplenishmentDetailCallback(offset, r.ID),
 		}})

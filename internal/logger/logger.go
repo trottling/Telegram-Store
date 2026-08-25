@@ -32,15 +32,11 @@ func New(c *config.LoggerConfig) *zap.SugaredLogger {
 		unknownLevel = c.Level != ""
 	}
 
-	// Явный zap.Config, а не NewProduction()/NewDevelopment() "как есть":
-	// Production по умолчанию тащит caller+stacktrace на Error, Development
-	// заточен под локальную отладку — обоим нужна кастомизация под контейнер.
-	// Caller/stacktrace отключены, чтобы не добавлять в лог поля, которых не
-	// было у logrus и никто не просил.
+	// Caller/stacktrace только при debug
 	cfg := zap.Config{
 		Level:             zap.NewAtomicLevelAt(level),
-		DisableCaller:     true,
-		DisableStacktrace: true,
+		DisableCaller:     level != zapcore.DebugLevel,
+		DisableStacktrace: level != zapcore.DebugLevel,
 		Encoding:          "json",
 		EncoderConfig: zapcore.EncoderConfig{
 			TimeKey:        "ts",

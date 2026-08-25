@@ -69,10 +69,10 @@ func (r *PurchaseRepo) GetByBatchID(ctx context.Context, userID int64, batchID s
 
 // StatsByUserID — счётчик и сумма одним запросом. FILTER нужен потому, что
 // считаются все покупки, а суммируются только завершённые.
-func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, float64, error) {
+func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, models.Money, error) {
 	var stats struct {
 		Count      int64
-		TotalSpent float64
+		TotalSpent models.Money
 	}
 
 	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Purchase{}).
@@ -81,7 +81,7 @@ func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, 
 		Scan(&stats).Error
 	if err != nil {
 		r.log.Errorw("purchase_repo: stats by user id failed", "error", err, "user_id", userID)
-		return 0, 0, err
+		return 0, models.Money{}, err
 	}
 	return stats.Count, stats.TotalSpent, nil
 }

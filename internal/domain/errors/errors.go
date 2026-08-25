@@ -30,6 +30,9 @@ var (
 	ErrInvalidQuantity   = errors.New("quantity must be positive")
 	ErrTooManyProducts   = errors.New("too many products requested at once")
 
+	// денежные суммы (Money value object)
+	ErrNegativeAmount = errors.New("amount must not be negative")
+
 	// админ-действия
 	ErrAlreadyAdmin        = errors.New("user is already an admin")
 	ErrInvalidAmount       = errors.New("amount must not be zero")

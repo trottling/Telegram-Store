@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
+
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -75,7 +77,7 @@ func (h *Handlers) AdjustBalance(c *gin.Context) {
 	if !h.decodeJSON(c, &req) {
 		return
 	}
-	if err := h.adminService.AddBalance(c.Request.Context(), admin.TelegramID, id, req.Amount); err != nil {
+	if err := h.adminService.AddBalance(c.Request.Context(), admin.TelegramID, id, decimal.NewFromFloat(req.Amount)); err != nil {
 		h.writeError(c, err)
 		return
 	}

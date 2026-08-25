@@ -10,6 +10,7 @@ import (
 	"uuid"
 
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
 	"go.uber.org/zap"
@@ -46,7 +47,7 @@ type dummyWebhookPayload struct {
 	InvoiceID string `json:"invoice_id"`
 }
 
-func (p *DummyProvider) CreateInvoice(ctx context.Context, _ int64, amount float64, _ string) (string, string, error) {
+func (p *DummyProvider) CreateInvoice(ctx context.Context, _ int64, amount models.Money, _ string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err
@@ -55,7 +56,7 @@ func (p *DummyProvider) CreateInvoice(ctx context.Context, _ int64, amount float
 	if !cfg.Enabled {
 		return "", "", domainerrors.ErrMerchantDisabled
 	}
-	if amount < cfg.MinAmount || (cfg.MaxAmount > 0 && amount > cfg.MaxAmount) {
+	if amount.LessThan(cfg.MinAmount) || (!cfg.MaxAmount.IsZero() && amount.GreaterThan(cfg.MaxAmount)) {
 		return "", "", domainerrors.ErrAmountOutOfRange
 	}
 
