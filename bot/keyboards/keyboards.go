@@ -34,7 +34,7 @@ func New(adminPanelConfig *config.AdminPanelConfig) *Keyboards {
 	for _, lang := range texts.SupportedLanguages {
 		k.mainMenuKb[lang] = buildMainMenuKb(lang)
 		k.profileKb[lang] = buildProfileKb(lang)
-		k.adminKb[lang] = buildAdminKb(lang, adminPanelConfig.FrontendURL)
+		k.adminKb[lang] = buildAdminKb(lang, adminPanelConfig.FrontendURL, adminPanelConfig.TechDashboardUID, adminPanelConfig.BusinessDashboardUID)
 		k.settingsKb[lang] = buildSettingsKb(lang)
 	}
 	return k
@@ -61,23 +61,28 @@ func buildProfileKb(lang string) *models.ReplyKeyboardMarkup {
 	}
 }
 
-// buildAdminKb — обе кнопки открываются как Telegram Mini App (web_app), а не
-// внешним браузером: тот же логин по коду, но без переключения из мессенджера.
-func buildAdminKb(lang, frontendURL string) *models.InlineKeyboardMarkup {
+// buildAdminKb — все три кнопки открываются как Telegram Mini App (web_app).
+// Обе кнопки статистики ведут не прямо в Grafana, а на страницу обмена
+// initData (см. statsStartURL) — иначе первый неаутентифицированный тап
+// падал бы в Caddy'шный forward_auth и терял выбор дашборда, см. его комментарий.
+// techDashboardUID/businessDashboardUID — из config.AdminPanelConfig
+// (ADMIN_PANEL_TECH_DASHBOARD_UID/ADMIN_PANEL_BUSINESS_DASHBOARD_UID),
+// провалидированы уже в config.New().
+func buildAdminKb(lang, frontendURL, techDashboardUID, businessDashboardUID string) *models.InlineKeyboardMarkup {
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
 			{{Text: texts.T(lang, texts.AdminPanelBtn, nil), WebApp: &models.WebAppInfo{URL: frontendURL}}},
-			{{Text: texts.T(lang, texts.StatsBtn, nil), WebApp: &models.WebAppInfo{URL: StatsURL(frontendURL)}}},
+			{{Text: texts.T(lang, texts.TechStatsBtn, nil), WebApp: &models.WebAppInfo{URL: statsStartURL(frontendURL, techDashboardUID)}}},
+			{{Text: texts.T(lang, texts.BusinessStatsBtn, nil), WebApp: &models.WebAppInfo{URL: statsStartURL(frontendURL, businessDashboardUID)}}},
 		},
 	}
 }
 
-// StatsURL — Grafana (/stats) живёт на том же хосте, что и панель, см.
-// Caddyfile; отдельной переменной окружения под это нет — DOMAIN_NAME и так
-// не читается Go-кодом (см. CLAUDE.md), FrontendURL уже равен https://$DOMAIN_NAME.
-// Экспортирована — используется и здесь, и в текстовом фолбэке AdminHandler.
-func StatsURL(frontendURL string) string {
-	return strings.TrimRight(frontendURL, "/") + "/stats"
+// statsStartURL — ссылка на /start?to=stats&dashboard=<uid>, а не сразу на
+// Grafana: StartPage.tsx сама меняет initData на сессию и только потом ведёт
+// на конкретный дашборд
+func statsStartURL(frontendURL, dashboardUID string) string {
+	return strings.TrimRight(frontendURL, "/") + "/start?to=stats&dashboard=" + dashboardUID
 }
 
 // buildSettingsKb — инлайн-меню настроек (кнопка "⚙️ Настройки" в профиле).

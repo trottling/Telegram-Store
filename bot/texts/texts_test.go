@@ -7,7 +7,7 @@ import "testing"
 // цена простого map-based T() вместо генерации типизированных обёрток.
 var allMessageIDs = []string{
 	CatalogBtn, ProfileBtn, HelpBtn, PurchasesBtn, ReplenishmentsBtn, RefillBalanceBtn,
-	StartMenuBtn, AdminPanelBtn, StatsBtn, SettingsBtn, LanguageBtn,
+	StartMenuBtn, AdminPanelBtn, TechStatsBtn, BusinessStatsBtn, SettingsBtn, LanguageBtn,
 	CrystalPayBtn, YooKassaBtn, TinkoffBtn, DummyBtn, ReferralName, ReferralBtn, CloseBtn, ShareBtn,
 	PurchaseInlineBtn, BuyBtn, BackBtn, MainMenuInlineBtn, CatalogRootBtn, CancelBtn,
 	ConfirmBtn, PrevPageBtn, NextPageBtn, ProfileRefreshBtn,

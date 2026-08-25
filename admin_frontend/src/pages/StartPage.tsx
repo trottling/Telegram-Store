@@ -6,15 +6,28 @@ import {useAuth} from '../auth/AuthContext'
 
 const {Text} = Typography
 
-// StartPage — единственная точка входа для обоих inline-кнопок из /admin
+// dashboardUidPattern — тот же алфавит, что Grafana сама допускает для uid
+// дашборда. dashboard берётся из query-параметра (см. ниже) и подставляется в
+// window.location.href — без проверки формата туда можно было бы протащить
+// "//evil.com" или "https://..." и получить открытый редирект.
+const dashboardUidPattern = /^[a-zA-Z0-9_-]{1,40}$/
+
+// StartPage — единственная точка входа для всех inline-кнопок из /admin
 // (?to=admin и ?to=stats, см. bot/keyboards.buildAdminKb). Меняет initData,
 // которую Telegram кладёт в URL при запуске Mini App, на сессионный токен, и
 // сама решает, куда открывать дальше:
 //   to=admin — переход внутри этого же SPA (токен уже в localStorage);
-//   to=stats — полная навигация на /stats/: Grafana спрятана за Caddy'шным
-//     forward_auth, который проверяет ту же сессионную cookie, что только что
-//     выставил /api/auth/exchange (см. handlers.Exchange, setSessionCookie) —
-//     отдельного моста для Grafana не нужно, она просто позади того же токена.
+//   to=stats — полная навигация на конкретный дашборд Grafana (?dashboard=<uid>,
+//     см. bot/keyboards.statsStartURL) или на /stats/ (список дашбордов), если
+//     dashboard отсутствует или не прошёл dashboardUidPattern. Grafana спрятана
+//     за Caddy'шным forward_auth, который проверяет ту же сессионную cookie,
+//     что только что выставил /api/auth/exchange (см. handlers.Exchange,
+//     setSessionCookie) — отдельного моста для Grafana не нужно, она просто
+//     позади того же токена. Переход именно отсюда, а не прямой ссылкой на
+//     Grafana из кнопки бота, важен: иначе первый неаутентифицированный тап
+//     падал бы в сам forward_auth, а тот на отказе редиректит на голый
+//     "/start?to=stats" без query-параметров (см. Caddyfile) — какой дашборд
+//     был нужен, терялось бы.
 // Вне Telegram initData нет вообще — тут не форма логина, а тупик с понятной
 // причиной; отдельной страницы с ручным вводом кода больше не существует.
 //
@@ -28,6 +41,8 @@ const {Text} = Typography
 export function StartPage() {
     const [params] = useSearchParams()
     const to = params.get('to') === 'stats' ? 'stats' : 'admin'
+    const dashboard = params.get('dashboard')
+    const statsTarget = dashboard && dashboardUidPattern.test(dashboard) ? `/stats/d/${dashboard}/${dashboard}` : '/stats/'
     const initData = useRawInitData()
     const {admin, loading, login} = useAuth()
     const navigate = useNavigate()
@@ -51,13 +66,13 @@ export function StartPage() {
         login(initData)
             .then(() => {
                 if (to === 'stats') {
-                    window.location.href = '/stats/'
+                    window.location.href = statsTarget
                 } else {
                     navigate('/categories', {replace: true})
                 }
             })
             .catch(() => setError('Не удалось войти: доступ только для администраторов.'))
-    }, [loading, admin, initData, login, navigate, to])
+    }, [loading, admin, initData, login, navigate, to, statsTarget])
 
     if (error) {
         return (

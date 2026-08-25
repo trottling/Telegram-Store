@@ -100,6 +100,12 @@ type AdminPanelConfig struct {
 	// админских действий + агрегаты для Grafana, см. internal/metrics/admin),
 	// отдельно от собственного порта API (Port).
 	MetricsPort int
+	// TechDashboardUID/BusinessDashboardUID — "uid" технического и бизнесового
+	// дашбордов Grafana (monitoring/grafana/provisioning/dashboards/
+	// technical-overview.json и business-overview.json). Читает только
+	// bot/keyboards.buildAdminKb, чтобы собрать ссылку на конкретный дашборд
+	TechDashboardUID     string
+	BusinessDashboardUID string
 }
 
 // PaymentsConfig — конфиг payments_backend (вебхуки мерчантов).
@@ -157,6 +163,9 @@ func New() (*Config, error) {
 	// Дефолт — подсеть public-network из docker-compose.yml.
 	adminPanelTrustedProxies := getEnv("ADMIN_PANEL_TRUSTED_PROXIES", "172.28.0.0/16")
 	adminJWTSecret := os.Getenv("ADMIN_JWT_SECRET")
+	// Дефолты — "uid" из monitoring/grafana/provisioning/dashboards/*.json.
+	techDashboardUID := getEnv("ADMIN_PANEL_TECH_DASHBOARD_UID", "technical-overview")
+	businessDashboardUID := getEnv("ADMIN_PANEL_BUSINESS_DASHBOARD_UID", "business-overview")
 
 	paymentsPort, err := getEnvInt("PAYMENTS_BACKEND_PORT", 8081)
 	if err != nil {
@@ -212,13 +221,15 @@ func New() (*Config, error) {
 		},
 
 		AdminPanel: &AdminPanelConfig{
-			Port:           adminPanelPort,
-			FrontendURL:    adminPanelFrontendURL,
-			CORSOrigin:     adminPanelCORSOrigin,
-			TrustedProxies: adminPanelTrustedProxies,
-			JWTSecret:      []byte(adminJWTSecret),
-			BotToken:       botToken,
-			MetricsPort:    adminMetricsPort,
+			Port:                 adminPanelPort,
+			FrontendURL:          adminPanelFrontendURL,
+			CORSOrigin:           adminPanelCORSOrigin,
+			TrustedProxies:       adminPanelTrustedProxies,
+			JWTSecret:            []byte(adminJWTSecret),
+			BotToken:             botToken,
+			MetricsPort:          adminMetricsPort,
+			TechDashboardUID:     techDashboardUID,
+			BusinessDashboardUID: businessDashboardUID,
 		},
 
 		Payments: &PaymentsConfig{
@@ -318,6 +329,12 @@ func New() (*Config, error) {
 		return nil, err
 	}
 	if err = validateProxyList("ADMIN_PANEL_TRUSTED_PROXIES", cfg.AdminPanel.TrustedProxies); err != nil {
+		return nil, err
+	}
+	if err = validateDashboardUID("ADMIN_PANEL_TECH_DASHBOARD_UID", cfg.AdminPanel.TechDashboardUID); err != nil {
+		return nil, err
+	}
+	if err = validateDashboardUID("ADMIN_PANEL_BUSINESS_DASHBOARD_UID", cfg.AdminPanel.BusinessDashboardUID); err != nil {
 		return nil, err
 	}
 
@@ -441,6 +458,21 @@ func validateProxyList(key, raw string) error {
 			continue
 		}
 		return fmt.Errorf("invalid %s: %q is neither an IP address nor a CIDR block", key, entry)
+	}
+	return nil
+}
+
+func validateDashboardUID(key, raw string) error {
+	if raw == "" {
+		return fmt.Errorf("invalid %s: must not be empty", key)
+	}
+	if len(raw) > 40 {
+		return fmt.Errorf("invalid %s: %q is longer than 40 characters", key, raw)
+	}
+	for _, r := range raw {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return fmt.Errorf("invalid %s: %q must contain only letters, digits, '-' and '_'", key, raw)
+		}
 	}
 	return nil
 }

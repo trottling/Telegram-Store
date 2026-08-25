@@ -19,7 +19,8 @@ const (
 	RefillBalanceBtn  = "RefillBalanceBtn"
 	StartMenuBtn      = "StartMenuBtn"
 	AdminPanelBtn     = "AdminPanelBtn"
-	StatsBtn          = "StatsBtn"
+	TechStatsBtn      = "TechStatsBtn"
+	BusinessStatsBtn  = "BusinessStatsBtn"
 	SettingsBtn       = "SettingsBtn"
 	LanguageBtn       = "LanguageBtn"
 
