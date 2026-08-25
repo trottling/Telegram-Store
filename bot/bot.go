@@ -82,7 +82,7 @@ func New(
 	// один раз при старте, не на каждый показ ReferralMsg.
 	me, err := b.GetMe(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("get bot username: %w", err)
+		return nil, fmt.Errorf("bot get me: %w", err)
 	}
 
 	if webhookConfig.URL == "" {
@@ -91,7 +91,7 @@ func New(
 		// зарегистрирован ("can't use getUpdates method while webhook is
 		// active") — снимаем его на всякий случай, no-op если ничего не было.
 		if _, err = b.DeleteWebhook(context.Background(), &bot.DeleteWebhookParams{}); err != nil {
-			return nil, fmt.Errorf("delete telegram webhook: %w", err)
+			log.Warnw("failed to delete webhook", "error", err)
 		}
 	}
 
