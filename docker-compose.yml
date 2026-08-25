@@ -62,7 +62,10 @@ services:
     restart: "no"
     networks:
       - backend-network
-    <<: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 160M
 
   bot:
     image: ${IMAGE_REGISTRY:-ghcr.io/trottling}/telegram-store-bot:${IMAGE_TAG:-latest}
@@ -76,10 +79,8 @@ services:
         required: true
     environment:
       <<: *public-urls
-      # Домен и caddy уже есть — переключаем бота на вебхуки, если
-      # BOT_WEBHOOK_URL не задан явно (см. config.BotWebhookConfig,
-      # bot.TelegramBot.Start). docker-compose.debug.yml этот блок не
-      # получает и остаётся на long polling — там нет ни домена, ни https.
+      GOMAXPROCS: 1
+      GOMEMLIMIT: 130MiB
       BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL:-https://${DOMAIN_NAME}:${PUBLIC_PORT:-443}/bot}
     depends_on:
       db:
@@ -92,6 +93,10 @@ services:
     networks:
       - public-network
       - backend-network
+    deploy:
+      resources:
+        limits:
+          memory: 160M
     <<: [*default-logging, *public-dns]
 
   admin-backend:
@@ -106,6 +111,8 @@ services:
         required: true
     environment:
       <<: *public-urls
+      GOMAXPROCS: 1
+      GOMEMLIMIT: 130MiB
     # порт наружу не пробрасываем — снаружи торчит только caddy, до admin-backend
     # он достаёт по имени сервиса внутри public-network
     depends_on:
@@ -119,6 +126,10 @@ services:
     networks:
       - public-network
       - backend-network
+    deploy:
+      resources:
+        limits:
+          memory: 160M
     <<: *default-logging
 
   payments-backend:
@@ -133,6 +144,8 @@ services:
         required: true
     environment:
       <<: *public-urls
+      GOMAXPROCS: 1
+      GOMEMLIMIT: 100MiB
     # порт наружу не пробрасываем — вебхуки мерчантов идут через caddy (путь /pay на $DOMAIN_NAME)
     depends_on:
       db:
@@ -145,6 +158,10 @@ services:
     networks:
       - public-network
       - backend-network
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     <<: [*default-logging, *public-dns]
 
   # Не долгоживущий сервис: копирует собранную статику панели в volume, который
@@ -168,6 +185,10 @@ services:
     restart: "no"
     volumes:
       - admin_frontend_dist:/output
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     <<: *default-logging
 
   # TLS-терминатор: единственный сервис с портами наружу (80/443), автовыпуск
@@ -207,6 +228,10 @@ services:
     restart: unless-stopped
     networks:
       - public-network
+    deploy:
+      resources:
+        limits:
+          memory: 96M
     <<: [*default-logging, *public-dns]
 
   db:
@@ -229,6 +254,11 @@ services:
       retries: 5
     networks:
       - backend-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 448M
     <<: *default-logging
 
   redis:
@@ -255,6 +285,11 @@ services:
       retries: 5
     networks:
       - backend-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
     <<: *default-logging
 
   # Ежедневный pg_dump + опциональная выгрузка в S3 (rclone), см. backup/.
@@ -285,6 +320,10 @@ services:
     networks:
       - backend-network
       - public-network
+    deploy:
+      resources:
+        limits:
+          memory: 224M
     <<: [*default-logging, *public-dns]
 
   # Метрики бота (см. BOT_METRICS_PORT) — сам себя тоже скрейпит, см.
@@ -306,6 +345,11 @@ services:
       - prometheus_data:/prometheus
     networks:
       - backend-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 192M
     <<: *default-logging
 
   # Хранилище логов. -config.expand-env=true — чтобы ${LOKI_RETENTION_DAYS} в
@@ -323,6 +367,11 @@ services:
       - loki_data:/loki
     networks:
       - backend-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 192M
     <<: *default-logging
 
   # Пересылает логи всех контейнеров в Loki — находит их сам через Docker
@@ -346,6 +395,11 @@ services:
       - loki
     networks:
       - backend-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     <<: *default-logging
 
   # Единственный публичный вход во весь observability-стек ($DOMAIN_NAME/stats
@@ -389,6 +443,10 @@ services:
     networks:
       - backend-network
       - public-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     <<: *default-logging
 
 networks:

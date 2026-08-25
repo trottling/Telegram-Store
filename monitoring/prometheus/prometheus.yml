@@ -1,5 +1,8 @@
 global:
-  scrape_interval: 15s
+  # Всего 4 цели (prometheus сам себя + три Go-бинарника) — 15s избыточно
+  # часто для такого масштаба, лишняя нагрузка на диск (TSDB) и CPU слабого
+  # VPS. 30s всё ещё даёт достаточное разрешение для дашбордов Grafana.
+  scrape_interval: 30s
 
 scrape_configs:
   - job_name: prometheus
