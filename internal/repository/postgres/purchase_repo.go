@@ -33,14 +33,6 @@ func (r *PurchaseRepo) CreateBatch(ctx context.Context, purchases []models.Purch
 	return nil
 }
 
-func (r *PurchaseRepo) UpdateStatus(ctx context.Context, purchaseID models.PurchaseID, status models.PurchaseStatus) error {
-	_, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Where("id = ?", purchaseID).Update(ctx, "status", status)
-	if err != nil {
-		r.log.Errorw("purchase_repo: update status failed", "error", err, "purchase_id", purchaseID)
-	}
-	return err
-}
-
 func (r *PurchaseRepo) GetByID(ctx context.Context, id models.PurchaseID) (*models.Purchase, error) {
 	purchase, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).
 		Preload("Product", nil).

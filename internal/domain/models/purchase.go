@@ -4,11 +4,7 @@ import "time"
 
 type PurchaseStatus string
 
-const (
-	PurchaseStatusPending   PurchaseStatus = "pending"
-	PurchaseStatusCompleted PurchaseStatus = "completed"
-	PurchaseStatusCancelled PurchaseStatus = "cancelled"
-)
+const PurchaseStatusCompleted PurchaseStatus = "completed"
 
 type Purchase struct {
 	ID        PurchaseID     `gorm:"type:uuid;primaryKey" json:"id"`

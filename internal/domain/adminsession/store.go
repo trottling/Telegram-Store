@@ -1,5 +1,6 @@
-// Package adminsession хранит одноразовые коды входа и сессии админ-панели.
-// Всё в Redis, ничего в Postgres — отдельный от domain/cache и domain/fsm контекст.
+// Package adminsession хранит сессии админ-панели и счётчик попыток обмена
+// initData. Всё в Redis, ничего в Postgres — отдельный от domain/cache и
+// domain/fsm контекст.
 package adminsession
 
 import (
@@ -10,7 +11,7 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
-// ErrNotFound — код/сессия не найдены, истекли или уже использованы.
+// ErrNotFound — сессия не найдена, истекла или уже отозвана.
 var ErrNotFound = errors.New("adminsession: not found")
 
 // Store реализуется internal/cache/redis.Cache.
@@ -19,9 +20,9 @@ type Store interface {
 	GetSession(ctx context.Context, sessionHash string) (telegramID models.TelegramID, err error)
 	DeleteSession(ctx context.Context, sessionHash string) error
 
-	// IncrExchangeAttempts считает попытки обмена кода в окне window и
-	// возвращает номер текущей. Код всего 6-значный, поэтому без счётчика его
-	// можно подбирать сколько угодно: неудачная попытка ничего не расходует.
-	// key — IP клиента.
+	// IncrExchangeAttempts считает попытки обмена initData в окне window и
+	// возвращает номер текущей. initData подписывает Telegram, подобрать её
+	// нельзя — это не защита от перебора, а обычная защита от злоупотребления
+	// самим эндпоинтом. key — IP клиента.
 	IncrExchangeAttempts(ctx context.Context, key string, window time.Duration) (attempt int64, err error)
 }

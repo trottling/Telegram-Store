@@ -37,8 +37,8 @@ type Store interface {
 	SetFSMState(ctx context.Context, telegramID models.TelegramID, state *State) error
 	ClearFSMState(ctx context.Context, telegramID models.TelegramID) error
 
-	// ConsumeFSMState атомарно читает и удаляет состояние (Redis GETDEL,
-	// ср. adminsession.ConsumeLoginCode). Нужен там, где состояние работает
+	// ConsumeFSMState атомарно читает и удаляет состояние (Redis GETDEL).
+	// Нужен там, где состояние работает
 	// как одноразовый токен: go-telegram/bot обрабатывает каждый update своей
 	// горутиной, поэтому Get+Clear двумя вызовами позволяет двум быстрым
 	// тапам по одной кнопке пройти проверку дважды. Шаг вызывающий проверяет

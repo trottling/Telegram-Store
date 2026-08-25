@@ -212,7 +212,7 @@ func (c *Cache) GetFSMState(ctx context.Context, telegramID models.TelegramID) (
 }
 
 // ConsumeFSMState — GETDEL, чтобы два параллельных тапа по одной кнопке не
-// прочитали одно состояние дважды (ср. ConsumeLoginCode).
+// прочитали одно состояние дважды.
 func (c *Cache) ConsumeFSMState(ctx context.Context, telegramID models.TelegramID) (*domainfsm.State, error) {
 	raw, err := c.client.GetDel(ctx, stateKey(telegramID)).Bytes()
 	if errors.Is(err, redis.Nil) {
@@ -285,8 +285,9 @@ func (c *Cache) DeleteSession(ctx context.Context, sessionHash string) error {
 
 // IncrExchangeAttempts — фиксированное окно: EXPIRE ставится только на первом
 // INCR, иначе каждая новая попытка продлевала бы окно и оно никогда бы не
-// истекло. Точность окна тут не важна — задача сбить перебор на порядки, а не
-// отмерить ровный интервал.
+// истекло. Точность окна тут не важна — это защита от злоупотребления
+// эндпоинтом, а не от перебора (initData подписывает Telegram, подобрать
+// её нельзя), поэтому отмерять ровный интервал незачем.
 func (c *Cache) IncrExchangeAttempts(ctx context.Context, key string, window time.Duration) (int64, error) {
 	redisKey := adminExchangeAttemptsKey(key)
 

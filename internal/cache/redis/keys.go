@@ -33,15 +33,7 @@ func settingsKey() string { return "settings" }
 
 func stateKey(telegramID models.TelegramID) string { return fmt.Sprintf("fsm:%s", telegramID) }
 
-// логин-коды и сессии веб-панели
-
-func adminLoginCodeKey(hash string) string { return fmt.Sprintf("admin_login_code:%s", hash) }
-
-// adminLoginCodeOwnerKey — обратный индекс telegramID -> hash активного кода,
-// нужен только чтобы погасить предыдущий код при выдаче нового.
-func adminLoginCodeOwnerKey(telegramID models.TelegramID) string {
-	return fmt.Sprintf("admin_login_code_owner:%s", telegramID)
-}
+// сессии веб-панели
 
 func adminSessionKey(hash string) string { return fmt.Sprintf("admin_session:%s", hash) }
 
