@@ -3,11 +3,12 @@ package payment
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	domainpayment "github.com/trottling/Telegram-Store/internal/domain/service/payment"
@@ -58,7 +59,7 @@ func (p *DummyProvider) CreateInvoice(ctx context.Context, _ int64, amount float
 		return "", "", domainerrors.ErrAmountOutOfRange
 	}
 
-	invoiceID := uuid.NewString()
+	invoiceID := uuid.New().String()
 	go p.confirmAfterDelay(invoiceID)
 
 	return p.backendURL + "/dummy/" + invoiceID, invoiceID, nil

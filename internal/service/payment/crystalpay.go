@@ -3,7 +3,8 @@ package payment
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"net/http"
 	"time"
@@ -164,5 +165,5 @@ func (p *CrystalPayProvider) do(ctx context.Context, endpoint string, body, dest
 		return fmt.Errorf("crystalpay: %s ответил %s", endpoint, resp.Status)
 	}
 
-	return json.NewDecoder(resp.Body).Decode(dest)
+	return json.UnmarshalDecode(jsontext.NewDecoder(resp.Body), dest)
 }

@@ -5,7 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
@@ -83,7 +84,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	}
 
 	// Один batchID на все строки этого вызова — история группирует по нему.
-	batchID := uuid.NewString()
+	batchID := uuid.New().String()
 
 	purchases := make([]*models.Purchase, 0, count)
 	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
