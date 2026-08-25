@@ -20,3 +20,9 @@ sinks:
     labels:
       container: "{{ container_name }}"
       stream: "{{ stream }}"
+    # С Vector 0.57 шаблон без статического префикса не проходит startup-
+    # проверку "confinement" (защита от sink'ов, где шаблон путей/ключей
+    # управляется логом). Здесь оба поля приходят из Docker Engine API
+    # нашего же docker-compose, а не от внешнего источника — префикс
+    # изменил бы сами значения лейблов, поэтому вместо него отключаем проверку.
+    dangerously_allow_unconfined_template_resolution: true
