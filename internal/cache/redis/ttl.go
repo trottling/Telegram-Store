@@ -3,11 +3,17 @@ package redis
 import "time"
 
 const (
-	userTTL             = 10 * time.Minute
-	activeProductsTTL   = time.Minute
-	productTTL          = time.Minute
-	productCountTTL     = 30 * time.Second
-	categoryChildrenTTL = time.Minute
+	userTTL           = 10 * time.Minute
+	activeProductsTTL = time.Minute
+	productTTL        = time.Minute
+	productCountTTL   = 30 * time.Second
+	// categoryChildrenTTL — не про свежесть (значение всегда пишет фоновый
+	// воркер, см. CategorySrv.RefreshCatalogSnapshot, а не читатели по
+	// промаху), а предохранитель на случай, если воркер вообще перестал
+	// бегать: без TTL мёртвый воркер оставил бы каталог с последним верным
+	// снепшотом навсегда, вместо явно опустевшего списка. С запасом даже
+	// над максимально разрешённым интервалом (3600с, см. AdminSrv.UpdateSettings).
+	categoryChildrenTTL = time.Hour
 	stateTTL            = 5 * time.Minute
 	// settingsTTL держим коротким не ради свежести данных, а как предохранитель:
 	// в Settings лежат креды платёжных мерчантов и их флаги Enabled, а

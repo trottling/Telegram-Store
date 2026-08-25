@@ -17,4 +17,9 @@ type CategoryService interface {
 
 	// ListAllFlat — все категории без фильтров, для админ-панели.
 	ListAllFlat(ctx context.Context) ([]models.Category, error)
+
+	// RefreshCatalogSnapshot пересчитывает видимость всего дерева и
+	// публикует её в кэш — вызывается только фоновым воркером cmd/bot, не
+	// на пути запроса. См. реализацию в internal/service.
+	RefreshCatalogSnapshot(ctx context.Context) error
 }

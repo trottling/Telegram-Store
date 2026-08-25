@@ -3,20 +3,13 @@ package models
 import "time"
 
 // Category — узел дерева каталога произвольной глубины; ParentID == nil — корень.
+//
+// Видимость (есть ли остаток у самой категории или где-то в её поддереве) не
+// хранится в этой строке — она считается фоново, см. CategorySrv.RefreshCatalogSnapshot.
 type Category struct {
 	ID          CategoryID  `gorm:"type:uuid;primaryKey" json:"id"`
 	ParentID    *CategoryID `gorm:"type:uuid;index" json:"parent_id,omitempty"`
 	Name        string      `gorm:"size:255;not null" json:"name"`
 	Description string      `gorm:"type:text" json:"description,omitempty"`
 	CreatedAt   time.Time   `json:"created_at"`
-	// HasStock — денормализованный агрегат: true, если у самой категории или
-	// у любого её потомка есть активный товар в наличии. Поддерживается
-	// репозиторием (RecomputeStock) на каждой операции, меняющей остаток или
-	// дерево, — ListChildren фильтрует по нему напрямую вместо рекурсивного
-	// CTE по всему поддереву на каждое чтение.
-	HasStock bool `gorm:"not null;default:false" json:"has_stock"`
-
-	Parent   *Category  `gorm:"foreignKey:ParentID" json:"-"`
-	Children []Category `gorm:"foreignKey:ParentID" json:"children,omitempty"`
-	Products []Product  `gorm:"foreignKey:CategoryID" json:"products,omitempty"`
 }

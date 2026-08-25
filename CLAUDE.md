@@ -130,10 +130,13 @@ internal/domain/repository/   repository interfaces + Transactor (unit-of-work o
 internal/domain/service/      service interfaces (User/Product/Purchase/Category/Admin/AdminAuth/Settings/
                                Replenishment/Analytics)
 internal/domain/service/payment/  PaymentProvider interface + PaymentStatus enum
-internal/domain/cache/        read-through cache ports, one interface per cached entity (UserCache/ProductCache/
-                               CategoryCache in their own files) — no umbrella Cache interface; a consumer depends
-                               on only the entity interface(s) it actually uses, composing more than one locally
-                               (e.g. internal/service's unexported multiCache) only when it genuinely needs to
+internal/domain/cache/        cache ports, one interface per cached entity (UserCache/ProductCache/CategoryCache
+                               in their own files) — no umbrella Cache interface; a consumer depends on only the
+                               entity interface(s) it actually uses, composing more than one locally (e.g.
+                               internal/service's unexported multiCache) only when it genuinely needs to. Most are
+                               read-through (Get/Set/Invalidate); CategoryCache is the one exception — just
+                               Get/Set, no Invalidate, since its only writer is a timer, not a request path, see
+                               CategorySrv.ListChildren in the internal/service entry below
 internal/domain/fsm/          Store interface — per-chat FSM conversation state (GetFSMState/SetFSMState/
                                ClearFSMState/ConsumeFSMState — spelled out, not bare Get/Set/Clear, since the same
                                Redis-backed struct also implements domain/cache's per-entity interfaces).
@@ -161,22 +164,23 @@ internal/repository/postgres/ GORM-backed implementations, using the Generics AP
                                method maps userRecord<->*models.User at the boundary (toDomain/fromDomain) — see
                                the internal/domain/models entry above for why. migrate.go's AutoMigrate and
                                analytics_repo.go's aggregate queries use userRecord too, for the same reason.
-                               There are exactly three .Raw(...).Scan(...) cases, all because neither API above can
-                               express the SQL: CategoryRepo.RecomputeStock's own before/after pair (a plain read,
-                               then the has_stock-flipping write — category tree visibility is a denormalized
-                               boolean column now, not a recursive CTE, see the Data model section below), and
-                               ProductRepo.ReserveItems — an `UPDATE ... WHERE id IN (SELECT ... LIMIT count FOR
-                               UPDATE SKIP LOCKED) RETURNING *` that claims up to count stock items and marks them
-                               sold in a single statement (one round-trip for the whole PurchaseSrv.Buy quantity,
-                               not one per unit — see its own paragraph below).
+                               There is exactly one .Raw(...).Scan(...) case, ProductRepo.ReserveItems — an
+                               `UPDATE ... WHERE id IN (SELECT ... LIMIT count FOR UPDATE SKIP LOCKED) RETURNING *`
+                               that claims up to count stock items and marks them sold in a single statement (one
+                               round-trip for the whole PurchaseSrv.Buy quantity, not one per unit — see its own
+                               paragraph below); neither gorm.G[T] nor the chainable builder can express it.
                                ReserveItems is the anti-overselling primitive of the
                                whole shop and must only ever be called inside Transactor.WithinTransaction:
-                               outside one, the items are consumed even when the purchase then fails. migrate.go's
-                               AutoMigrate is cmd/migrate's single entry point: DDL, the partial-index/category-
-                               stock-backfill/collation-warning cleanups (createPartialIndexes/
-                               recomputeAllCategoryStock/refreshCollationVersions — all safe to re-run on every
-                               deploy), then bootstrapping the root admin (UserRepo.EnsureRootAdminExists) and the
-                               default Settings row (SettingsRepo.EnsureExists) — everything cmd/migrate needs, in
+                               outside one, the items are consumed even when the purchase then fails. Category
+                               visibility (which categories/products the bot's catalog shows) used to be a second
+                               .Raw() case too — a denormalized `Category.HasStock` column, recomputed bottom-up on
+                               every write that could flip it — but that's gone now: see CategorySrv.
+                               RefreshCatalogSnapshot in the internal/service entry below for why and what replaced
+                               it. migrate.go's
+                               AutoMigrate is cmd/migrate's single entry point: DDL, the partial-index/collation-
+                               warning cleanups (createPartialIndexes/refreshCollationVersions — safe to re-run on
+                               every deploy), then bootstrapping the root admin (UserRepo.EnsureRootAdminExists) and
+                               the default Settings row (SettingsRepo.EnsureExists) — everything cmd/migrate needs, in
                                one call
 internal/service/              implementations of internal/domain/service — cache-aside on every read (check
                                cache, miss -> repo, populate cache), explicit invalidation on every write; admin
@@ -187,7 +191,24 @@ internal/service/              implementations of internal/domain/service — ca
                                the next update, not up to userTTL later) and AdminAuthSrv.ValidateSession (a
                                demoted admin loses access on their next request). Cache-aside is for display —
                                balances shown in the profile, catalog listings — never for a decision about
-                               money or rights
+                               money or rights. CategorySrv.ListChildren is the one deliberate exception to
+                               cache-aside: it never falls back to Postgres on a miss at all (an empty catalog
+                               instead), because nothing invalidates its cache key either — the only writer is
+                               CategorySrv.RefreshCatalogSnapshot, called on a timer by cmd/bot's catalog worker,
+                               not by any write path. It replaced a denormalized `Category.HasStock` column that
+                               used to be recomputed bottom-up, synchronously, inside every purchase/product/
+                               category write (5 call sites easy to miss one of) — RefreshCatalogSnapshot instead
+                               loads the whole tree (CategoryRepository.ListAllFlat) plus which categories have
+                               direct stock (ProductRepository.ListStockedCategoryIDs) and propagates visibility
+                               upward in memory, once per Settings.CatalogRefreshIntervalSeconds (default 30s,
+                               admin-editable, re-read every cycle so a panel edit applies without restarting the
+                               bot) rather than on every write. The tradeoff is a staleness window bounded by that
+                               interval, accepted deliberately: catalog visibility is not the shop's actual
+                               oversell guard (ReserveItems' `FOR UPDATE SKIP LOCKED` plus the unique index on
+                               `Purchase.ItemID` is, and neither depends on what the catalog happens to display),
+                               so a few stale seconds here cost nothing but cosmetics. CategorySrv keeps no
+                               singleflight.Group of its own any more for exactly this reason — there is no
+                               expensive recompute-on-miss left for concurrent readers to stampede
 internal/service/payment/     PaymentProvider implementations: StubProvider (always errors, unused now that real
                                providers exist), CrystalPayProvider (hand-rolled HTTP client, no official Go SDK),
                                YooKassaProvider (github.com/rvinnie/yookassa-sdk-go), TinkoffProvider
@@ -442,7 +463,12 @@ cmd/bot/main.go                fx.New(...).Run() — Run() itself blocks and lis
                                listening. Registered in fx.Invoke AFTER runBot specifically so OnStop order comes
                                out right (fx reverses registration order on stop): the webhook HTTP server closes
                                first, refusing new Telegram deliveries, before runBot cancels ctx and starts
-                               draining updates already pulled off the queue
+                               draining updates already pulled off the queue. catalog_lifecycle.go's
+                               RunCatalogRefreshWorker is a fourth fx.Invoke entry, same OnStart-launches-a-
+                               goroutine/OnStop-cancels-a-ctx shape as the other three but no drain on OnStop (an
+                               interrupted refresh just leaves the previous snapshot in Redis until the next tick,
+                               nothing to lose) — see CategorySrv.RefreshCatalogSnapshot in the internal/service
+                               entry above for what it actually calls and why
 cmd/admin_backend/main.go      fx.New(...).Run(), same signal handling as cmd/bot. lifecycle.go's runServer
                                launches webServer.Start() in a goroutine from OnStart (it blocks until
                                Shutdown) and calls webServer.Shutdown(ctx) (10s timeout) then closes the redis
@@ -492,11 +518,11 @@ All repositories and services are fully implemented (not stubs) and logging (`*z
 
 `User.ReferrerID *models.TelegramID` records who invited this user (nil if none) — set exactly once, at row creation, and never touched again (see `UserSrv.GetOrCreate` and the referral paragraph below). `User.ReferralsEnabled` (`default:true`, relies on GORM substituting the tag's default for an omitted/zero-value bool field on `Create` — the same mechanism `Role`'s `default:'user'` already depends on) gates whether *this user, as a referrer*, still earns credit; it's flipped by `AdminSrv.SetReferralsEnabled`, mirroring `BanUser`/`UnbanUser`'s shape.
 
-`Category` is a self-referencing tree (`ParentID *models.CategoryID`, unbounded depth). `Product.CategoryID *models.CategoryID` is nullable (uncategorized products are valid) and belongs to a `Category`. `ProductItem` is one pre-stocked unit (`IsSold` flag); `Purchase` fulfills exactly one `ProductItem` via `ItemID *models.ProductItemID`, and that column carries a **unique index — an integrity guarantee, not a performance tweak**: it makes selling the same stock item twice impossible at the database level even if the application logic above it were wrong, backstopping the whole `SKIP LOCKED` reservation scheme. Do not weaken it. Buying `count` units creates `count` `Purchase` rows sharing one `BatchID` (`models.NewBatchID()`, generated once per `Buy()` call — the same `ids.go` embedding pattern as the six primary-key ID types, even though it isn't one itself: it's a grouping key shared across several rows, not a row's own primary key) — purchase history groups and paginates by that, not by raw row. `ReserveItems`/`PurchaseRepository.CreateBatch` reserve the stock and insert all `count` rows each in a single round-trip (`gorm.G[T].CreateInBatches` with `batchSize = count`), not `count` separate statements — `count` is capped by `service.MaxBuyQuantity` (20), so it's always exactly one batch; `ReserveItems`' claim order is `ORDER BY created_at, id` rather than a bare `ORDER BY id`, since `ProductItemID` is a UUID and carries no ordering of its own the way the old autoincrement PK did (`created_at` restores FIFO stock-claiming; `id` is only a tie-breaker for items inserted in the same batch, which share a timestamp). `AdminLog` records admin actions (ban, unban, balance_add, make_admin, revoke_admin, product_*, category_*, settings_update) against a target user.
+`Category` is a self-referencing tree (`ParentID *models.CategoryID`, unbounded depth) and carries no stock/visibility field of its own — which categories the bot's catalog shows is computed entirely outside Postgres, see CategorySrv.RefreshCatalogSnapshot in the internal/service entry above. `Product.CategoryID *models.CategoryID` is nullable (uncategorized products are valid) and belongs to a `Category`. `ProductItem` is one pre-stocked unit (`IsSold` flag); `Purchase` fulfills exactly one `ProductItem` via `ItemID *models.ProductItemID`, and that column carries a **unique index — an integrity guarantee, not a performance tweak**: it makes selling the same stock item twice impossible at the database level even if the application logic above it were wrong, backstopping the whole `SKIP LOCKED` reservation scheme. Do not weaken it. Buying `count` units creates `count` `Purchase` rows sharing one `BatchID` (`models.NewBatchID()`, generated once per `Buy()` call — the same `ids.go` embedding pattern as the six primary-key ID types, even though it isn't one itself: it's a grouping key shared across several rows, not a row's own primary key) — purchase history groups and paginates by that, not by raw row. `ReserveItems`/`PurchaseRepository.CreateBatch` reserve the stock and insert all `count` rows each in a single round-trip (`gorm.G[T].CreateInBatches` with `batchSize = count`), not `count` separate statements — `count` is capped by `service.MaxBuyQuantity` (20), so it's always exactly one batch; `ReserveItems`' claim order is `ORDER BY created_at, id` rather than a bare `ORDER BY id`, since `ProductItemID` is a UUID and carries no ordering of its own the way the old autoincrement PK did (`created_at` restores FIFO stock-claiming; `id` is only a tie-breaker for items inserted in the same batch, which share a timestamp). `AdminLog` records admin actions (ban, unban, balance_add, make_admin, revoke_admin, product_*, category_*, settings_update) against a target user.
 
-**Indexes** come from GORM tags on the models (every FK is covered, plus `created_at` on `purchases`/`replenishments`/`admin_logs` for the cross-user admin listings, which all sort by it) — with one exception that tags cannot express and that lives as raw DDL in `postgres.AutoMigrate`'s `partialIndexes`: `idx_product_items_unsold` on `product_items (product_id) WHERE is_sold = false`. It exists because sold rows accumulate forever while unsold ones stay few, so a plain `product_id` index would make every stock query walk the entire sales history of that product to filter it out. Four hot paths depend on it — `ReserveItems` (the money path, holding locks), the `inStockClause` on catalog listings, `CategoryRepo.RecomputeStock`'s `has_stock` recompute, and `CountAvailableItems` on each product card. Any new "find me an unsold item" query should stay compatible with it.
+**Indexes** come from GORM tags on the models (every FK is covered, plus `created_at` on `purchases`/`replenishments`/`admin_logs` for the cross-user admin listings, which all sort by it) — with one exception that tags cannot express and that lives as raw DDL in `postgres.AutoMigrate`'s `partialIndexes`: `idx_product_items_unsold` on `product_items (product_id) WHERE is_sold = false`. It exists because sold rows accumulate forever while unsold ones stay few, so a plain `product_id` index would make every stock query walk the entire sales history of that product to filter it out. Four hot paths depend on it — `ReserveItems` (the money path, holding locks), the `inStockClause` on catalog listings, `ProductRepo.ListStockedCategoryIDs` (feeds CategorySrv.RefreshCatalogSnapshot), and `CountAvailableItems` on each product card. Any new "find me an unsold item" query should stay compatible with it.
 
-`Settings` is a singleton row (fixed `ID = models.SettingsID`, bootstrapped by `cmd/migrate`'s `SettingsRepo.EnsureExists`) holding `SupportUsername` plus one embedded sub-struct per merchant (`CrystalPaySettings`/`YooKassaSettings`/`TinkoffSettings` — GORM `embedded;embeddedPrefix:<merchant>_`), each with its own credential fields, `Enabled`, and `MinAmount`/`MaxAmount`. The three merchants' credentials are genuinely different shapes (CrystalPay: Login+Secret+Salt; YooKassa: ShopID+SecretKey; Tinkoff: TerminalKey+Password) so they're three distinct structs, not one generic `Token`/`Secret` pair forced across all of them.
+`Settings` is a singleton row (fixed `ID = models.SettingsID`, bootstrapped by `cmd/migrate`'s `SettingsRepo.EnsureExists`) holding `SupportUsername`, `CatalogRefreshIntervalSeconds` (default `30`, validated to `[5, 3600]` by `AdminSrv.UpdateSettings` — how often cmd/bot's catalog worker recomputes catalog visibility, see CategorySrv.RefreshCatalogSnapshot in the internal/service entry above), plus one embedded sub-struct per merchant (`CrystalPaySettings`/`YooKassaSettings`/`TinkoffSettings` — GORM `embedded;embeddedPrefix:<merchant>_`), each with its own credential fields, `Enabled`, and `MinAmount`/`MaxAmount`. The three merchants' credentials are genuinely different shapes (CrystalPay: Login+Secret+Salt; YooKassa: ShopID+SecretKey; Tinkoff: TerminalKey+Password) so they're three distinct structs, not one generic `Token`/`Secret` pair forced across all of them.
 
 Payments are abstracted behind `payment.PaymentProvider` (`CreateInvoice`/`CheckStatus`, see `internal/service/payment/` above). `Replenishment` is one balance top-up attempt: `UserID`, `Merchant` (`crystalpay`/`yookassa`/`tinkoff`/`referral`), `InvoiceID` (the merchant's own payment/invoice ID — empty for `referral` rows, there's no external invoice), `Amount`, `Status` (`pending`/`paid`/`failed`/`cancelled`). `ReplenishmentSrv.CreateInvoice` calls the matching `PaymentProvider` then inserts a `pending` row; `Confirm`/`Fail` (called only from `payments_backend/handlers`' webhook handlers) transition it via `ReplenishmentRepository.UpdateStatus`, which is a conditional `UPDATE ... WHERE status = 'pending'` — the returned `changed` bool is how `Confirm` stays idempotent against a merchant retrying the same webhook (a no-op past the first successful call, so `UserRepository.UpdateBalance` never double-credits). `Confirm` also takes the amount the merchant reported (`0` when it doesn't report one — CrystalPay's `CheckStatus` returns no amount): a mismatch against the recorded amount is logged at Warn but does **not** change what gets credited, which is always the recorded amount, since that is the figure the user actually confirmed. **`Confirm` wraps that `UpdateStatus` and the `UpdateBalance` in one `Transactor.WithinTransaction`, and this is load-bearing, not tidiness**: because idempotency is keyed on the status, committing the status separately means a failed credit can never be retried — the retry sees `changed == false` and returns success, so the customer's money is gone with no trace and no reconciliation path (nothing polls `CheckStatus`). Cache invalidation deliberately happens *after* the commit, never inside it. Regression tests for both properties: `internal/service/replenishment_service_test.go`. The same `credited`/`changed` bool that makes `Confirm`/`Fail` idempotent is also why their `replenishments_total`/`replenishment_amount_total` Prometheus counters are incremented inside these methods rather than in the `payments_backend/handlers` webhook handlers that call them — see the observability-stack paragraph above.
 

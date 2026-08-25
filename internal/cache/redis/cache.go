@@ -169,10 +169,6 @@ func (c *Cache) SetCategoryChildren(ctx context.Context, parentID *models.Catego
 	return c.setJSON(ctx, categoryChildrenKey(parentID), categories, categoryChildrenTTL)
 }
 
-func (c *Cache) InvalidateCategoryChildren(ctx context.Context, parentID *models.CategoryID) error {
-	return c.delete(ctx, categoryChildrenKey(parentID))
-}
-
 // настройки бота
 
 func (c *Cache) GetSettings(ctx context.Context) (*models.Settings, error) {

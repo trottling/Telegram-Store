@@ -14,6 +14,11 @@ type ProductRepository interface {
 	ListActive(ctx context.Context) ([]models.Product, error)
 	// ListActiveByCategory — активные товары прямо под categoryID; nil — без категории.
 	ListActiveByCategory(ctx context.Context, categoryID *models.CategoryID) ([]models.Product, error)
+	// ListStockedCategoryIDs — категории, у которых прямо в них (не в
+	// поддереве) есть активный товар с непроданной единицей. Сырьё для
+	// CategorySrv.RefreshCatalogSnapshot — видимость поддерева считается в
+	// памяти, отсюда только листовой уровень.
+	ListStockedCategoryIDs(ctx context.Context) ([]models.CategoryID, error)
 
 	// единицы товара
 	AddItems(ctx context.Context, productID models.ProductID, contents []string) error

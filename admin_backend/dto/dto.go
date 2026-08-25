@@ -60,12 +60,13 @@ type UpdateBalanceRequest struct {
 // internal/domain/models, и транспортным ограничениям там не место. Диапазон
 // Referral.Percent проверяет AdminSrv.UpdateSettings.
 type UpdateSettingsRequest struct {
-	SupportUsername string                          `json:"support_username" binding:"required"`
-	CrystalPay      domainmodels.CrystalPaySettings `json:"crystalpay"`
-	YooKassa        domainmodels.YooKassaSettings   `json:"yookassa"`
-	Tinkoff         domainmodels.TinkoffSettings    `json:"tinkoff"`
-	Dummy           domainmodels.DummySettings      `json:"dummy"`
-	Referral        domainmodels.ReferralSettings   `json:"referral"`
+	SupportUsername               string                          `json:"support_username" binding:"required"`
+	CatalogRefreshIntervalSeconds int                             `json:"catalog_refresh_interval_seconds" binding:"required"`
+	CrystalPay                    domainmodels.CrystalPaySettings `json:"crystalpay"`
+	YooKassa                      domainmodels.YooKassaSettings   `json:"yookassa"`
+	Tinkoff                       domainmodels.TinkoffSettings    `json:"tinkoff"`
+	Dummy                         domainmodels.DummySettings      `json:"dummy"`
+	Referral                      domainmodels.ReferralSettings   `json:"referral"`
 }
 
 // ExchangeRequest — тело POST /api/auth/exchange, initData от Telegram.

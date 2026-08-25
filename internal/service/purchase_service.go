@@ -16,7 +16,6 @@ type PurchaseSrv struct {
 	userRepo          repository.UserRepository
 	productRepo       repository.ProductRepository
 	purchaseRepo      repository.PurchaseRepository
-	categoryRepo      repository.CategoryRepository
 	replenishmentRepo repository.ReplenishmentRepository
 	transactor        repository.Transactor
 	settingsService   domainservice.SettingsService
@@ -28,7 +27,6 @@ func NewPurchaseSrv(
 	userRepo repository.UserRepository,
 	productRepo repository.ProductRepository,
 	purchaseRepo repository.PurchaseRepository,
-	categoryRepo repository.CategoryRepository,
 	replenishmentRepo repository.ReplenishmentRepository,
 	transactor repository.Transactor,
 	settingsService domainservice.SettingsService,
@@ -39,7 +37,6 @@ func NewPurchaseSrv(
 		userRepo:          userRepo,
 		productRepo:       productRepo,
 		purchaseRepo:      purchaseRepo,
-		categoryRepo:      categoryRepo,
 		replenishmentRepo: replenishmentRepo,
 		transactor:        transactor,
 		settingsService:   settingsService,
@@ -159,10 +156,6 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID models.TelegramID, pro
 	_ = s.cache.InvalidateProductAvailableCount(ctx, productID)
 	// Листинг скрывает распроданные товары — нужно сбросить и его тоже.
 	_ = s.cache.InvalidateActiveProducts(ctx)
-	if product.CategoryID != nil {
-		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
-		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *product.CategoryID)
-	}
 	if credit != nil {
 		logInvalidation(s.log, s.cache.InvalidateUser(ctx, credit.ReferrerID), "user", credit.ReferrerID)
 	}
