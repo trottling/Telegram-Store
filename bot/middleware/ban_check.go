@@ -9,6 +9,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
 // BanCheck — единственный шлюз для всех update, кроме /start: нет
@@ -31,22 +32,27 @@ func (m *Middlewares) BanCheck(next bot.HandlerFunc) bot.HandlerFunc {
 		}
 		lang := texts.Normalize(extractLanguageCode(update))
 
-		banned, err := m.userService.IsBanned(ctx, chatID)
+		// GetFreshProfile, не GetProfile: бан должен сработать на этом же
+		// update'е, а не спустя до userTTL, если инвалидация кэша после
+		// BanUser почему-то не сработала. Заодно кладём результат в ctx —
+		// GetProfile ниже по цепочке (см. domainservice.WithUser) отдаст его
+		// без повторного похода в кэш/Postgres.
+		user, err := m.userService.GetFreshProfile(ctx, chatID)
 		if err != nil {
 			if errors.Is(err, domainerrors.ErrUserNotFound) {
 				m.reply(ctx, b, chatID, texts.T(lang, texts.PleaseStartMsg, nil))
 				return
 			}
-			m.log.Errorw("ban_check: failed to check ban status", "error", err, "telegram_id", chatID)
+			m.log.Errorw("ban_check: failed to load user", "error", err, "telegram_id", chatID)
 			return
 		}
 
-		if banned {
+		if user.IsBanned() {
 			m.reply(ctx, b, chatID, texts.T(lang, texts.BannedMsg, nil))
 			return
 		}
 
-		next(ctx, b, update)
+		next(domainservice.WithUser(ctx, user), b, update)
 	}
 }
 

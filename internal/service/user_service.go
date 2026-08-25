@@ -8,6 +8,7 @@ import (
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
+	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
 	"go.uber.org/zap"
 )
 
@@ -80,6 +81,11 @@ func (s *UserSrv) validReferrer(ctx context.Context, telegramID int64, referrerI
 
 // GetProfile — то же, что GetOrCreate, но не создаёт строку.
 func (s *UserSrv) GetProfile(ctx context.Context, telegramID int64) (*models.User, error) {
+	// Свежего пользователя уже мог положить bot/middleware.BanCheck (см.
+	// domainservice.WithUser) — тогда это вообще без похода в кэш/Postgres.
+	if user, ok := domainservice.UserFromContext(ctx); ok && user.TelegramID == telegramID {
+		return user, nil
+	}
 	if user, err := s.cache.GetUser(ctx, telegramID); err == nil {
 		return user, nil
 	}
@@ -105,6 +111,11 @@ func (s *UserSrv) RefreshProfile(ctx context.Context, telegramID int64) (*models
 	return user, nil
 }
 
+// GetFreshProfile — RefreshProfile без записи в кэш, см. doc-комментарий интерфейса.
+func (s *UserSrv) GetFreshProfile(ctx context.Context, telegramID int64) (*models.User, error) {
+	return s.userRepo.GetByID(ctx, telegramID)
+}
+
 // ListAdmin/CountAdmin намеренно мимо кэша.
 func (s *UserSrv) ListAdmin(ctx context.Context, offset, limit int) ([]models.User, error) {
 	return s.userRepo.List(ctx, offset, limit)
@@ -122,16 +133,3 @@ func (s *UserSrv) ListReferrals(ctx context.Context, telegramID int64, offset, l
 	return s.userRepo.ListReferrals(ctx, telegramID, offset, limit)
 }
 
-// IsBanned намеренно читает Postgres напрямую, мимо кэша — так же, как
-// AdminAuthSrv.ValidateSession перепроверяет права админа. Бан вызывается
-// каждым update'ом, но это анти-абьюз: через кэш он вступал бы в силу с
-// задержкой до userTTL (10 минут), если инвалидация после BanUser не
-// сработала. Разбанивший себя таким образом пользователь стоит дороже, чем
-// один запрос к БД на update.
-func (s *UserSrv) IsBanned(ctx context.Context, telegramID int64) (bool, error) {
-	user, err := s.userRepo.GetByID(ctx, telegramID)
-	if err != nil {
-		return false, err
-	}
-	return user.IsBanned(), nil
-}

@@ -15,9 +15,17 @@ type UserService interface {
 	// true только на ветке создания, для bot_users_registered_total.
 	GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64, language string) (user *models.User, created bool, err error)
 	GetProfile(ctx context.Context, telegramID int64) (*models.User, error)
-	// RefreshProfile — то же, что GetProfile, но всегда читает Postgres напрямую, минуя кэш, и обновляет кэш свежими данными.
+	// RefreshProfile — то же, что GetProfile, но всегда читает Postgres напрямую,
+	// минуя кэш, и обновляет кэш свежими данными (для инлайн-кнопки «Обновить»).
 	RefreshProfile(ctx context.Context, telegramID int64) (*models.User, error)
-	IsBanned(ctx context.Context, telegramID int64) (bool, error)
+	// GetFreshProfile — как RefreshProfile, но БЕЗ записи в кэш. Единственный
+	// вызывающий — bot/middleware.BanCheck: свежий User.IsBanned() гарантирует,
+	// что бан срабатывает на текущем update'е, а не спустя до userTTL, но
+	// греть кэш тут бессмысленно — BanCheck всё равно перечитывает Postgres
+	// заново на каждом апдейте, а GetProfile ниже по цепочке проверяет ctx
+	// раньше кэша (см. WithUser/UserFromContext), так что запись в Redis
+	// в этом пути никогда не читается обратно — чистый лишний round-trip.
+	GetFreshProfile(ctx context.Context, telegramID int64) (*models.User, error)
 	// SetLanguage — ручное переключение языка интерфейса (см. bot/handlers/settings.go).
 	SetLanguage(ctx context.Context, telegramID int64, language string) error
 
