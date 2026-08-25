@@ -44,7 +44,7 @@ import (
 const loadtestUserBase = 900_000_000_000
 
 func main() {
-	scenario := flag.String("scenario", "banprofile", "сценарий: banprofile")
+	scenario := flag.String("scenario", "banprofile", "сценарий: banprofile | cacheban")
 	users := flag.Int("users", 500, "число засеянных синтетических пользователей")
 	concurrency := flag.Int("concurrency", 15, "число одновременных воркеров (см. maxConcurrentUpdates)")
 	duration := flag.Duration("duration", 20*time.Second, "длительность прогона")
@@ -87,6 +87,8 @@ func main() {
 	switch *scenario {
 	case "banprofile":
 		runBanProfile(ctx, userService, *users, *concurrency, *duration)
+	case "cacheban":
+		runCacheBanProfile(ctx, userService, *users, *concurrency, *duration)
 	default:
 		fatalf("unknown scenario %q", *scenario)
 	}
@@ -112,13 +114,19 @@ type opResult struct {
 	err bool
 }
 
-func runBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, concurrency int, duration time.Duration) {
-	fmt.Printf("scenario=banprofile concurrency=%d duration=%s users=%d\n\n", concurrency, duration, userCount)
+// runScenario гоняет iterFn (одна "обработка апдейта" — сколько бы шагов она
+// ни делала, каждый шаг сам репортит себя в resultsCh под своим op) в
+// concurrency воркерах до истечения duration, потом печатает статистику по
+// каждому op из opLabels отдельно — так виден вклад каждого похода в общую
+// цену апдейта, не только сумма.
+func runScenario(name string, opLabels []string, concurrency int, duration time.Duration,
+	iterFn func(resultsCh chan<- opResult, rnd *rand.Rand)) {
+	fmt.Printf("scenario=%s concurrency=%d duration=%s\n\n", name, concurrency, duration)
 
 	var (
 		wg      sync.WaitGroup
 		mu      sync.Mutex
-		results = make(map[string][]time.Duration, 2)
+		results = make(map[string][]time.Duration, len(opLabels))
 		errCnt  atomic.Int64
 		total   atomic.Int64
 	)
@@ -145,23 +153,7 @@ func runBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, con
 			defer wg.Done()
 			rnd := rand.New(rand.NewSource(seed))
 			for time.Now().Before(stopAt) {
-				id := int64(loadtestUserBase + rnd.Intn(userCount))
-
-				// Воспроизводит текущий bot/middleware.BanCheck: один свежий
-				// поход (GetFreshProfile), результат кладём в ctx тем же
-				// способом, что и BanCheck (domainservice.WithUser) — GetProfile
-				// ниже должен обойтись без похода в кэш/Postgres вовсе.
-				start := time.Now()
-				user, err := userService.GetFreshProfile(ctx, id)
-				resultsCh <- opResult{op: "GetFreshProfile", dur: time.Since(start), err: err != nil}
-				if err != nil {
-					continue
-				}
-
-				reqCtx := domainservice.WithUser(ctx, user)
-				start = time.Now()
-				_, err = userService.GetProfile(reqCtx, id)
-				resultsCh <- opResult{op: "GetProfile", dur: time.Since(start), err: err != nil}
+				iterFn(resultsCh, rnd)
 			}
 		}(int64(w))
 	}
@@ -173,12 +165,60 @@ func runBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, con
 	elapsed := duration.Seconds()
 	fmt.Printf("total ops: %d (%.0f ops/sec), errors: %d\n\n", total.Load(), float64(total.Load())/elapsed, errCnt.Load())
 
-	for _, op := range []string{"GetFreshProfile", "GetProfile"} {
+	for _, op := range opLabels {
 		printStats(op, results[op])
 	}
 
-	updates := total.Load() / 2 // одна "обработка апдейта" = IsBanned + GetProfile
+	updates := total.Load() / int64(len(opLabels)) // одна "обработка апдейта" = len(opLabels) шагов
 	fmt.Printf("\nsimulated updates: %d (%.0f updates/sec)\n", updates, float64(updates)/elapsed)
+}
+
+// runBanProfile — воспроизводит ТЕКУЩИЙ bot/middleware.BanCheck: один свежий
+// поход (GetFreshProfile), результат кладём в ctx тем же способом, что и
+// BanCheck (domainservice.WithUser) — GetProfile ниже должен обойтись без
+// похода в кэш/Postgres вовсе.
+func runBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, concurrency int, duration time.Duration) {
+	runScenario("banprofile", []string{"GetFreshProfile", "GetProfile"}, concurrency, duration,
+		func(resultsCh chan<- opResult, rnd *rand.Rand) {
+			id := int64(loadtestUserBase + rnd.Intn(userCount))
+
+			start := time.Now()
+			user, err := userService.GetFreshProfile(ctx, id)
+			resultsCh <- opResult{op: "GetFreshProfile", dur: time.Since(start), err: err != nil}
+			if err != nil {
+				return
+			}
+
+			reqCtx := domainservice.WithUser(ctx, user)
+			start = time.Now()
+			_, err = userService.GetProfile(reqCtx, id)
+			resultsCh <- opResult{op: "GetProfile", dur: time.Since(start), err: err != nil}
+		})
+}
+
+// runCacheBanProfile — альтернатива: BanCheck читает через кэш (GetProfile)
+// вместо гарантированно свежего GetFreshProfile, полагаясь на то, что
+// BanUser инвалидирует кэш синхронно. Без ctx — обоим шагам ничего не
+// передаётся, второй GetProfile просто попадает в уже тёплый после первого
+// шага кэш. Компромисс: бан бьёт мгновенно только пока инвалидация не
+// подвела; при сбое (best-effort, см. internal/service/cache.go:logInvalidation)
+// — с задержкой до userTTL.
+func runCacheBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, concurrency int, duration time.Duration) {
+	runScenario("cacheban", []string{"GetProfile(1st)", "GetProfile(2nd)"}, concurrency, duration,
+		func(resultsCh chan<- opResult, rnd *rand.Rand) {
+			id := int64(loadtestUserBase + rnd.Intn(userCount))
+
+			start := time.Now()
+			_, err := userService.GetProfile(ctx, id)
+			resultsCh <- opResult{op: "GetProfile(1st)", dur: time.Since(start), err: err != nil}
+			if err != nil {
+				return
+			}
+
+			start = time.Now()
+			_, err = userService.GetProfile(ctx, id)
+			resultsCh <- opResult{op: "GetProfile(2nd)", dur: time.Since(start), err: err != nil}
+		})
 }
 
 func printStats(label string, durs []time.Duration) {
