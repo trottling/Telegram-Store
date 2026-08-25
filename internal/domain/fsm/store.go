@@ -5,6 +5,8 @@ package fsm
 import (
 	"context"
 	"errors"
+
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // ErrNotFound — для чата нет ожидаемого шага (обычный случай, не ошибка).
@@ -21,19 +23,19 @@ const (
 // State — ожидаемый шаг для одного чата. MessageID — сообщение сценария,
 // чтобы текстовый ответ (без callback_query) редактировал то же сообщение.
 type State struct {
-	Step      step   `json:"step"`
-	ProductID int64  `json:"product_id,omitempty"`
-	Quantity  int    `json:"quantity,omitempty"`
-	MessageID int    `json:"message_id,omitempty"`
-	Merchant  string `json:"merchant,omitempty"` // выбранный мерчант для StepAwaitingRefillAmount
+	Step      step             `json:"step"`
+	ProductID models.ProductID `json:"product_id,omitempty"`
+	Quantity  int              `json:"quantity,omitempty"`
+	MessageID int              `json:"message_id,omitempty"`
+	Merchant  string           `json:"merchant,omitempty"` // выбранный мерчант для StepAwaitingRefillAmount
 }
 
 // Store — хранилище FSM. Методы называются с суффиксом FSMState, а не
 // просто Get/Set/Clear, поскольку та же Redis-структура реализует и domain/cache.
 type Store interface {
-	GetFSMState(ctx context.Context, telegramID int64) (*State, error)
-	SetFSMState(ctx context.Context, telegramID int64, state *State) error
-	ClearFSMState(ctx context.Context, telegramID int64) error
+	GetFSMState(ctx context.Context, telegramID models.TelegramID) (*State, error)
+	SetFSMState(ctx context.Context, telegramID models.TelegramID, state *State) error
+	ClearFSMState(ctx context.Context, telegramID models.TelegramID) error
 
 	// ConsumeFSMState атомарно читает и удаляет состояние (Redis GETDEL,
 	// ср. adminsession.ConsumeLoginCode). Нужен там, где состояние работает
@@ -41,5 +43,5 @@ type Store interface {
 	// горутиной, поэтому Get+Clear двумя вызовами позволяет двум быстрым
 	// тапам по одной кнопке пройти проверку дважды. Шаг вызывающий проверяет
 	// уже после — состояние к этому моменту снято в любом случае.
-	ConsumeFSMState(ctx context.Context, telegramID int64) (*State, error)
+	ConsumeFSMState(ctx context.Context, telegramID models.TelegramID) (*State, error)
 }

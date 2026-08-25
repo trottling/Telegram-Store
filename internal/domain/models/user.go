@@ -31,7 +31,7 @@ const (
 // Остальные поля (TelegramID, Username, ...) инвариантов не несут и остаются
 // обычными экспортируемыми полями.
 type User struct {
-	TelegramID int64
+	TelegramID TelegramID
 	Username   string
 	balance    Money
 	role       Role
@@ -41,7 +41,7 @@ type User struct {
 	// ReferrerID — кто пригласил (Telegram ID), nil если пришёл не по
 	// реф-ссылке или ссылка вела на уже существующего пользователя
 	// (см. UserSrv.GetOrCreate — выставляется только при создании строки).
-	ReferrerID *int64
+	ReferrerID *TelegramID
 	// ReferralsEnabled — админ может отключить этому юзеру начисления как
 	// рефереру (см. AdminSrv.SetReferralsEnabled), по умолчанию включено.
 	ReferralsEnabled bool
@@ -56,7 +56,7 @@ type User struct {
 // нулевой, роль — нулевое значение Role(""), а не RoleUser: так же, как и
 // раньше, INSERT с пустой ролью отдаёт выставление default'а 'user' самому
 // Postgres (см. userRecord).
-func NewUser(telegramID int64, username, language string, referrerID *int64) *User {
+func NewUser(telegramID TelegramID, username, language string, referrerID *TelegramID) *User {
 	return &User{
 		TelegramID:       telegramID,
 		Username:         username,
@@ -69,12 +69,12 @@ func NewUser(telegramID int64, username, language string, referrerID *int64) *Us
 // HydrateUser восстанавливает User из хранилища. Только для репозитория —
 // в отличие от NewUser, здесь role/balance приходят уже готовыми из БД.
 func HydrateUser(
-	telegramID int64,
+	telegramID TelegramID,
 	username string,
 	balance Money,
 	role Role,
 	createdAt, updatedAt time.Time,
-	referrerID *int64,
+	referrerID *TelegramID,
 	referralsEnabled bool,
 	language string,
 ) *User {
@@ -193,15 +193,15 @@ func (u *User) Debit(amount Money) error {
 // internal/cache/redis) — своя, а не теги на User: неэкспортируемые
 // balance/role обычный encoding/json всё равно не увидит.
 type userJSON struct {
-	TelegramID       int64     `json:"telegram_id"`
-	Username         string    `json:"username"`
-	Balance          Money     `json:"balance"`
-	Role             Role      `json:"role"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
-	ReferrerID       *int64    `json:"referrer_id,omitempty"`
-	ReferralsEnabled bool      `json:"referrals_enabled"`
-	Language         string    `json:"language"`
+	TelegramID       TelegramID  `json:"telegram_id"`
+	Username         string      `json:"username"`
+	Balance          Money       `json:"balance"`
+	Role             Role        `json:"role"`
+	CreatedAt        time.Time   `json:"created_at"`
+	UpdatedAt        time.Time   `json:"updated_at"`
+	ReferrerID       *TelegramID `json:"referrer_id,omitempty"`
+	ReferralsEnabled bool        `json:"referrals_enabled"`
+	Language         string      `json:"language"`
 }
 
 func (u *User) MarshalJSON() ([]byte, error) {
@@ -238,6 +238,6 @@ func (u *User) UnmarshalJSON(data []byte) error {
 // ReferralCredit — что начислено рефереру за покупку его реферала, для
 // уведомления в боте (см. PurchaseService.Buy).
 type ReferralCredit struct {
-	ReferrerID int64
+	ReferrerID TelegramID
 	Amount     Money
 }

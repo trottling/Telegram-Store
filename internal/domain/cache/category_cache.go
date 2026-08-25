@@ -8,7 +8,7 @@ import (
 
 // CategoryCache — read-through кэш для Category, ключ по parentID (nil — корень).
 type CategoryCache interface {
-	GetCategoryChildren(ctx context.Context, parentID *int64) ([]models.Category, error)
-	SetCategoryChildren(ctx context.Context, parentID *int64, categories []models.Category) error
-	InvalidateCategoryChildren(ctx context.Context, parentID *int64) error
+	GetCategoryChildren(ctx context.Context, parentID *models.CategoryID) ([]models.Category, error)
+	SetCategoryChildren(ctx context.Context, parentID *models.CategoryID, categories []models.Category) error
+	InvalidateCategoryChildren(ctx context.Context, parentID *models.CategoryID) error
 }

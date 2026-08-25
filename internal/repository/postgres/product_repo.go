@@ -21,6 +21,7 @@ func NewProductRepo(db *gorm.DB, log *zap.SugaredLogger) *ProductRepo {
 }
 
 func (r *ProductRepo) Create(ctx context.Context, product *models.Product) error {
+	product.ID = models.NewProductID()
 	if err := gorm.G[models.Product](dbFromCtx(ctx, r.db)).Create(ctx, product); err != nil {
 		r.log.Errorw("product_repo: create failed", "error", err, "name", product.Name)
 		return err
@@ -29,7 +30,7 @@ func (r *ProductRepo) Create(ctx context.Context, product *models.Product) error
 	return nil
 }
 
-func (r *ProductRepo) GetByID(ctx context.Context, id int64) (*models.Product, error) {
+func (r *ProductRepo) GetByID(ctx context.Context, id models.ProductID) (*models.Product, error) {
 	product, err := gorm.G[models.Product](dbFromCtx(ctx, r.db)).Where("id = ?", id).First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -53,7 +54,7 @@ func (r *ProductRepo) Update(ctx context.Context, product *models.Product) error
 	return err
 }
 
-func (r *ProductRepo) Delete(ctx context.Context, id int64) error {
+func (r *ProductRepo) Delete(ctx context.Context, id models.ProductID) error {
 	_, err := gorm.G[models.Product](dbFromCtx(ctx, r.db)).Where("id = ?", id).Delete(ctx)
 	if err != nil {
 		r.log.Errorw("product_repo: delete failed", "error", err, "product_id", id)
@@ -77,7 +78,7 @@ func (r *ProductRepo) ListActive(ctx context.Context) ([]models.Product, error) 
 	return products, err
 }
 
-func (r *ProductRepo) ListActiveByCategory(ctx context.Context, categoryID *int64) ([]models.Product, error) {
+func (r *ProductRepo) ListActiveByCategory(ctx context.Context, categoryID *models.CategoryID) ([]models.Product, error) {
 	var (
 		products []models.Product
 		err      error
@@ -99,7 +100,7 @@ func (r *ProductRepo) ListActiveByCategory(ctx context.Context, categoryID *int6
 	return products, err
 }
 
-func (r *ProductRepo) AddItems(ctx context.Context, productID int64, contents []string) error {
+func (r *ProductRepo) AddItems(ctx context.Context, productID models.ProductID, contents []string) error {
 	if len(contents) == 0 {
 		return nil
 	}
@@ -130,7 +131,7 @@ SET is_sold = true, sold_at = ?
 WHERE id IN (
 	SELECT id FROM product_items
 	WHERE product_id = ? AND is_sold = false
-	ORDER BY id
+	ORDER BY created_at, id
 	LIMIT ?
 	FOR UPDATE SKIP LOCKED
 )
@@ -141,7 +142,7 @@ RETURNING *`
 // охватывающей транзакции единицы окажутся списанными даже при неудачной
 // покупке. LIMIT/SKIP LOCKED те же, что и раньше у поштучного ReserveItem —
 // просто на весь запрошенный count сразу, не по одной единице за round-trip.
-func (r *ProductRepo) ReserveItems(ctx context.Context, productID int64, count int) ([]models.ProductItem, error) {
+func (r *ProductRepo) ReserveItems(ctx context.Context, productID models.ProductID, count int) ([]models.ProductItem, error) {
 	var items []models.ProductItem
 
 	if err := dbFromCtx(ctx, r.db).WithContext(ctx).
@@ -153,7 +154,7 @@ func (r *ProductRepo) ReserveItems(ctx context.Context, productID int64, count i
 	return items, nil
 }
 
-func (r *ProductRepo) CountAvailableItems(ctx context.Context, productID int64) (int, error) {
+func (r *ProductRepo) CountAvailableItems(ctx context.Context, productID models.ProductID) (int, error) {
 	count, err := gorm.G[models.ProductItem](dbFromCtx(ctx, r.db)).
 		Where("product_id = ? AND is_sold = ?", productID, false).
 		Count(ctx, "*")
@@ -164,7 +165,7 @@ func (r *ProductRepo) CountAvailableItems(ctx context.Context, productID int64) 
 }
 
 // ListAll — админ-листинг с джойном имени категории и живым счётчиком остатка.
-func (r *ProductRepo) ListAll(ctx context.Context, offset, limit int, categoryID *int64) ([]models.ProductAdminSummary, error) {
+func (r *ProductRepo) ListAll(ctx context.Context, offset, limit int, categoryID *models.CategoryID) ([]models.ProductAdminSummary, error) {
 	q := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Product{}).
 		Select("products.id, products.category_id, c.name AS category_name, products.name, products.description, products.price, products.is_active, products.created_at, COUNT(pi.id) FILTER (WHERE pi.is_sold = false) AS available_count").
 		Joins("LEFT JOIN categories c ON c.id = products.category_id").
@@ -185,7 +186,7 @@ func (r *ProductRepo) ListAll(ctx context.Context, offset, limit int, categoryID
 	return items, err
 }
 
-func (r *ProductRepo) CountAll(ctx context.Context, categoryID *int64) (int64, error) {
+func (r *ProductRepo) CountAll(ctx context.Context, categoryID *models.CategoryID) (int64, error) {
 	var (
 		count int64
 		err   error
@@ -202,7 +203,7 @@ func (r *ProductRepo) CountAll(ctx context.Context, categoryID *int64) (int64, e
 }
 
 // CountByCategoryID — сколько товаров прямо в категории (любой статус).
-func (r *ProductRepo) CountByCategoryID(ctx context.Context, categoryID int64) (int64, error) {
+func (r *ProductRepo) CountByCategoryID(ctx context.Context, categoryID models.CategoryID) (int64, error) {
 	count, err := gorm.G[models.Product](dbFromCtx(ctx, r.db)).Where("category_id = ?", categoryID).Count(ctx, "*")
 	if err != nil {
 		r.log.Errorw("product_repo: count by category id failed", "error", err, "category_id", categoryID)

@@ -53,10 +53,10 @@ type fakeReplRepo struct {
 }
 
 func (r *fakeReplRepo) GetByMerchantInvoiceID(context.Context, models.Merchant, string) (*models.Replenishment, error) {
-	return &models.Replenishment{ID: 7, UserID: 100, Amount: mustMoney("250"), Status: r.db.status}, nil
+	return &models.Replenishment{ID: models.NewReplenishmentID(), UserID: 100, Amount: mustMoney("250"), Status: r.db.status}, nil
 }
 
-func (r *fakeReplRepo) UpdateStatus(_ context.Context, _ int64, status models.ReplenishmentStatus, _ *time.Time) (bool, error) {
+func (r *fakeReplRepo) UpdateStatus(_ context.Context, _ models.ReplenishmentID, status models.ReplenishmentStatus, _ *time.Time) (bool, error) {
 	if r.db.status != models.ReplenishmentStatusPending {
 		return false, nil
 	}
@@ -67,16 +67,16 @@ func (r *fakeReplRepo) UpdateStatus(_ context.Context, _ int64, status models.Re
 func (r *fakeReplRepo) Create(context.Context, *models.Replenishment) error {
 	panic("не используется")
 }
-func (r *fakeReplRepo) GetByID(context.Context, int64) (*models.Replenishment, error) {
+func (r *fakeReplRepo) GetByID(context.Context, models.ReplenishmentID) (*models.Replenishment, error) {
 	panic("не используется")
 }
-func (r *fakeReplRepo) ListByUserID(context.Context, int64, int, int) ([]models.Replenishment, error) {
+func (r *fakeReplRepo) ListByUserID(context.Context, models.TelegramID, int, int) ([]models.Replenishment, error) {
 	panic("не используется")
 }
-func (r *fakeReplRepo) CountByUserID(context.Context, int64) (int64, error) {
+func (r *fakeReplRepo) CountByUserID(context.Context, models.TelegramID) (int64, error) {
 	panic("не используется")
 }
-func (r *fakeReplRepo) SumPaidByUserMerchant(context.Context, int64, models.Merchant) (models.Money, error) {
+func (r *fakeReplRepo) SumPaidByUserMerchant(context.Context, models.TelegramID, models.Merchant) (models.Money, error) {
 	panic("не используется")
 }
 func (r *fakeReplRepo) ListAllAdmin(context.Context, models.ReplenishmentAdminFilter, int, int) ([]models.ReplenishmentAdminItem, error) {
@@ -91,7 +91,7 @@ type fakeUserRepo struct {
 	failErr error
 }
 
-func (r *fakeUserRepo) UpdateBalance(_ context.Context, _ int64, delta decimal.Decimal) error {
+func (r *fakeUserRepo) UpdateBalance(_ context.Context, _ models.TelegramID, delta decimal.Decimal) error {
 	r.db.balanceCalls++
 	if r.failErr != nil {
 		return r.failErr
@@ -100,7 +100,7 @@ func (r *fakeUserRepo) UpdateBalance(_ context.Context, _ int64, delta decimal.D
 	return nil
 }
 
-func (r *fakeUserRepo) GetByID(context.Context, int64) (*models.User, error) {
+func (r *fakeUserRepo) GetByID(context.Context, models.TelegramID) (*models.User, error) {
 	panic("не используется")
 }
 func (r *fakeUserRepo) Create(context.Context, *models.User) error {
@@ -113,23 +113,23 @@ func (r *fakeUserRepo) List(context.Context, int, int) ([]models.User, error) {
 	panic("не используется")
 }
 func (r *fakeUserRepo) Count(context.Context) (int64, error) { panic("не используется") }
-func (r *fakeUserRepo) CountReferrals(context.Context, int64) (int64, error) {
+func (r *fakeUserRepo) CountReferrals(context.Context, models.TelegramID) (int64, error) {
 	panic("не используется")
 }
-func (r *fakeUserRepo) ListReferrals(context.Context, int64, int, int) ([]models.User, error) {
+func (r *fakeUserRepo) ListReferrals(context.Context, models.TelegramID, int, int) ([]models.User, error) {
 	panic("не используется")
 }
-func (r *fakeUserRepo) EnsureRootAdminExists(context.Context, int64) error {
+func (r *fakeUserRepo) EnsureRootAdminExists(context.Context, models.TelegramID) error {
 	panic("не используется")
 }
 
 type fakeUserCache struct{ db *fakeDB }
 
-func (c *fakeUserCache) InvalidateUser(context.Context, int64) error {
+func (c *fakeUserCache) InvalidateUser(context.Context, models.TelegramID) error {
 	c.db.invalidateCall++
 	return nil
 }
-func (c *fakeUserCache) GetUser(context.Context, int64) (*models.User, error) {
+func (c *fakeUserCache) GetUser(context.Context, models.TelegramID) (*models.User, error) {
 	panic("не используется")
 }
 func (c *fakeUserCache) SetUser(context.Context, *models.User) error {

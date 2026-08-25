@@ -8,13 +8,14 @@ import (
 	"github.com/trottling/Telegram-Store/bot/keyboards"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 const replenishmentsPageSize = 10
 
 // ReplenishmentsHandler открывает первую страницу истории пополнений.
 func (h *Handlers) ReplenishmentsHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	h.renderReplenishments(ctx, b, update.Message.Chat.ID, 0, 0)
+	h.renderReplenishments(ctx, b, domainmodels.TelegramID(update.Message.Chat.ID), 0, 0)
 }
 
 // ReplenishmentsPageHandler — кнопки «вперёд»/«назад» по страницам истории.
@@ -35,7 +36,7 @@ func (h *Handlers) ReplenishmentsPageHandler(ctx context.Context, b *bot.Bot, up
 
 // renderReplenishments: по кнопке на пополнение, как у покупок — раскрывается
 // по тапу в ReplenishmentDetailHandler.
-func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID int64, offset int, messageID int) {
+func (h *Handlers) renderReplenishments(ctx context.Context, b *bot.Bot, chatID domainmodels.TelegramID, offset int, messageID int) {
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
 		h.log.Errorf("renderReplenishments: failed to get profile for %d: %v", chatID, err)

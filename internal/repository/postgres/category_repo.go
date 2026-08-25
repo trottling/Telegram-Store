@@ -20,6 +20,7 @@ func NewCategoryRepo(db *gorm.DB, log *zap.SugaredLogger) *CategoryRepo {
 }
 
 func (r *CategoryRepo) Create(ctx context.Context, category *models.Category) error {
+	category.ID = models.NewCategoryID()
 	if err := gorm.G[models.Category](dbFromCtx(ctx, r.db)).Create(ctx, category); err != nil {
 		r.log.Errorw("category_repo: create failed", "error", err, "name", category.Name)
 		return err
@@ -28,7 +29,7 @@ func (r *CategoryRepo) Create(ctx context.Context, category *models.Category) er
 	return nil
 }
 
-func (r *CategoryRepo) GetByID(ctx context.Context, id int64) (*models.Category, error) {
+func (r *CategoryRepo) GetByID(ctx context.Context, id models.CategoryID) (*models.Category, error) {
 	category, err := gorm.G[models.Category](dbFromCtx(ctx, r.db)).Where("id = ?", id).First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -53,7 +54,7 @@ func (r *CategoryRepo) Update(ctx context.Context, category *models.Category) er
 	return err
 }
 
-func (r *CategoryRepo) Delete(ctx context.Context, id int64) error {
+func (r *CategoryRepo) Delete(ctx context.Context, id models.CategoryID) error {
 	_, err := gorm.G[models.Category](dbFromCtx(ctx, r.db)).Where("id = ?", id).Delete(ctx)
 	if err != nil {
 		r.log.Errorw("category_repo: delete failed", "error", err, "category_id", id)
@@ -67,7 +68,7 @@ func (r *CategoryRepo) Delete(ctx context.Context, id int64) error {
 // поддереве) есть товар в наличии. Фильтр по HasStock — денормализованному
 // агрегату, который поддерживает RecomputeStock; сам ListChildren больше не
 // обходит поддерево рекурсивно на каждое чтение.
-func (r *CategoryRepo) ListChildren(ctx context.Context, parentID *int64) ([]models.Category, error) {
+func (r *CategoryRepo) ListChildren(ctx context.Context, parentID *models.CategoryID) ([]models.Category, error) {
 	var (
 		children []models.Category
 		err      error
@@ -106,7 +107,7 @@ const recomputeStockSQL = `
 	RETURNING has_stock`
 
 // RecomputeStock — см. доменный интерфейс.
-func (r *CategoryRepo) RecomputeStock(ctx context.Context, categoryID int64) (bool, error) {
+func (r *CategoryRepo) RecomputeStock(ctx context.Context, categoryID models.CategoryID) (bool, error) {
 	db := dbFromCtx(ctx, r.db).WithContext(ctx)
 
 	var before bool
@@ -124,7 +125,7 @@ func (r *CategoryRepo) RecomputeStock(ctx context.Context, categoryID int64) (bo
 }
 
 // ListPath идёт по ParentID от id до корня и возвращает путь от корня.
-func (r *CategoryRepo) ListPath(ctx context.Context, id int64) ([]models.Category, error) {
+func (r *CategoryRepo) ListPath(ctx context.Context, id models.CategoryID) ([]models.Category, error) {
 	var path []models.Category
 
 	currentID := &id
@@ -157,7 +158,7 @@ func (r *CategoryRepo) ListAllFlat(ctx context.Context) ([]models.Category, erro
 }
 
 // CountChildren — сколько прямых потомков у parentID.
-func (r *CategoryRepo) CountChildren(ctx context.Context, parentID int64) (int64, error) {
+func (r *CategoryRepo) CountChildren(ctx context.Context, parentID models.CategoryID) (int64, error) {
 	count, err := gorm.G[models.Category](dbFromCtx(ctx, r.db)).Where("parent_id = ?", parentID).Count(ctx, "*")
 	if err != nil {
 		r.log.Errorw("category_repo: count children failed", "error", err, "parent_id", parentID)

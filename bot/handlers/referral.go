@@ -16,7 +16,7 @@ import (
 // статистику. Если Referral.Enabled=false в настройках — программа выключена
 // целиком, независимо от процента.
 func (h *Handlers) ReferralHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
+	chatID := domain.TelegramID(update.Message.Chat.ID)
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {

@@ -28,8 +28,8 @@ const (
 
 // Replenishment — одна попытка пополнения баланса (один счёт у мерчанта).
 type Replenishment struct {
-	ID        int64               `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID    int64               `gorm:"index;not null" json:"user_id"`
+	ID        ReplenishmentID     `gorm:"type:uuid;primaryKey" json:"id"`
+	UserID    TelegramID          `gorm:"index;not null" json:"user_id"`
 	Merchant  Merchant            `gorm:"type:varchar(20);not null" json:"merchant"`
 	InvoiceID string              `gorm:"size:128;index" json:"invoice_id"` // ID счёта у мерчанта
 	Amount    Money               `gorm:"type:decimal(12,2);not null" json:"amount"`
@@ -37,20 +37,18 @@ type Replenishment struct {
 	// index — межпользовательский листинг админки сортирует по этой колонке.
 	CreatedAt   time.Time  `gorm:"index" json:"created_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
-
-	User User `gorm:"belongsTo:User;foreignKey:UserID" json:"-"`
 }
 
 // ReplenishmentAdminFilter — фильтр для ListAllAdmin/CountAllAdmin, оба поля опциональны.
 type ReplenishmentAdminFilter struct {
-	UserID   *int64
+	UserID   *TelegramID
 	Merchant *Merchant
 }
 
 // ReplenishmentAdminItem — Replenishment с подмешанным Username, для админки.
 type ReplenishmentAdminItem struct {
-	ID          int64               `json:"id"`
-	UserID      int64               `json:"user_id"`
+	ID          ReplenishmentID     `json:"id"`
+	UserID      TelegramID          `json:"user_id"`
 	Username    string              `json:"username"`
 	Merchant    Merchant            `json:"merchant"`
 	InvoiceID   string              `json:"invoice_id"`

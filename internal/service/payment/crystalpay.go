@@ -70,7 +70,7 @@ type crystalPayInfoResponse struct {
 	State  string   `json:"state"`
 }
 
-func (p *CrystalPayProvider) CreateInvoice(ctx context.Context, _ int64, amount models.Money, description string) (string, string, error) {
+func (p *CrystalPayProvider) CreateInvoice(ctx context.Context, _ models.TelegramID, amount models.Money, description string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err

@@ -126,7 +126,7 @@ func main() {
 // ограничителем сам по себе.
 func seedUsers(ctx context.Context, userRepo *pgdb.UserRepo, n int, topUp float64) {
 	for i := range n {
-		id := int64(loadtestUserBase + i)
+		id := models.TelegramID(loadtestUserBase + i)
 		user := models.NewUser(id, fmt.Sprintf("loadtest_%d", i), "ru", nil)
 		// Ошибка тут обычно значит "уже существует с прошлого прогона" — не
 		// повод останавливаться, баланс всё равно доливаем ниже.
@@ -140,7 +140,7 @@ func seedUsers(ctx context.Context, userRepo *pgdb.UserRepo, n int, topUp float6
 // seedProduct создаёт новый товар с stock непроданными единицами — каждый
 // прогон buyload заводит свой, старые от прошлых прогонов не мешают
 // (у каждого свой product_id, посчитать проданное можно только по нему).
-func seedProduct(ctx context.Context, productRepo *pgdb.ProductRepo, stock int) int64 {
+func seedProduct(ctx context.Context, productRepo *pgdb.ProductRepo, stock int) models.ProductID {
 	price, err := models.NewMoneyFromFloat(10.00)
 	if err != nil {
 		fatalf("seed product: %v", err)
@@ -174,7 +174,7 @@ func seedProduct(ctx context.Context, productRepo *pgdb.ProductRepo, stock int) 
 // FOR UPDATE SKIP LOCKED) не даёт переспродать сток при реальной конкуренции —
 // это и есть тот инвариант, ради которого вообще нужен настоящий Postgres,
 // а не фейковый репозиторий в unit-тесте.
-func runBuyLoad(ctx context.Context, db *gorm.DB, purchaseService *svc.PurchaseSrv, productID int64, stock, userCount, concurrency, maxQty int, duration time.Duration) {
+func runBuyLoad(ctx context.Context, db *gorm.DB, purchaseService *svc.PurchaseSrv, productID models.ProductID, stock, userCount, concurrency, maxQty int, duration time.Duration) {
 	fmt.Printf("scenario=buyload concurrency=%d duration=%s stock=%d max_qty=%d\n\n", concurrency, duration, stock, maxQty)
 
 	var (
@@ -193,7 +193,7 @@ func runBuyLoad(ctx context.Context, db *gorm.DB, purchaseService *svc.PurchaseS
 			defer wg.Done()
 			rnd := rand.New(rand.NewSource(seed))
 			for time.Now().Before(stopAt) {
-				userID := int64(loadtestUserBase + rnd.Intn(userCount))
+				userID := models.TelegramID(loadtestUserBase + rnd.Intn(userCount))
 				qty := 1 + rnd.Intn(maxQty)
 
 				start := time.Now()
@@ -315,7 +315,7 @@ func runScenario(name string, opLabels []string, concurrency int, duration time.
 func runBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, concurrency int, duration time.Duration) {
 	runScenario("banprofile", []string{"GetFreshProfile", "GetProfile"}, concurrency, duration,
 		func(resultsCh chan<- opResult, rnd *rand.Rand) {
-			id := int64(loadtestUserBase + rnd.Intn(userCount))
+			id := models.TelegramID(loadtestUserBase + rnd.Intn(userCount))
 
 			start := time.Now()
 			user, err := userService.GetFreshProfile(ctx, id)
@@ -341,7 +341,7 @@ func runBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, con
 func runCacheBanProfile(ctx context.Context, userService *svc.UserSrv, userCount, concurrency int, duration time.Duration) {
 	runScenario("cacheban", []string{"GetProfile(1st)", "GetProfile(2nd)"}, concurrency, duration,
 		func(resultsCh chan<- opResult, rnd *rand.Rand) {
-			id := int64(loadtestUserBase + rnd.Intn(userCount))
+			id := models.TelegramID(loadtestUserBase + rnd.Intn(userCount))
 
 			start := time.Now()
 			_, err := userService.GetProfile(ctx, id)

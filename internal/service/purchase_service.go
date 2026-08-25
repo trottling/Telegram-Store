@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"uuid"
-
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
@@ -51,7 +49,7 @@ func NewPurchaseSrv(
 }
 
 // Buy покупает count единиц productID для telegramID в одной транзакции.
-func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, count int) ([]*models.Purchase, *models.ReferralCredit, error) {
+func (s *PurchaseSrv) Buy(ctx context.Context, telegramID models.TelegramID, productID models.ProductID, count int) ([]*models.Purchase, *models.ReferralCredit, error) {
 	logCtx := s.log.With("telegram_id", telegramID, "product_id", productID, "count", count)
 
 	if count <= 0 {
@@ -84,7 +82,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	}
 
 	// Один batchID на все строки этого вызова — история группирует по нему.
-	batchID := uuid.New().String()
+	batchID := models.NewBatchID()
 
 	purchases := make([]*models.Purchase, 0, count)
 	err = s.transactor.WithinTransaction(ctx, func(ctx context.Context) error {
@@ -180,7 +178,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 // Вызывается после коммита покупки, отдельной транзакцией — см. Buy. Свои две
 // записи держит вместе, чтобы у реферера не оказалось начисленных денег без
 // строки в истории пополнений.
-func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, purchaseAmount models.Money) *models.ReferralCredit {
+func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *models.TelegramID, purchaseAmount models.Money) *models.ReferralCredit {
 	if referrerID == nil {
 		return nil
 	}
@@ -222,19 +220,19 @@ func (s *PurchaseSrv) creditReferral(ctx context.Context, referrerID *int64, pur
 	return &models.ReferralCredit{ReferrerID: referrer.TelegramID, Amount: credit}
 }
 
-func (s *PurchaseSrv) GetUserPurchases(ctx context.Context, telegramID int64, offset, limit int) ([]models.PurchaseBatchSummary, error) {
+func (s *PurchaseSrv) GetUserPurchases(ctx context.Context, telegramID models.TelegramID, offset, limit int) ([]models.PurchaseBatchSummary, error) {
 	return s.purchaseRepo.ListBatchesByUserID(ctx, telegramID, offset, limit)
 }
 
-func (s *PurchaseSrv) CountUserPurchaseBatches(ctx context.Context, telegramID int64) (int64, error) {
+func (s *PurchaseSrv) CountUserPurchaseBatches(ctx context.Context, telegramID models.TelegramID) (int64, error) {
 	return s.purchaseRepo.CountBatchesByUserID(ctx, telegramID)
 }
 
-func (s *PurchaseSrv) GetBatch(ctx context.Context, telegramID int64, batchID string) ([]models.Purchase, error) {
+func (s *PurchaseSrv) GetBatch(ctx context.Context, telegramID models.TelegramID, batchID models.BatchID) ([]models.Purchase, error) {
 	return s.purchaseRepo.GetByBatchID(ctx, telegramID, batchID)
 }
 
-func (s *PurchaseSrv) GetUserStats(ctx context.Context, telegramID int64) (purchaseCount int, totalSpent models.Money, err error) {
+func (s *PurchaseSrv) GetUserStats(ctx context.Context, telegramID models.TelegramID) (purchaseCount int, totalSpent models.Money, err error) {
 	count, totalSpent, err := s.purchaseRepo.StatsByUserID(ctx, telegramID)
 	if err != nil {
 		return 0, models.Money{}, err
@@ -242,7 +240,7 @@ func (s *PurchaseSrv) GetUserStats(ctx context.Context, telegramID int64) (purch
 	return int(count), totalSpent, nil
 }
 
-func (s *PurchaseSrv) GetByID(ctx context.Context, purchaseID int64) (*models.Purchase, error) {
+func (s *PurchaseSrv) GetByID(ctx context.Context, purchaseID models.PurchaseID) (*models.Purchase, error) {
 	return s.purchaseRepo.GetByID(ctx, purchaseID)
 }
 
@@ -255,6 +253,6 @@ func (s *PurchaseSrv) CountAllAdmin(ctx context.Context, filter models.PurchaseA
 	return s.purchaseRepo.CountAll(ctx, filter)
 }
 
-func (s *PurchaseSrv) GetAdminByID(ctx context.Context, id int64) (*models.PurchaseAdminItem, error) {
+func (s *PurchaseSrv) GetAdminByID(ctx context.Context, id models.PurchaseID) (*models.PurchaseAdminItem, error) {
 	return s.purchaseRepo.GetAdminByID(ctx, id)
 }

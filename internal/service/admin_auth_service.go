@@ -55,7 +55,7 @@ func (s *AdminAuthSrv) ExchangeInitData(ctx context.Context, initData string) (s
 		return "", nil, domainerrors.ErrInvalidInitData
 	}
 
-	telegramID := data.User.ID
+	telegramID := models.TelegramID(data.User.ID)
 
 	user, err := s.userRepo.GetByID(ctx, telegramID)
 	if err != nil {
@@ -74,7 +74,7 @@ func (s *AdminAuthSrv) ExchangeInitData(ctx context.Context, initData string) (s
 		return "", nil, domainerrors.ErrNotAdmin
 	}
 
-	plaintext, err := admintoken.GenerateSessionJWT(telegramID, sessionTTL, s.adminConfig.JWTSecret)
+	plaintext, err := admintoken.GenerateSessionJWT(int64(telegramID), sessionTTL, s.adminConfig.JWTSecret)
 	if err != nil {
 		return "", nil, err
 	}
@@ -96,11 +96,11 @@ func (s *AdminAuthSrv) ValidateSession(ctx context.Context, sessionToken string)
 	}
 
 	storedTelegramID, err := s.store.GetSession(ctx, admintoken.Hash(sessionToken, s.adminConfig.JWTSecret))
-	if err != nil || storedTelegramID != claims.TelegramID {
+	if err != nil || storedTelegramID != models.TelegramID(claims.TelegramID) {
 		return nil, domainerrors.ErrInvalidToken
 	}
 
-	user, err := s.userRepo.GetByID(ctx, claims.TelegramID)
+	user, err := s.userRepo.GetByID(ctx, models.TelegramID(claims.TelegramID))
 	if err != nil {
 		return nil, domainerrors.ErrInvalidToken
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"go.uber.org/zap"
 )
@@ -36,7 +37,7 @@ func logInvalidation(log *zap.SugaredLogger, err error, entity string, id any) {
 // categoryID вверх до корня — видимость категории зависит от остатков во
 // всём поддереве, так что смена остатка может затронуть всех предков.
 // Best-effort: ошибка чтения пути просто оставляет кэш дожить до TTL.
-func invalidateCategoryAncestorChain(ctx context.Context, categoryRepo repository.CategoryRepository, cache domaincache.CategoryCache, categoryID int64) {
+func invalidateCategoryAncestorChain(ctx context.Context, categoryRepo repository.CategoryRepository, cache domaincache.CategoryCache, categoryID models.CategoryID) {
 	path, err := categoryRepo.ListPath(ctx, categoryID)
 	if err != nil {
 		return
@@ -53,7 +54,7 @@ func invalidateCategoryAncestorChain(ctx context.Context, categoryRepo repositor
 // параметров категории, так что выше по цепочке пересчитывать нечего.
 // Best-effort, как и инвалидация кэша: ошибка оставляет прежнее значение до
 // следующего события или до самолечащего пересчёта в cmd/migrate.
-func recomputeCategoryStockChain(ctx context.Context, categoryRepo repository.CategoryRepository, log *zap.SugaredLogger, categoryID int64) {
+func recomputeCategoryStockChain(ctx context.Context, categoryRepo repository.CategoryRepository, log *zap.SugaredLogger, categoryID models.CategoryID) {
 	for {
 		changed, err := categoryRepo.RecomputeStock(ctx, categoryID)
 		if err != nil {

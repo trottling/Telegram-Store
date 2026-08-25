@@ -18,6 +18,7 @@ func NewAdminLogRepo(db *gorm.DB, log *zap.SugaredLogger) *AdminLogRepo {
 }
 
 func (r *AdminLogRepo) Create(ctx context.Context, entry *models.AdminLog) error {
+	entry.ID = models.NewAdminLogID()
 	if err := gorm.G[models.AdminLog](dbFromCtx(ctx, r.db)).Create(ctx, entry); err != nil {
 		r.log.Errorw("admin_log_repo: create failed", "error", err, "admin_id", entry.AdminID, "action", entry.Action)
 		return err
@@ -25,7 +26,7 @@ func (r *AdminLogRepo) Create(ctx context.Context, entry *models.AdminLog) error
 	return nil
 }
 
-func (r *AdminLogRepo) ListByAdmin(ctx context.Context, adminID int64, offset, limit int) ([]models.AdminLog, error) {
+func (r *AdminLogRepo) ListByAdmin(ctx context.Context, adminID models.TelegramID, offset, limit int) ([]models.AdminLog, error) {
 	logs, err := gorm.G[models.AdminLog](dbFromCtx(ctx, r.db)).
 		Where("admin_id = ?", adminID).
 		Order("created_at DESC").
@@ -39,7 +40,7 @@ func (r *AdminLogRepo) ListByAdmin(ctx context.Context, adminID int64, offset, l
 }
 
 // adminLogFilterQuery — общая база для ListAll/CountAll с опциональным фильтром по adminID.
-func (r *AdminLogRepo) adminLogFilterQuery(ctx context.Context, adminID *int64) *gorm.DB {
+func (r *AdminLogRepo) adminLogFilterQuery(ctx context.Context, adminID *models.TelegramID) *gorm.DB {
 	q := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.AdminLog{})
 	if adminID != nil {
 		q = q.Where("admin_id = ?", *adminID)
@@ -48,7 +49,7 @@ func (r *AdminLogRepo) adminLogFilterQuery(ctx context.Context, adminID *int64) 
 }
 
 // ListAll — журнал действий по всем админам (или одному, если adminID задан).
-func (r *AdminLogRepo) ListAll(ctx context.Context, adminID *int64, offset, limit int) ([]models.AdminLog, error) {
+func (r *AdminLogRepo) ListAll(ctx context.Context, adminID *models.TelegramID, offset, limit int) ([]models.AdminLog, error) {
 	var logs []models.AdminLog
 	err := r.adminLogFilterQuery(ctx, adminID).
 		Order("created_at DESC").
@@ -61,7 +62,7 @@ func (r *AdminLogRepo) ListAll(ctx context.Context, adminID *int64, offset, limi
 	return logs, err
 }
 
-func (r *AdminLogRepo) CountAll(ctx context.Context, adminID *int64) (int64, error) {
+func (r *AdminLogRepo) CountAll(ctx context.Context, adminID *models.TelegramID) (int64, error) {
 	var count int64
 	err := r.adminLogFilterQuery(ctx, adminID).Count(&count).Error
 	if err != nil {

@@ -19,30 +19,30 @@ type Paginated[T any] struct {
 // На bool теги не вешаем: для required значение false неотличимо от «не задано».
 
 type CreateCategoryRequest struct {
-	ParentID    *int64 `json:"parent_id"`
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
+	ParentID    *domainmodels.CategoryID `json:"parent_id"`
+	Name        string                   `json:"name" binding:"required"`
+	Description string                   `json:"description"`
 }
 
 type UpdateCategoryRequest struct {
-	ParentID    *int64 `json:"parent_id"`
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
+	ParentID    *domainmodels.CategoryID `json:"parent_id"`
+	Name        string                   `json:"name" binding:"required"`
+	Description string                   `json:"description"`
 }
 
 type CreateProductRequest struct {
-	CategoryID  *int64  `json:"category_id"`
-	Name        string  `json:"name" binding:"required"`
-	Description string  `json:"description"`
-	Price       float64 `json:"price" binding:"required,gt=0"`
+	CategoryID  *domainmodels.CategoryID `json:"category_id"`
+	Name        string                   `json:"name" binding:"required"`
+	Description string                   `json:"description"`
+	Price       float64                  `json:"price" binding:"required,gt=0"`
 }
 
 type UpdateProductRequest struct {
-	CategoryID  *int64  `json:"category_id"`
-	Name        string  `json:"name" binding:"required"`
-	Description string  `json:"description"`
-	Price       float64 `json:"price" binding:"required,gt=0"`
-	IsActive    bool    `json:"is_active"`
+	CategoryID  *domainmodels.CategoryID `json:"category_id"`
+	Name        string                   `json:"name" binding:"required"`
+	Description string                   `json:"description"`
+	Price       float64                  `json:"price" binding:"required,gt=0"`
+	IsActive    bool                     `json:"is_active"`
 }
 
 type AddItemsRequest struct {

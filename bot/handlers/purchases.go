@@ -17,7 +17,7 @@ const purchasesPageSize = 10
 
 // PurchasesHandler открывает первую страницу истории покупок.
 func (h *Handlers) PurchasesHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	h.renderPurchases(ctx, b, update.Message.Chat.ID, 0, 0)
+	h.renderPurchases(ctx, b, domainmodels.TelegramID(update.Message.Chat.ID), 0, 0)
 }
 
 // PurchasesPageHandler — кнопки «вперёд»/«назад» по страницам истории.
@@ -36,7 +36,7 @@ func (h *Handlers) PurchasesPageHandler(ctx context.Context, b *bot.Bot, update 
 	h.renderPurchases(ctx, b, chatID, int(offset), messageID)
 }
 
-func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID int64, offset int, messageID int) {
+func (h *Handlers) renderPurchases(ctx context.Context, b *bot.Bot, chatID domainmodels.TelegramID, offset int, messageID int) {
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
 		h.log.Errorf("renderPurchases: failed to get profile for %d: %v", chatID, err)

@@ -10,6 +10,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"go.uber.org/zap"
 )
 
@@ -33,8 +34,8 @@ func TestConsumeFSMStateOnlyOnceUnderConcurrency(t *testing.T) {
 	cache := newTestCache(t)
 	ctx := context.Background()
 
-	const telegramID = int64(777)
-	want := &domainfsm.State{Step: domainfsm.StepAwaitingBuyConfirmation, ProductID: 5, Quantity: 3, MessageID: 11}
+	const telegramID = models.TelegramID(777)
+	want := &domainfsm.State{Step: domainfsm.StepAwaitingBuyConfirmation, ProductID: models.NewProductID(), Quantity: 3, MessageID: 11}
 	if err := cache.SetFSMState(ctx, telegramID, want); err != nil {
 		t.Fatalf("не удалось записать состояние: %v", err)
 	}
@@ -48,9 +49,7 @@ func TestConsumeFSMStateOnlyOnceUnderConcurrency(t *testing.T) {
 	start := make(chan struct{})
 
 	for range goroutines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 
 			st, err := cache.ConsumeFSMState(ctx, telegramID)
@@ -64,7 +63,7 @@ func TestConsumeFSMStateOnlyOnceUnderConcurrency(t *testing.T) {
 			default:
 				t.Errorf("неожиданная ошибка: %v", err)
 			}
-		}()
+		})
 	}
 
 	close(start)
@@ -140,7 +139,7 @@ func TestConsumeFSMStateReturnsStateAndDeletes(t *testing.T) {
 	cache := newTestCache(t)
 	ctx := context.Background()
 
-	const telegramID = int64(42)
+	const telegramID = models.TelegramID(42)
 	want := &domainfsm.State{Step: domainfsm.StepAwaitingRefillAmount, Merchant: "crystalpay"}
 	if err := cache.SetFSMState(ctx, telegramID, want); err != nil {
 		t.Fatalf("не удалось записать состояние: %v", err)

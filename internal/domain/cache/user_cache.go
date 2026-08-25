@@ -8,7 +8,7 @@ import (
 
 // UserCache — read-through кэш для User.
 type UserCache interface {
-	GetUser(ctx context.Context, telegramID int64) (*models.User, error)
+	GetUser(ctx context.Context, telegramID models.TelegramID) (*models.User, error)
 	SetUser(ctx context.Context, user *models.User) error
-	InvalidateUser(ctx context.Context, telegramID int64) error
+	InvalidateUser(ctx context.Context, telegramID models.TelegramID) error
 }

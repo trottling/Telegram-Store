@@ -1,6 +1,9 @@
 package utils
 
-import "github.com/go-telegram/bot/models"
+import (
+	"github.com/go-telegram/bot/models"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
+)
 
 // CallbackQuery.Message — не указатель, а MaybeInaccessibleMessage: у него
 // заполнено либо Message, либо InaccessibleMessage. Второй вариант Telegram
@@ -9,16 +12,18 @@ import "github.com/go-telegram/bot/models"
 // процесс, потому что recover() в go-telegram/bot нет.
 
 // CallbackChatID — chat ID из callback_query. У недоступного сообщения chat
-// всё же есть, поэтому ответить новым сообщением можно.
-func CallbackChatID(update *models.Update) (int64, bool) {
+// всё же есть, поэтому ответить новым сообщением можно. go-telegram/bot
+// отдаёт chat.ID голым int64 — конвертация в domainmodels.TelegramID
+// происходит здесь же, на границе входа значения в доменный слой.
+func CallbackChatID(update *models.Update) (domainmodels.TelegramID, bool) {
 	if update.CallbackQuery == nil {
 		return 0, false
 	}
 	if msg := update.CallbackQuery.Message.Message; msg != nil {
-		return msg.Chat.ID, true
+		return domainmodels.TelegramID(msg.Chat.ID), true
 	}
 	if msg := update.CallbackQuery.Message.InaccessibleMessage; msg != nil {
-		return msg.Chat.ID, true
+		return domainmodels.TelegramID(msg.Chat.ID), true
 	}
 	return 0, false
 }
@@ -26,10 +31,10 @@ func CallbackChatID(update *models.Update) (int64, bool) {
 // CallbackTarget — chat ID вместе с сообщением, которое хендлер собирается
 // редактировать. Недоступное сообщение сюда не годится (править его нельзя),
 // поэтому ok=false и хендлер просто выходит.
-func CallbackTarget(update *models.Update) (chatID int64, messageID int, ok bool) {
+func CallbackTarget(update *models.Update) (chatID domainmodels.TelegramID, messageID int, ok bool) {
 	if update.CallbackQuery == nil || update.CallbackQuery.Message.Message == nil {
 		return 0, 0, false
 	}
 	msg := update.CallbackQuery.Message.Message
-	return msg.Chat.ID, msg.ID, true
+	return domainmodels.TelegramID(msg.Chat.ID), msg.ID, true
 }

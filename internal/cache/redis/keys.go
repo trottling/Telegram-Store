@@ -1,24 +1,28 @@
 package redis
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+)
 
 // товары
 
-func activeProductsKey() string       { return "products:active" }
-func productKey(id int64) string      { return fmt.Sprintf("product:%d", id) }
-func productCountKey(id int64) string { return fmt.Sprintf("product:%d:count", id) }
+func activeProductsKey() string                  { return "products:active" }
+func productKey(id models.ProductID) string      { return fmt.Sprintf("product:%s", id) }
+func productCountKey(id models.ProductID) string { return fmt.Sprintf("product:%s:count", id) }
 
 // пользователь
 
-func userKey(telegramID int64) string { return fmt.Sprintf("user:%d", telegramID) }
+func userKey(telegramID models.TelegramID) string { return fmt.Sprintf("user:%s", telegramID) }
 
 // категории
 
-func categoryChildrenKey(parentID *int64) string {
+func categoryChildrenKey(parentID *models.CategoryID) string {
 	if parentID == nil {
 		return "category:children:root"
 	}
-	return fmt.Sprintf("category:children:%d", *parentID)
+	return fmt.Sprintf("category:children:%s", *parentID)
 }
 
 // настройки бота
@@ -27,7 +31,7 @@ func settingsKey() string { return "settings" }
 
 // состояние FSM
 
-func stateKey(telegramID int64) string { return fmt.Sprintf("fsm:%d", telegramID) }
+func stateKey(telegramID models.TelegramID) string { return fmt.Sprintf("fsm:%s", telegramID) }
 
 // логин-коды и сессии веб-панели
 
@@ -35,8 +39,8 @@ func adminLoginCodeKey(hash string) string { return fmt.Sprintf("admin_login_cod
 
 // adminLoginCodeOwnerKey — обратный индекс telegramID -> hash активного кода,
 // нужен только чтобы погасить предыдущий код при выдаче нового.
-func adminLoginCodeOwnerKey(telegramID int64) string {
-	return fmt.Sprintf("admin_login_code_owner:%d", telegramID)
+func adminLoginCodeOwnerKey(telegramID models.TelegramID) string {
+	return fmt.Sprintf("admin_login_code_owner:%s", telegramID)
 }
 
 func adminSessionKey(hash string) string { return fmt.Sprintf("admin_session:%s", hash) }
@@ -47,6 +51,6 @@ func adminExchangeAttemptsKey(key string) string {
 
 // кулдаун кнопки «Проверить оплату»
 
-func replenishmentCheckCooldownKey(replenishmentID int64) string {
-	return fmt.Sprintf("replenishment_check_cooldown:%d", replenishmentID)
+func replenishmentCheckCooldownKey(replenishmentID models.ReplenishmentID) string {
+	return fmt.Sprintf("replenishment_check_cooldown:%s", replenishmentID)
 }

@@ -8,11 +8,12 @@ import (
 	"github.com/trottling/Telegram-Store/bot/keyboards"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // CatalogHandler открывает корень каталога.
 func (h *Handlers) CatalogHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	h.renderCatalog(ctx, b, update.Message.Chat.ID, nil, 0)
+	h.renderCatalog(ctx, b, domainmodels.TelegramID(update.Message.Chat.ID), nil, 0)
 }
 
 // CatalogRootHandler — кнопка «в корень каталога» из глубины дерева.
@@ -31,7 +32,7 @@ func (h *Handlers) CategoryHandler(ctx context.Context, b *bot.Bot, update *mode
 		return
 	}
 
-	categoryID, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
+	categoryID, err := utils.ParseCategoryCallback(update.CallbackQuery.Data)
 	if err != nil {
 		h.log.Errorf("CategoryHandler: failed to parse category callback: %v", err)
 		return
@@ -41,7 +42,7 @@ func (h *Handlers) CategoryHandler(ctx context.Context, b *bot.Bot, update *mode
 }
 
 // renderCatalog: messageID == 0 — новое сообщение, иначе редактирует текущее.
-func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID int64, categoryID *int64, messageID int) {
+func (h *Handlers) renderCatalog(ctx context.Context, b *bot.Bot, chatID domainmodels.TelegramID, categoryID *domainmodels.CategoryID, messageID int) {
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
 		h.log.Errorf("renderCatalog: failed to get profile for %d: %v", chatID, err)
@@ -119,7 +120,7 @@ func (h *Handlers) ProductHandler(ctx context.Context, b *bot.Bot, update *model
 	}
 	callback := update.CallbackQuery.Data
 
-	productID, err := utils.ParseCallbackQuery(callback)
+	productID, err := utils.ParseProductCallback(callback)
 	if err != nil {
 		h.log.Errorf("ProductHandler: failed to parse product id from callback %s: %v", callback, err)
 		return
@@ -130,7 +131,7 @@ func (h *Handlers) ProductHandler(ctx context.Context, b *bot.Bot, update *model
 
 // renderProductDetail шлёт или редактирует карточку товара — общая для
 // ProductHandler и возврата из BuyCancelHandler.
-func (h *Handlers) renderProductDetail(ctx context.Context, b *bot.Bot, chatID int64, messageID int, productID int64) {
+func (h *Handlers) renderProductDetail(ctx context.Context, b *bot.Bot, chatID domainmodels.TelegramID, messageID int, productID domainmodels.ProductID) {
 	product, err := h.productService.GetByID(ctx, productID)
 	if err != nil {
 		h.log.Errorf("renderProductDetail: failed to get product %d: %v", productID, err)

@@ -23,6 +23,9 @@ func NewPurchaseRepo(db *gorm.DB, log *zap.SugaredLogger) *PurchaseRepo {
 // равен len(purchases): count ограничен MaxBuyQuantity (20), так что это
 // всегда один запрос, а не несколько сработавших подряд.
 func (r *PurchaseRepo) CreateBatch(ctx context.Context, purchases []models.Purchase) error {
+	for i := range purchases {
+		purchases[i].ID = models.NewPurchaseID()
+	}
 	if err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).CreateInBatches(ctx, &purchases, len(purchases)); err != nil {
 		r.log.Errorw("purchase_repo: create batch failed", "error", err, "count", len(purchases))
 		return err
@@ -30,7 +33,7 @@ func (r *PurchaseRepo) CreateBatch(ctx context.Context, purchases []models.Purch
 	return nil
 }
 
-func (r *PurchaseRepo) UpdateStatus(ctx context.Context, purchaseID int64, status models.PurchaseStatus) error {
+func (r *PurchaseRepo) UpdateStatus(ctx context.Context, purchaseID models.PurchaseID, status models.PurchaseStatus) error {
 	_, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Where("id = ?", purchaseID).Update(ctx, "status", status)
 	if err != nil {
 		r.log.Errorw("purchase_repo: update status failed", "error", err, "purchase_id", purchaseID)
@@ -38,7 +41,7 @@ func (r *PurchaseRepo) UpdateStatus(ctx context.Context, purchaseID int64, statu
 	return err
 }
 
-func (r *PurchaseRepo) GetByID(ctx context.Context, id int64) (*models.Purchase, error) {
+func (r *PurchaseRepo) GetByID(ctx context.Context, id models.PurchaseID) (*models.Purchase, error) {
 	purchase, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).
 		Preload("Product", nil).
 		Preload("Item", nil).
@@ -54,7 +57,7 @@ func (r *PurchaseRepo) GetByID(ctx context.Context, id int64) (*models.Purchase,
 	return &purchase, nil
 }
 
-func (r *PurchaseRepo) GetByBatchID(ctx context.Context, userID int64, batchID string) ([]models.Purchase, error) {
+func (r *PurchaseRepo) GetByBatchID(ctx context.Context, userID models.TelegramID, batchID models.BatchID) ([]models.Purchase, error) {
 	purchases, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).
 		Preload("Product", nil).
 		Preload("Item", nil).
@@ -69,7 +72,7 @@ func (r *PurchaseRepo) GetByBatchID(ctx context.Context, userID int64, batchID s
 
 // StatsByUserID — счётчик и сумма одним запросом. FILTER нужен потому, что
 // считаются все покупки, а суммируются только завершённые.
-func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, models.Money, error) {
+func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID models.TelegramID) (int64, models.Money, error) {
 	var stats struct {
 		Count      int64
 		TotalSpent models.Money
@@ -86,7 +89,7 @@ func (r *PurchaseRepo) StatsByUserID(ctx context.Context, userID int64) (int64, 
 	return stats.Count, stats.TotalSpent, nil
 }
 
-func (r *PurchaseRepo) CountByProductID(ctx context.Context, productID int64) (int64, error) {
+func (r *PurchaseRepo) CountByProductID(ctx context.Context, productID models.ProductID) (int64, error) {
 	count, err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Where("product_id = ?", productID).Count(ctx, "*")
 	if err != nil {
 		r.log.Errorw("purchase_repo: count by product id failed", "error", err, "product_id", productID)
@@ -95,7 +98,7 @@ func (r *PurchaseRepo) CountByProductID(ctx context.Context, productID int64) (i
 }
 
 // ListBatchesByUserID группирует по batch_id — GROUP BY не укладывается в gorm.G[T].
-func (r *PurchaseRepo) ListBatchesByUserID(ctx context.Context, userID int64, offset, limit int) ([]models.PurchaseBatchSummary, error) {
+func (r *PurchaseRepo) ListBatchesByUserID(ctx context.Context, userID models.TelegramID, offset, limit int) ([]models.PurchaseBatchSummary, error) {
 	var summaries []models.PurchaseBatchSummary
 	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Purchase{}).
 		Select("purchases.batch_id AS batch_id, purchases.product_id AS product_id, pr.name AS product_name, MIN(purchases.amount) AS unit_price, COUNT(*) AS quantity, SUM(purchases.amount) AS total_amount, MIN(purchases.created_at) AS created_at").
@@ -112,7 +115,7 @@ func (r *PurchaseRepo) ListBatchesByUserID(ctx context.Context, userID int64, of
 	return summaries, err
 }
 
-func (r *PurchaseRepo) CountBatchesByUserID(ctx context.Context, userID int64) (int64, error) {
+func (r *PurchaseRepo) CountBatchesByUserID(ctx context.Context, userID models.TelegramID) (int64, error) {
 	var count int64
 	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Purchase{}).
 		Where("user_id = ?", userID).
@@ -170,7 +173,7 @@ func (r *PurchaseRepo) CountAll(ctx context.Context, filter models.PurchaseAdmin
 	return count, err
 }
 
-func (r *PurchaseRepo) GetAdminByID(ctx context.Context, id int64) (*models.PurchaseAdminItem, error) {
+func (r *PurchaseRepo) GetAdminByID(ctx context.Context, id models.PurchaseID) (*models.PurchaseAdminItem, error) {
 	var item models.PurchaseAdminItem
 	result := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Purchase{}).
 		Select("purchases.id, purchases.user_id, u.username, purchases.product_id, pr.name AS product_name, purchases.item_id, purchases.batch_id, purchases.amount, purchases.status, purchases.created_at, purchases.completed_at").

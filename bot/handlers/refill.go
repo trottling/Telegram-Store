@@ -66,10 +66,10 @@ func amountRangeHint(lang string, mc merchantLimits) string {
 
 // RefillBalanceHandler показывает включённых мерчантов для пополнения.
 func (h *Handlers) RefillBalanceHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	h.renderMerchantPicker(ctx, b, update.Message.Chat.ID)
+	h.renderMerchantPicker(ctx, b, domain.TelegramID(update.Message.Chat.ID))
 }
 
-func (h *Handlers) renderMerchantPicker(ctx context.Context, b *bot.Bot, chatID int64) {
+func (h *Handlers) renderMerchantPicker(ctx context.Context, b *bot.Bot, chatID domain.TelegramID) {
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
 		h.log.Errorf("renderMerchantPicker: failed to get profile for %d: %v", chatID, err)
@@ -182,7 +182,7 @@ func (h *Handlers) CheckPaymentHandler(ctx context.Context, b *bot.Bot, update *
 		}
 	}
 
-	replenishmentID, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
+	replenishmentID, err := utils.ParseReplenishmentCallback(update.CallbackQuery.Data)
 	if err != nil {
 		h.log.Errorf("CheckPaymentHandler: failed to parse callback: %v", err)
 		return

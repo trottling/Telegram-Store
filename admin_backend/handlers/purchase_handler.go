@@ -33,7 +33,7 @@ func (h *Handlers) ListPurchases(c *gin.Context) {
 }
 
 func (h *Handlers) GetPurchase(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParsePurchaseID)
 	if !ok {
 		return
 	}

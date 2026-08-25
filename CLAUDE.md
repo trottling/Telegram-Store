@@ -103,7 +103,27 @@ internal/domain/models/       GORM entities (Category, Product, ProductItem, Pur
                                persistence-split needed for the entities that merely hold money rather than guard an
                                invariant on it. A *signed* adjustment (UserRepository.UpdateBalance's delta,
                                AdminSrv.AddBalance's amount) is deliberately a bare decimal.Decimal, not Money —
-                               Money itself can never be negative
+                               Money itself can never be negative. `telegram_id.go` defines `TelegramID` (a named
+                               `int64`, `String()` only — GORM/JSON already handle a named integer type natively,
+                               so no Scanner/Valuer needed) and `ids.go` defines one UUID-backed ID type per entity
+                               with its own primary key (`ProductID`/`ProductItemID`/`PurchaseID`/`CategoryID`/
+                               `AdminLogID`/`ReplenishmentID`), plus `BatchID` (not a primary key — `Purchase.BatchID`
+                               groups several rows from one `Buy()` call, see the Data model section below — but
+                               typed the same way for the same reason) — both exist so the compiler catches an ID
+                               from one entity passed where another (or a bare Telegram ID) is expected, a mistake
+                               `int64` everywhere couldn't catch. A bare `type ProductID uuid.UUID` per entity would
+                               not share methods (Go type definitions don't inherit them), and a generic `TypedID[T]`
+                               wrapper would need a phantom marker type per entity anyway with no real reduction in
+                               boilerplate — so `ids.go` instead embeds one unexported `baseID` struct (wrapping the
+                               Go 1.27 standard library's `uuid.UUID` — the bare `import "uuid"` already used
+                               elsewhere in this codebase, not `github.com/google/uuid`, which stays an untouched
+                               indirect dependency) into seven otherwise-empty structs; embedding promotes
+                               `baseID`'s `String`/`IsZero`/`MarshalJSON`/`UnmarshalJSON`/`Value`/`Scan` methods
+                               (`Value`/`Scan` are hand-written, since the stdlib package — unlike `google/uuid` —
+                               implements neither) onto every entity type while each stays structurally distinct.
+                               IDs are generated with `uuid.NewV7()`, not `NewV4()`: v7 is monotonically increasing
+                               within a process, which keeps Postgres B-tree index insertions sequential the way
+                               the old autoincrement PKs were
 internal/domain/repository/   repository interfaces + Transactor (unit-of-work over *gorm.DB.Transaction) +
                                AnalyticsRepository (GetSnapshot — SQL aggregates for admin_backend's Prometheus
                                Collector, see internal/metrics/admin below; wired only into cmd/admin_backend)
@@ -141,19 +161,23 @@ internal/repository/postgres/ GORM-backed implementations, using the Generics AP
                                method maps userRecord<->*models.User at the boundary (toDomain/fromDomain) — see
                                the internal/domain/models entry above for why. migrate.go's AutoMigrate and
                                analytics_repo.go's aggregate queries use userRecord too, for the same reason.
-                               There are exactly two .Raw(...).Scan(...) cases,
-                               both because neither API above can express the SQL: the recursive CTE for category
-                               tree visibility, and ProductRepo.ReserveItems — an `UPDATE ... WHERE id IN (SELECT
-                               ... LIMIT count FOR UPDATE SKIP LOCKED) RETURNING *` that claims up to count stock
-                               items and marks them sold in a single statement (one round-trip for the whole
-                               PurchaseSrv.Buy quantity, not one per unit — see its own paragraph below).
+                               There are exactly three .Raw(...).Scan(...) cases, all because neither API above can
+                               express the SQL: CategoryRepo.RecomputeStock's own before/after pair (a plain read,
+                               then the has_stock-flipping write — category tree visibility is a denormalized
+                               boolean column now, not a recursive CTE, see the Data model section below), and
+                               ProductRepo.ReserveItems — an `UPDATE ... WHERE id IN (SELECT ... LIMIT count FOR
+                               UPDATE SKIP LOCKED) RETURNING *` that claims up to count stock items and marks them
+                               sold in a single statement (one round-trip for the whole PurchaseSrv.Buy quantity,
+                               not one per unit — see its own paragraph below).
                                ReserveItems is the anti-overselling primitive of the
                                whole shop and must only ever be called inside Transactor.WithinTransaction:
-                               outside one, the items are consumed even when the purchase then fails. migrate.go's AutoMigrate is cmd/migrate's single entry point: DDL,
-                               two unexported one-time schema cleanups left over from earlier iterations
-                               (backfillUserRoles, dropLegacyAdminTokenColumn — both no-ops once already run), then
-                               bootstrapping the root admin (UserRepo.EnsureRootAdminExists) and the default
-                               Settings row (SettingsRepo.EnsureExists) — everything cmd/migrate needs, in one call
+                               outside one, the items are consumed even when the purchase then fails. migrate.go's
+                               AutoMigrate is cmd/migrate's single entry point: DDL, the partial-index/category-
+                               stock-backfill/collation-warning cleanups (createPartialIndexes/
+                               recomputeAllCategoryStock/refreshCollationVersions — all safe to re-run on every
+                               deploy), then bootstrapping the root admin (UserRepo.EnsureRootAdminExists) and the
+                               default Settings row (SettingsRepo.EnsureExists) — everything cmd/migrate needs, in
+                               one call
 internal/service/              implementations of internal/domain/service — cache-aside on every read (check
                                cache, miss -> repo, populate cache), explicit invalidation on every write; admin
                                listing methods (*Admin/*All suffix) deliberately skip the cache and always read
@@ -221,14 +245,27 @@ bot/middleware/                track.go (Track: registers each in-flight update 
 bot/keyboards/                 Keyboards struct (static reply/inline keyboards, built once via New(adminPanelURL)
                                — not package-level vars, since AdminKb needs the URL) plus per-request builder funcs
 bot/texts/                     all user-facing button/message strings — add new UI copy here, not inline in handlers
-bot/utils/                     callback.go (build/parse callback_data — numeric "prefix_<id>" and, for purchase
-                               batches, "purchase_<uuid>"; refillmerchant_<merchant> carries a bare string, not a
-                               number, so it gets its own Build/Parse pair instead of reusing ParseCallbackQuery),
+bot/utils/                     callback.go (build/parse callback_data — one typed Build*/Parse* pair per
+                               UUID-carrying entity, `models.Parse*ID` doing the actual parsing: BuildProductCallback/
+                               ParseProductCallback, Category, ReplenishmentID via CheckPaymentCallbackPrefix and
+                               ReplenishmentDetailCallbackPrefix, purchase batches via ParseBatchCallbackQuery —
+                               Go has no return-type overloading, so one shared function per entity type replaces
+                               what used to be a single ParseCallbackQuery(query string) (int64, error); that
+                               function still exists, narrowed to callback_data that carries a plain number rather
+                               than an entity ID — pagination offsets, buyqty_<n>. compactUUID strips the dashes
+                               (32 hex chars instead of 36) before embedding an ID in callback_data, since
+                               Telegram's 64-byte limit gets tight once an offset and a UUID share one payload
+                               (BuildReplenishmentDetailCallback); models.Parse*ID accepts the compact form
+                               directly, so nothing has to re-expand it before parsing. refillmerchant_<merchant>
+                               carries a bare string, not a number, so it gets its own Build/Parse pair instead of
+                               reusing either),
                                update.go (CallbackChatID/CallbackTarget — the ONLY sanctioned way to read chat/
                                message out of a callback_query: CallbackQuery.Message is a MaybeInaccessibleMessage
                                whose .Message is nil for a message the bot can no longer access, so a direct
                                .Message.Message.Chat.ID deref panics and takes the process down; CallbackTarget
-                               additionally refuses an inaccessible message, since it can't be edited), markdown.go
+                               additionally refuses an inaccessible message, since it can't be edited — both convert
+                               go-telegram/bot's raw int64 chat ID into models.TelegramID here, the one sanctioned
+                               boundary where that conversion happens), markdown.go
                                (MarkdownV2 escaping + amount/date formatting), stock.go (traffic-light emoji for
                                remaining stock). Merchant/status display text and domain-error text live in
                                bot/texts, not here.
@@ -250,7 +287,15 @@ admin_backend/                 the web admin panel's HTTP API (package `adminbac
                                internal/domain/service, same rule as bot/. adminbackend.New(...) wires everything;
                                cmd/admin_backend/main.go is the composition root. Payment-provider webhooks are
                                NOT here — see payments_backend/ below, a wholly separate binary
-admin_backend/handlers/        one file per resource; read-only admin listings (all products/categories/purchases/
+admin_backend/handlers/        helpers.go's parseIDParam/parseOptionalIDQuery parse a route param/query string into
+                               models.TelegramID (telegram_id, admin_id, user_id) — Telegram IDs are plain int64
+                               underneath, so no per-route parsing logic needed beyond the type. The six UUID
+                               entity IDs (:id on /categories, /products, /purchases, ...) go through the generic
+                               parseUUIDParam[T]/parseOptionalUUIDQuery[T] instead, called as
+                               parseUUIDParam(c, "id", models.ParseProductID) — a dozen structurally identical
+                               parse-or-400 wrappers reduced to one, the one deliberate generic in this adapter
+                               layer (dto.Paginated[T] is the existing precedent for generics at this layer).
+                               One file per resource; read-only admin listings (all products/categories/purchases/
                                admin-logs, unfiltered by active/stock/other-users'-rows) call dedicated *Admin/*All
                                service methods (UserService.ListAdmin, ProductService.ListAllAdmin,
                                CategoryService.ListAllFlat, PurchaseService.ListAllAdmin, AdminService.ListLogs) —
@@ -441,15 +486,15 @@ All repositories and services are fully implemented (not stubs) and logging (`*z
 
 ### Data model
 
-`User` is keyed by `TelegramID` directly — there's no separate internal auto-increment ID; every FK that points at a user (`Purchase.UserID`, `AdminLog.AdminID`/`TargetID`) stores the Telegram ID. `User.role` (unexported — see the `internal/domain/models` entry above) is a single, mutually exclusive privilege level (`banned`/`user`/`admin`/`root_admin`, `models.Role`) — there's exactly one `root_admin` at a time (the `TELEGRAM_ROOT_ADMIN_ID` from config, bootstrapped by `cmd/migrate`'s `UserRepository.EnsureRootAdminExists`, which talks to `userRecord` directly and never goes through the domain methods below — there's no "actor" to check against during bootstrap). `User.IsBanned()`/`IsAdmin()`/`IsRootAdmin()` are the derived-boolean helper methods everything else checks against, not the raw role. The only way to change it is `User.Ban(actor)`/`Unban()`/`Promote(actor)`/`Demote(actor)` — each one carries the guard clauses that used to be hand-duplicated in `AdminSrv`'s four methods (self-target, root-admin-target, already-admin, not-admin), so `AdminSrv.BanUser`/`UnbanUser`/`MakeAdmin`/`RevokeAdmin` now just load the actor + target and call the matching method; a wrong-order or missing guard is a bug in `User`, not in four separate call sites. Because role is one field, banning an Admin/RootAdmin overwrites their admin rights rather than sitting next to them (`Ban` returns `ErrCannotBanRootAdmin` rather than doing this to a root admin), and `Unban` always restores plain `user`, never whatever role they held before.
+`User` is keyed by `TelegramID` directly (see the `internal/domain/models` entry above) — there's no separate internal auto-increment ID; every FK that points at a user (`Purchase.UserID`, `Replenishment.UserID`, `AdminLog.AdminID`) is typed `TelegramID` too, so the compiler rejects passing a `ProductID`/`CategoryID`/etc. where a Telegram ID is expected, and vice versa. `AdminLog.TargetID` is the one exception, deliberately untyped (`*string`): it polymorphically holds a `TelegramID`, a `ProductID`, a `CategoryID`, or the singleton `Settings.ID` depending on `Action`, and no query ever filters on it — `AdminSrv.logAction`'s callers format their own value (`strPtr(targetTelegramID.String())`, `strPtr(product.ID.String())`, ...) before it's stored, rather than the field pretending to be one typed ID it isn't. `User.role` (unexported — see the `internal/domain/models` entry above) is a single, mutually exclusive privilege level (`banned`/`user`/`admin`/`root_admin`, `models.Role`) — there's exactly one `root_admin` at a time (the `TELEGRAM_ROOT_ADMIN_ID` from config, bootstrapped by `cmd/migrate`'s `UserRepository.EnsureRootAdminExists`, which talks to `userRecord` directly and never goes through the domain methods below — there's no "actor" to check against during bootstrap). `User.IsBanned()`/`IsAdmin()`/`IsRootAdmin()` are the derived-boolean helper methods everything else checks against, not the raw role. The only way to change it is `User.Ban(actor)`/`Unban()`/`Promote(actor)`/`Demote(actor)` — each one carries the guard clauses that used to be hand-duplicated in `AdminSrv`'s four methods (self-target, root-admin-target, already-admin, not-admin), so `AdminSrv.BanUser`/`UnbanUser`/`MakeAdmin`/`RevokeAdmin` now just load the actor + target and call the matching method; a wrong-order or missing guard is a bug in `User`, not in four separate call sites. Because role is one field, banning an Admin/RootAdmin overwrites their admin rights rather than sitting next to them (`Ban` returns `ErrCannotBanRootAdmin` rather than doing this to a root admin), and `Unban` always restores plain `user`, never whatever role they held before.
 
 `User.Balance()` returns the current `Money` (see `internal/domain/models` above); `Credit`/`Debit` mutate it on an already-loaded `*User` with the same invariant Sub already enforces (`Debit` fails with `ErrNotEnoughBalance` rather than letting the balance go negative). **This is not the money-safety guarantee** — that's still `UserRepository.UpdateBalance`'s atomic `UPDATE ... WHERE balance >= -delta`, the only thing safe against two concurrent debits racing each other on the same row; `Credit`/`Debit` exist so an in-memory `*User` a caller is about to display or log doesn't drift out of sync with what it just told `UpdateBalance` to do, and so `PurchaseSrv.Buy`'s pre-transaction fast-fail check reads as `user.Debit(totalPrice)` instead of a bare comparison. Don't mistake the two for redundant — remove `UpdateBalance`'s SQL guard and `Debit` alone will not stop an oversell under concurrency.
 
-`User.ReferrerID *int64` records who invited this user (nil if none) — set exactly once, at row creation, and never touched again (see `UserSrv.GetOrCreate` and the referral paragraph below). `User.ReferralsEnabled` (`default:true`, relies on GORM substituting the tag's default for an omitted/zero-value bool field on `Create` — the same mechanism `Role`'s `default:'user'` already depends on) gates whether *this user, as a referrer*, still earns credit; it's flipped by `AdminSrv.SetReferralsEnabled`, mirroring `BanUser`/`UnbanUser`'s shape.
+`User.ReferrerID *models.TelegramID` records who invited this user (nil if none) — set exactly once, at row creation, and never touched again (see `UserSrv.GetOrCreate` and the referral paragraph below). `User.ReferralsEnabled` (`default:true`, relies on GORM substituting the tag's default for an omitted/zero-value bool field on `Create` — the same mechanism `Role`'s `default:'user'` already depends on) gates whether *this user, as a referrer*, still earns credit; it's flipped by `AdminSrv.SetReferralsEnabled`, mirroring `BanUser`/`UnbanUser`'s shape.
 
-`Category` is a self-referencing tree (`ParentID *int64`, unbounded depth). `Product.CategoryID *int64` is nullable (uncategorized products are valid) and belongs to a `Category`. `ProductItem` is one pre-stocked unit (`IsSold` flag); `Purchase` fulfills exactly one `ProductItem` via `ItemID`, and that column carries a **unique index — an integrity guarantee, not a performance tweak**: it makes selling the same stock item twice impossible at the database level even if the application logic above it were wrong, backstopping the whole `SKIP LOCKED` reservation scheme. Do not weaken it. Buying `count` units creates `count` `Purchase` rows sharing one `BatchID` (a UUID generated once per `Buy()` call) — purchase history groups and paginates by that, not by raw row. `ReserveItems`/`PurchaseRepository.CreateBatch` reserve the stock and insert all `count` rows each in a single round-trip (`gorm.G[T].CreateInBatches` with `batchSize = count`), not `count` separate statements — `count` is capped by `service.MaxBuyQuantity` (20), so it's always exactly one batch. `AdminLog` records admin actions (ban, unban, balance_add, make_admin, revoke_admin, product_*, category_*, settings_update) against a target user.
+`Category` is a self-referencing tree (`ParentID *models.CategoryID`, unbounded depth). `Product.CategoryID *models.CategoryID` is nullable (uncategorized products are valid) and belongs to a `Category`. `ProductItem` is one pre-stocked unit (`IsSold` flag); `Purchase` fulfills exactly one `ProductItem` via `ItemID *models.ProductItemID`, and that column carries a **unique index — an integrity guarantee, not a performance tweak**: it makes selling the same stock item twice impossible at the database level even if the application logic above it were wrong, backstopping the whole `SKIP LOCKED` reservation scheme. Do not weaken it. Buying `count` units creates `count` `Purchase` rows sharing one `BatchID` (`models.NewBatchID()`, generated once per `Buy()` call — the same `ids.go` embedding pattern as the six primary-key ID types, even though it isn't one itself: it's a grouping key shared across several rows, not a row's own primary key) — purchase history groups and paginates by that, not by raw row. `ReserveItems`/`PurchaseRepository.CreateBatch` reserve the stock and insert all `count` rows each in a single round-trip (`gorm.G[T].CreateInBatches` with `batchSize = count`), not `count` separate statements — `count` is capped by `service.MaxBuyQuantity` (20), so it's always exactly one batch; `ReserveItems`' claim order is `ORDER BY created_at, id` rather than a bare `ORDER BY id`, since `ProductItemID` is a UUID and carries no ordering of its own the way the old autoincrement PK did (`created_at` restores FIFO stock-claiming; `id` is only a tie-breaker for items inserted in the same batch, which share a timestamp). `AdminLog` records admin actions (ban, unban, balance_add, make_admin, revoke_admin, product_*, category_*, settings_update) against a target user.
 
-**Indexes** come from GORM tags on the models (every FK is covered, plus `created_at` on `purchases`/`replenishments`/`admin_logs` for the cross-user admin listings, which all sort by it) — with one exception that tags cannot express and that lives as raw DDL in `postgres.AutoMigrate`'s `partialIndexes`: `idx_product_items_unsold` on `product_items (product_id) WHERE is_sold = false`. It exists because sold rows accumulate forever while unsold ones stay few, so a plain `product_id` index would make every stock query walk the entire sales history of that product to filter it out. Four hot paths depend on it — `ReserveItems` (the money path, holding locks), the `inStockClause` on catalog listings, the recursive category-visibility CTE, and `CountAvailableItems` on each product card. Any new "find me an unsold item" query should stay compatible with it.
+**Indexes** come from GORM tags on the models (every FK is covered, plus `created_at` on `purchases`/`replenishments`/`admin_logs` for the cross-user admin listings, which all sort by it) — with one exception that tags cannot express and that lives as raw DDL in `postgres.AutoMigrate`'s `partialIndexes`: `idx_product_items_unsold` on `product_items (product_id) WHERE is_sold = false`. It exists because sold rows accumulate forever while unsold ones stay few, so a plain `product_id` index would make every stock query walk the entire sales history of that product to filter it out. Four hot paths depend on it — `ReserveItems` (the money path, holding locks), the `inStockClause` on catalog listings, `CategoryRepo.RecomputeStock`'s `has_stock` recompute, and `CountAvailableItems` on each product card. Any new "find me an unsold item" query should stay compatible with it.
 
 `Settings` is a singleton row (fixed `ID = models.SettingsID`, bootstrapped by `cmd/migrate`'s `SettingsRepo.EnsureExists`) holding `SupportUsername` plus one embedded sub-struct per merchant (`CrystalPaySettings`/`YooKassaSettings`/`TinkoffSettings` — GORM `embedded;embeddedPrefix:<merchant>_`), each with its own credential fields, `Enabled`, and `MinAmount`/`MaxAmount`. The three merchants' credentials are genuinely different shapes (CrystalPay: Login+Secret+Salt; YooKassa: ShopID+SecretKey; Tinkoff: TerminalKey+Password) so they're three distinct structs, not one generic `Token`/`Secret` pair forced across all of them.
 

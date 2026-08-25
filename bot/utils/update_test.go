@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-telegram/bot/models"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // callbackUpdate собирает Update из сырого JSON, а не из литерала структуры:
@@ -29,7 +30,7 @@ func TestCallbackChatID(t *testing.T) {
 	tests := []struct {
 		name       string
 		update     *models.Update
-		wantChatID int64
+		wantChatID domainmodels.TelegramID
 		wantOK     bool
 	}{
 		{"обычное сообщение", callbackUpdate(t, accessibleMessage), 42, true},
@@ -51,7 +52,7 @@ func TestCallbackTarget(t *testing.T) {
 	tests := []struct {
 		name          string
 		update        *models.Update
-		wantChatID    int64
+		wantChatID    domainmodels.TelegramID
 		wantMessageID int
 		wantOK        bool
 	}{

@@ -52,19 +52,19 @@ func NewReplenishmentSrv(
 
 const replenishmentDescription = "Пополнение баланса"
 
-func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount models.Money) (string, int64, error) {
+func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID models.TelegramID, merchant models.Merchant, amount models.Money) (string, models.ReplenishmentID, error) {
 	if amount.IsZero() {
-		return "", 0, domainerrors.ErrInvalidAmount
+		return "", models.ReplenishmentID{}, domainerrors.ErrInvalidAmount
 	}
 
 	provider, ok := s.providers[merchant]
 	if !ok {
-		return "", 0, domainerrors.ErrInvalidMerchant
+		return "", models.ReplenishmentID{}, domainerrors.ErrInvalidMerchant
 	}
 
 	paymentURL, invoiceID, err := provider.CreateInvoice(ctx, telegramID, amount, replenishmentDescription)
 	if err != nil {
-		return "", 0, err
+		return "", models.ReplenishmentID{}, err
 	}
 
 	replenishment := &models.Replenishment{
@@ -82,7 +82,7 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 			"error", err, "user_id", telegramID, "merchant", merchant,
 			"invoice_id", invoiceID, "amount", amount,
 		)
-		return "", 0, err
+		return "", models.ReplenishmentID{}, err
 	}
 
 	return paymentURL, replenishment.ID, nil
@@ -91,7 +91,7 @@ func (s *ReplenishmentSrv) CreateInvoice(ctx context.Context, telegramID int64, 
 // CheckInvoice — см. doc-комментарий интерфейса. CheckStatus у мерчанта
 // вызывается только если счёт всё ещё pending — иначе лишний внешний запрос
 // за уже известным ответом.
-func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID int64, replenishmentID int64) (models.ReplenishmentStatus, models.Money, error) {
+func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID models.TelegramID, replenishmentID models.ReplenishmentID) (models.ReplenishmentStatus, models.Money, error) {
 	replenishment, err := s.replenishmentRepo.GetByID(ctx, replenishmentID)
 	if err != nil {
 		return "", models.Money{}, err
@@ -228,11 +228,11 @@ func (s *ReplenishmentSrv) Fail(ctx context.Context, merchant models.Merchant, i
 	return nil
 }
 
-func (s *ReplenishmentSrv) ListUserReplenishments(ctx context.Context, telegramID int64, offset, limit int) ([]models.Replenishment, error) {
+func (s *ReplenishmentSrv) ListUserReplenishments(ctx context.Context, telegramID models.TelegramID, offset, limit int) ([]models.Replenishment, error) {
 	return s.replenishmentRepo.ListByUserID(ctx, telegramID, offset, limit)
 }
 
-func (s *ReplenishmentSrv) GetUserReplenishment(ctx context.Context, telegramID int64, id int64) (*models.Replenishment, error) {
+func (s *ReplenishmentSrv) GetUserReplenishment(ctx context.Context, telegramID models.TelegramID, id models.ReplenishmentID) (*models.Replenishment, error) {
 	replenishment, err := s.replenishmentRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -243,11 +243,11 @@ func (s *ReplenishmentSrv) GetUserReplenishment(ctx context.Context, telegramID 
 	return replenishment, nil
 }
 
-func (s *ReplenishmentSrv) CountUserReplenishments(ctx context.Context, telegramID int64) (int64, error) {
+func (s *ReplenishmentSrv) CountUserReplenishments(ctx context.Context, telegramID models.TelegramID) (int64, error) {
 	return s.replenishmentRepo.CountByUserID(ctx, telegramID)
 }
 
-func (s *ReplenishmentSrv) SumUserMerchantAmount(ctx context.Context, telegramID int64, merchant models.Merchant) (models.Money, error) {
+func (s *ReplenishmentSrv) SumUserMerchantAmount(ctx context.Context, telegramID models.TelegramID, merchant models.Merchant) (models.Money, error) {
 	return s.replenishmentRepo.SumPaidByUserMerchant(ctx, telegramID, merchant)
 }
 

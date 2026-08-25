@@ -7,11 +7,12 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // SettingsHandler — кнопка "⚙️ Настройки" в профиле, показывает инлайн-меню настроек.
 func (h *Handlers) SettingsHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
+	chatID := domainmodels.TelegramID(update.Message.Chat.ID)
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {

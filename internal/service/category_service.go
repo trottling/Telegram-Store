@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strconv"
 
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -31,7 +30,7 @@ func NewCategorySrv(
 	return &CategorySrv{categoryRepo: categoryRepo, productRepo: productRepo, cache: cache, log: log}
 }
 
-func (s *CategorySrv) ListChildren(ctx context.Context, parentID *int64) ([]models.Category, error) {
+func (s *CategorySrv) ListChildren(ctx context.Context, parentID *models.CategoryID) ([]models.Category, error) {
 	if children, err := s.cache.GetCategoryChildren(ctx, parentID); err == nil {
 		return children, nil
 	}
@@ -39,7 +38,7 @@ func (s *CategorySrv) ListChildren(ctx context.Context, parentID *int64) ([]mode
 
 	key := "root"
 	if parentID != nil {
-		key = strconv.FormatInt(*parentID, 10)
+		key = parentID.String()
 	}
 	v, err, _ := s.sf.Do(key, func() (any, error) {
 		children, err := s.categoryRepo.ListChildren(ctx, parentID)
@@ -55,15 +54,15 @@ func (s *CategorySrv) ListChildren(ctx context.Context, parentID *int64) ([]mode
 	return v.([]models.Category), nil
 }
 
-func (s *CategorySrv) GetByID(ctx context.Context, id int64) (*models.Category, error) {
+func (s *CategorySrv) GetByID(ctx context.Context, id models.CategoryID) (*models.Category, error) {
 	return s.categoryRepo.GetByID(ctx, id)
 }
 
-func (s *CategorySrv) ListPath(ctx context.Context, id int64) ([]models.Category, error) {
+func (s *CategorySrv) ListPath(ctx context.Context, id models.CategoryID) ([]models.Category, error) {
 	return s.categoryRepo.ListPath(ctx, id)
 }
 
-func (s *CategorySrv) ListProducts(ctx context.Context, categoryID *int64) ([]models.Product, error) {
+func (s *CategorySrv) ListProducts(ctx context.Context, categoryID *models.CategoryID) ([]models.Product, error) {
 	return s.productRepo.ListActiveByCategory(ctx, categoryID)
 }
 

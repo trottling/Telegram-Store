@@ -12,7 +12,7 @@ import (
 // ListProducts — админский листинг, включает неактивные и распроданные товары.
 func (h *Handlers) ListProducts(c *gin.Context) {
 	offset, limit := parsePagination(c)
-	categoryID := parseOptionalIDQuery(c, "category_id")
+	categoryID := parseOptionalUUIDQuery(c, "category_id", models.ParseCategoryID)
 
 	items, err := h.productService.ListAllAdmin(c.Request.Context(), offset, limit, categoryID)
 	if err != nil {
@@ -28,7 +28,7 @@ func (h *Handlers) ListProducts(c *gin.Context) {
 }
 
 func (h *Handlers) GetProduct(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParseProductID)
 	if !ok {
 		return
 	}
@@ -62,7 +62,7 @@ func (h *Handlers) CreateProduct(c *gin.Context) {
 
 func (h *Handlers) UpdateProduct(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParseProductID)
 	if !ok {
 		return
 	}
@@ -86,7 +86,7 @@ func (h *Handlers) UpdateProduct(c *gin.Context) {
 
 func (h *Handlers) DeleteProduct(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParseProductID)
 	if !ok {
 		return
 	}
@@ -100,7 +100,7 @@ func (h *Handlers) DeleteProduct(c *gin.Context) {
 
 func (h *Handlers) AddProductItems(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParseProductID)
 	if !ok {
 		return
 	}

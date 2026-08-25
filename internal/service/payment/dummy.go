@@ -47,7 +47,7 @@ type dummyWebhookPayload struct {
 	InvoiceID string `json:"invoice_id"`
 }
 
-func (p *DummyProvider) CreateInvoice(ctx context.Context, _ int64, amount models.Money, _ string) (string, string, error) {
+func (p *DummyProvider) CreateInvoice(ctx context.Context, _ models.TelegramID, amount models.Money, _ string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err

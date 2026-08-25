@@ -7,13 +7,14 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // AdminHandler отвечает на /admin кнопками панели и статистики — обе открываются
 // как Telegram Mini App (web_app), логин по initData (см. AdminAuthSrv.ExchangeInitData),
 // никакого кода тут больше не выдаётся.
 func (h *Handlers) AdminHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
+	chatID := domainmodels.TelegramID(update.Message.Chat.ID)
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {

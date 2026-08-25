@@ -9,6 +9,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
 )
 
@@ -56,7 +57,7 @@ func (m *Middlewares) BanCheck(next bot.HandlerFunc) bot.HandlerFunc {
 	}
 }
 
-func (m *Middlewares) reply(ctx context.Context, b *bot.Bot, chatID int64, text string) {
+func (m *Middlewares) reply(ctx context.Context, b *bot.Bot, chatID domainmodels.TelegramID, text string) {
 	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{ChatID: chatID, Text: text}); err != nil {
 		m.log.Errorf("ban_check: failed to send message to %d: %v", chatID, err)
 	}

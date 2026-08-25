@@ -23,7 +23,7 @@ func NewYooKassaProvider(settingsService service.SettingsService) *YooKassaProvi
 	return &YooKassaProvider{settingsService: settingsService}
 }
 
-func (p *YooKassaProvider) CreateInvoice(ctx context.Context, _ int64, amount models.Money, description string) (string, string, error) {
+func (p *YooKassaProvider) CreateInvoice(ctx context.Context, _ models.TelegramID, amount models.Money, description string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err

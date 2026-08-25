@@ -26,7 +26,7 @@ func NewUserSrv(userRepo repository.UserRepository, cache domaincache.UserCache,
 // referrerID/language учитываются только на ветке создания — уже существующий
 // пользователь рефералом не становится и язык не меняет, даже если пришёл по
 // реф-ссылке или сменил локаль в Telegram.
-func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username string, referrerID *int64, language string) (*models.User, bool, error) {
+func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID models.TelegramID, username string, referrerID *models.TelegramID, language string) (*models.User, bool, error) {
 	if user, err := s.cache.GetUser(ctx, telegramID); err == nil {
 		return user, false, nil
 	}
@@ -51,7 +51,7 @@ func (s *UserSrv) GetOrCreate(ctx context.Context, telegramID int64, username st
 
 // SetLanguage — ручное переключение языка интерфейса, перекрывает то, что
 // было определено автоматически по Telegram-локали при /start.
-func (s *UserSrv) SetLanguage(ctx context.Context, telegramID int64, language string) error {
+func (s *UserSrv) SetLanguage(ctx context.Context, telegramID models.TelegramID, language string) error {
 	user, err := s.userRepo.GetByID(ctx, telegramID)
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (s *UserSrv) SetLanguage(ctx context.Context, telegramID int64, language st
 }
 
 // validReferrer — nil, если рефка на себя или на несуществующего пользователя.
-func (s *UserSrv) validReferrer(ctx context.Context, telegramID int64, referrerID *int64) *int64 {
+func (s *UserSrv) validReferrer(ctx context.Context, telegramID models.TelegramID, referrerID *models.TelegramID) *models.TelegramID {
 	if referrerID == nil || *referrerID == telegramID {
 		return nil
 	}
@@ -80,7 +80,7 @@ func (s *UserSrv) validReferrer(ctx context.Context, telegramID int64, referrerI
 }
 
 // GetProfile — то же, что GetOrCreate, но не создаёт строку.
-func (s *UserSrv) GetProfile(ctx context.Context, telegramID int64) (*models.User, error) {
+func (s *UserSrv) GetProfile(ctx context.Context, telegramID models.TelegramID) (*models.User, error) {
 	// Свежего пользователя уже мог положить bot/middleware.BanCheck (см.
 	// domainservice.WithUser) — тогда это вообще без похода в кэш/Postgres.
 	if user, ok := domainservice.UserFromContext(ctx); ok && user.TelegramID == telegramID {
@@ -101,7 +101,7 @@ func (s *UserSrv) GetProfile(ctx context.Context, telegramID int64) (*models.Use
 
 // RefreshProfile — то же, что GetProfile, но без чтения кэша: сразу идёт в
 // Postgres и перезаписывает кэш свежим значением (для инлайн-кнопки «Обновить»).
-func (s *UserSrv) RefreshProfile(ctx context.Context, telegramID int64) (*models.User, error) {
+func (s *UserSrv) RefreshProfile(ctx context.Context, telegramID models.TelegramID) (*models.User, error) {
 	user, err := s.userRepo.GetByID(ctx, telegramID)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func (s *UserSrv) RefreshProfile(ctx context.Context, telegramID int64) (*models
 }
 
 // GetFreshProfile — RefreshProfile без записи в кэш, см. doc-комментарий интерфейса.
-func (s *UserSrv) GetFreshProfile(ctx context.Context, telegramID int64) (*models.User, error) {
+func (s *UserSrv) GetFreshProfile(ctx context.Context, telegramID models.TelegramID) (*models.User, error) {
 	return s.userRepo.GetByID(ctx, telegramID)
 }
 
@@ -125,10 +125,10 @@ func (s *UserSrv) CountAdmin(ctx context.Context) (int64, error) {
 	return s.userRepo.Count(ctx)
 }
 
-func (s *UserSrv) CountReferrals(ctx context.Context, telegramID int64) (int64, error) {
+func (s *UserSrv) CountReferrals(ctx context.Context, telegramID models.TelegramID) (int64, error) {
 	return s.userRepo.CountReferrals(ctx, telegramID)
 }
 
-func (s *UserSrv) ListReferrals(ctx context.Context, telegramID int64, offset, limit int) ([]models.User, error) {
+func (s *UserSrv) ListReferrals(ctx context.Context, telegramID models.TelegramID, offset, limit int) ([]models.User, error) {
 	return s.userRepo.ListReferrals(ctx, telegramID, offset, limit)
 }

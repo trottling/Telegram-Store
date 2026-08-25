@@ -9,6 +9,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/texts"
 	"github.com/trottling/Telegram-Store/bot/utils"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 	botmetrics "github.com/trottling/Telegram-Store/internal/metrics/bot"
 )
 
@@ -16,7 +17,7 @@ import (
 // Payload реф-ссылки (t.me/<bot>?start=<id> -> текст "/start <id>") учитывается
 // только на ветке создания — см. UserSrv.GetOrCreate.
 func (h *Handlers) StartHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
+	chatID := domainmodels.TelegramID(update.Message.Chat.ID)
 	lang := texts.Normalize(update.Message.From.LanguageCode)
 
 	user, created, err := h.userService.GetOrCreate(ctx, chatID, update.Message.Chat.Username, parseStartPayload(update.Message.Text), lang)
@@ -49,7 +50,7 @@ func (h *Handlers) StartHandler(ctx context.Context, b *bot.Bot, update *models.
 // parseStartPayload вытаскивает referrerID из "/start <id>" — MatchTypeCommandStartOnly
 // матчит и "/start", и "/start 123" (Telegram кладёт payload deep-link'а как
 // обычный текст после команды). nil, если payload пуст или не число.
-func parseStartPayload(text string) *int64 {
+func parseStartPayload(text string) *domainmodels.TelegramID {
 	payload := strings.TrimSpace(strings.TrimPrefix(text, "/start"))
 	if payload == "" {
 		return nil
@@ -58,12 +59,13 @@ func parseStartPayload(text string) *int64 {
 	if err != nil {
 		return nil
 	}
-	return &id
+	telegramID := domainmodels.TelegramID(id)
+	return &telegramID
 }
 
 // StartMenuHandler отвечает на кнопку «На главную» — только новым сообщением, редактировать нечего.
 func (h *Handlers) StartMenuHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
+	chatID := domainmodels.TelegramID(update.Message.Chat.ID)
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {
@@ -106,7 +108,7 @@ func (h *Handlers) MainMenuHandler(ctx context.Context, b *bot.Bot, update *mode
 
 // HelpHandler показывает экран помощи с Username поддержки из настроек.
 func (h *Handlers) HelpHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	chatID := update.Message.Chat.ID
+	chatID := domainmodels.TelegramID(update.Message.Chat.ID)
 
 	user, err := h.userService.GetProfile(ctx, chatID)
 	if err != nil {

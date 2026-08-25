@@ -1,6 +1,10 @@
 package cache
 
-import "context"
+import (
+	"context"
+
+	"github.com/trottling/Telegram-Store/internal/domain/models"
+)
 
 // ReplenishmentCheckCooldown — короткий TTL-маркер «этот счёт уже проверяли
 // недавно», не read-through кэш сущности. Защищает ReplenishmentService.
@@ -11,5 +15,5 @@ type ReplenishmentCheckCooldown interface {
 	// TryAcquire — true, если кулдауна ещё не было и он выставлен прямо
 	// сейчас; false — счёт проверяли недавно, поход к мерчанту нужно
 	// придержать.
-	TryAcquire(ctx context.Context, replenishmentID int64) (bool, error)
+	TryAcquire(ctx context.Context, replenishmentID models.ReplenishmentID) (bool, error)
 }

@@ -44,12 +44,27 @@ func (h *Handlers) decodeJSON(c *gin.Context, v any) bool {
 	return true
 }
 
-// parseIDParam читает числовой параметр пути, при ошибке сам пишет 400.
-func parseIDParam(c *gin.Context, name string) (int64, bool) {
+// parseIDParam читает числовой параметр пути (Telegram ID), при ошибке сам пишет 400.
+func parseIDParam(c *gin.Context, name string) (models.TelegramID, bool) {
 	id, err := strconv.ParseInt(c.Param(name), 10, 64)
 	if err != nil {
 		c.JSON(errors.DomainErrorToResponse(err))
 		return 0, false
+	}
+	return models.TelegramID(id), true
+}
+
+// parseUUIDParam читает UUID-параметр пути (Product/Category/Purchase ID —
+// эти сущности ключуются UUID, не числом) через переданный Parse*ID сущности,
+// при ошибке сам пишет 400. Один дженерик вместо шести копий на каждый тип —
+// адаптерный слой, не домен (в проекте уже есть прецедент на этом уровне —
+// dto.Paginated[T]).
+func parseUUIDParam[T any](c *gin.Context, name string, parse func(string) (T, error)) (T, bool) {
+	id, err := parse(c.Param(name))
+	if err != nil {
+		var zero T
+		c.JSON(errors.DomainErrorToResponse(err))
+		return zero, false
 	}
 	return id, true
 }
@@ -69,13 +84,28 @@ func parsePagination(c *gin.Context) (offset, limit int) {
 	return offset, limit
 }
 
-// parseOptionalIDQuery — необязательный числовой query-параметр, пусто/битое значение = nil.
-func parseOptionalIDQuery(c *gin.Context, name string) *int64 {
+// parseOptionalIDQuery — необязательный числовой (Telegram ID) query-параметр, пусто/битое значение = nil.
+func parseOptionalIDQuery(c *gin.Context, name string) *models.TelegramID {
 	raw := c.Query(name)
 	if raw == "" {
 		return nil
 	}
 	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return nil
+	}
+	telegramID := models.TelegramID(id)
+	return &telegramID
+}
+
+// parseOptionalUUIDQuery — необязательный UUID query-параметр (?category_id=...),
+// пусто/битое значение = nil. Пара к parseUUIDParam для query, а не path.
+func parseOptionalUUIDQuery[T any](c *gin.Context, name string, parse func(string) (T, error)) *T {
+	raw := c.Query(name)
+	if raw == "" {
+		return nil
+	}
+	id, err := parse(raw)
 	if err != nil {
 		return nil
 	}

@@ -11,7 +11,7 @@ type ReplenishmentService interface {
 	// CreateInvoice проверяет merchant включён/сумма в пределах min/max
 	// (см. Settings), создаёт счёт у мерчанта и pending-строку Replenishment.
 	// replenishmentID — её ID, нужен боту для кнопки «Проверить оплату» (см. CheckInvoice).
-	CreateInvoice(ctx context.Context, telegramID int64, merchant models.Merchant, amount models.Money) (paymentURL string, replenishmentID int64, err error)
+	CreateInvoice(ctx context.Context, telegramID models.TelegramID, merchant models.Merchant, amount models.Money) (paymentURL string, replenishmentID models.ReplenishmentID, err error)
 
 	// CheckInvoice — ручная проверка статуса по кнопке в боте, на случай если
 	// вебхук мерчанта ещё не пришёл или потерялся. Не подменяет вебхук: если
@@ -21,7 +21,7 @@ type ReplenishmentService interface {
 	// запрос, чтобы один пользователь не мог дёргать чужой счёт по id. amount —
 	// записанная сумма счёта, боту нужна перерисовать текст карточки без
 	// лишнего похода в БД.
-	CheckInvoice(ctx context.Context, telegramID int64, replenishmentID int64) (status models.ReplenishmentStatus, amount models.Money, err error)
+	CheckInvoice(ctx context.Context, telegramID models.TelegramID, replenishmentID models.ReplenishmentID) (status models.ReplenishmentStatus, amount models.Money, err error)
 
 	// Confirm/Fail — вызываются вебхуком мерчанта. Confirm идемпотентен:
 	// повторный вызов на уже обработанной строке баланс не трогает.
@@ -33,18 +33,18 @@ type ReplenishmentService interface {
 	Confirm(ctx context.Context, merchant models.Merchant, invoiceID string, paidAmount models.Money) error
 	Fail(ctx context.Context, merchant models.Merchant, invoiceID string) error
 
-	ListUserReplenishments(ctx context.Context, telegramID int64, offset, limit int) ([]models.Replenishment, error)
-	CountUserReplenishments(ctx context.Context, telegramID int64) (int64, error)
+	ListUserReplenishments(ctx context.Context, telegramID models.TelegramID, offset, limit int) ([]models.Replenishment, error)
+	CountUserReplenishments(ctx context.Context, telegramID models.TelegramID) (int64, error)
 
 	// GetUserReplenishment — одна запись по id, для карточки в истории (см.
 	// bot/handlers/replenishments.go). ErrReplenishmentNotFound и на
 	// несуществующий id, и на чужой — тот же приём, что в CheckInvoice, чтобы
 	// не подтверждать самим фактом ошибки существование чужого id.
-	GetUserReplenishment(ctx context.Context, telegramID int64, id int64) (*models.Replenishment, error)
+	GetUserReplenishment(ctx context.Context, telegramID models.TelegramID, id models.ReplenishmentID) (*models.Replenishment, error)
 
 	// SumUserMerchantAmount — сколько оплачено юзеру от одного мерчанта
 	// (используется для "всего начислено" в реферальной статистике, Merchant=referral).
-	SumUserMerchantAmount(ctx context.Context, telegramID int64, merchant models.Merchant) (models.Money, error)
+	SumUserMerchantAmount(ctx context.Context, telegramID models.TelegramID, merchant models.Merchant) (models.Money, error)
 
 	// ListAllAdmin/CountAllAdmin — межпользовательский вид для админ-панели.
 	ListAllAdmin(ctx context.Context, filter models.ReplenishmentAdminFilter, offset, limit int) ([]models.ReplenishmentAdminItem, error)

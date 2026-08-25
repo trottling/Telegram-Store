@@ -15,7 +15,7 @@ func NewStubProvider() *StubProvider {
 	return &StubProvider{}
 }
 
-func (StubProvider) CreateInvoice(ctx context.Context, userID int64, amount models.Money, description string) (paymentURL, invoiceID string, err error) {
+func (StubProvider) CreateInvoice(ctx context.Context, userID models.TelegramID, amount models.Money, description string) (paymentURL, invoiceID string, err error) {
 	return "", "", errors.New("payment provider is not implemented yet")
 }
 

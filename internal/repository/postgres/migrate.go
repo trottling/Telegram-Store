@@ -78,7 +78,7 @@ func refreshCollationVersions(db *gorm.DB, log *zap.SugaredLogger) {
 
 // AutoMigrate — единственная точка входа для cmd/migrate: схема (DDL), бутстрап root-admin + дефолтных настроек.
 // cmd/migrate/main.go - тонкая обвязка
-func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootAdminID int64) error {
+func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootAdminID models.TelegramID) error {
 	if err := db.AutoMigrate(
 		&userRecord{},
 		&models.Category{},

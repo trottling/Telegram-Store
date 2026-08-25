@@ -19,16 +19,16 @@ import (
 // fromDomain — маппинг на границе репозитория, единственном месте, которое о
 // userRecord знает.
 type userRecord struct {
-	TelegramID       int64          `gorm:"primaryKey"`
-	Username         string         `gorm:"size:32"`
-	Balance          models.Money   `gorm:"type:decimal(12,2);default:0;not null"`
-	Role             models.Role    `gorm:"type:varchar(20);default:'user';not null"`
-	CreatedAt        time.Time      `gorm:""`
-	UpdatedAt        time.Time      `gorm:""`
-	DeletedAt        gorm.DeletedAt `gorm:"index"`
-	ReferrerID       *int64         `gorm:"index"`
-	ReferralsEnabled bool           `gorm:"default:true;not null"`
-	Language         string         `gorm:"size:8;default:'ru';not null"`
+	TelegramID       models.TelegramID  `gorm:"primaryKey"`
+	Username         string             `gorm:"size:32"`
+	Balance          models.Money       `gorm:"type:decimal(12,2);default:0;not null"`
+	Role             models.Role        `gorm:"type:varchar(20);default:'user';not null"`
+	CreatedAt        time.Time          `gorm:""`
+	UpdatedAt        time.Time          `gorm:""`
+	DeletedAt        gorm.DeletedAt     `gorm:"index"`
+	ReferrerID       *models.TelegramID `gorm:"index"`
+	ReferralsEnabled bool               `gorm:"default:true;not null"`
+	Language         string             `gorm:"size:8;default:'ru';not null"`
 }
 
 func (userRecord) TableName() string { return "users" }
@@ -60,7 +60,7 @@ func NewUserRepo(db *gorm.DB, log *zap.SugaredLogger) *UserRepo {
 	return &UserRepo{db: db, log: log}
 }
 
-func (r *UserRepo) GetByID(ctx context.Context, telegramID int64) (*models.User, error) {
+func (r *UserRepo) GetByID(ctx context.Context, telegramID models.TelegramID) (*models.User, error) {
 	record, err := gorm.G[userRecord](dbFromCtx(ctx, r.db)).Where("telegram_id = ?", telegramID).First(ctx)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -99,7 +99,7 @@ func (r *UserRepo) Update(ctx context.Context, user *models.User) error {
 
 // UpdateBalance атомарно прибавляет delta; для списания WHERE сама
 // проверяет balance >= -delta, защита от гонки при двойном списании.
-func (r *UserRepo) UpdateBalance(ctx context.Context, telegramID int64, delta decimal.Decimal) error {
+func (r *UserRepo) UpdateBalance(ctx context.Context, telegramID models.TelegramID, delta decimal.Decimal) error {
 	query := gorm.G[userRecord](dbFromCtx(ctx, r.db)).Where("telegram_id = ?", telegramID)
 	negative := delta.IsNegative()
 	if negative {
@@ -137,7 +137,7 @@ func (r *UserRepo) Count(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-func (r *UserRepo) CountReferrals(ctx context.Context, referrerID int64) (int64, error) {
+func (r *UserRepo) CountReferrals(ctx context.Context, referrerID models.TelegramID) (int64, error) {
 	count, err := gorm.G[userRecord](dbFromCtx(ctx, r.db)).Where("referrer_id = ?", referrerID).Count(ctx, "*")
 	if err != nil {
 		r.log.Errorw("user_repo: count referrals failed", "error", err, "referrer_id", referrerID)
@@ -145,7 +145,7 @@ func (r *UserRepo) CountReferrals(ctx context.Context, referrerID int64) (int64,
 	return count, err
 }
 
-func (r *UserRepo) ListReferrals(ctx context.Context, referrerID int64, offset, limit int) ([]models.User, error) {
+func (r *UserRepo) ListReferrals(ctx context.Context, referrerID models.TelegramID, offset, limit int) ([]models.User, error) {
 	records, err := gorm.G[userRecord](dbFromCtx(ctx, r.db)).
 		Where("referrer_id = ?", referrerID).
 		Offset(offset).
@@ -161,7 +161,7 @@ func (r *UserRepo) ListReferrals(ctx context.Context, referrerID int64, offset, 
 
 // EnsureRootAdminExists выдаёт rootAdminID роль root_admin, создавая
 // пользователя при необходимости. Идемпотентно.
-func (r *UserRepo) EnsureRootAdminExists(ctx context.Context, rootAdminID int64) error {
+func (r *UserRepo) EnsureRootAdminExists(ctx context.Context, rootAdminID models.TelegramID) error {
 	existing, err := gorm.G[userRecord](dbFromCtx(ctx, r.db)).
 		Where("telegram_id = ?", rootAdminID).
 		First(ctx)

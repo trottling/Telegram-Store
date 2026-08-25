@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // ListCategories отдаёт плоский список всех категорий — дерево строит фронтенд.
@@ -19,7 +20,7 @@ func (h *Handlers) ListCategories(c *gin.Context) {
 }
 
 func (h *Handlers) GetCategory(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParseCategoryID)
 	if !ok {
 		return
 	}
@@ -48,7 +49,7 @@ func (h *Handlers) CreateCategory(c *gin.Context) {
 
 func (h *Handlers) UpdateCategory(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParseCategoryID)
 	if !ok {
 		return
 	}
@@ -67,7 +68,7 @@ func (h *Handlers) UpdateCategory(c *gin.Context) {
 
 func (h *Handlers) DeleteCategory(c *gin.Context) {
 	admin, _ := middleware.AdminFromContext(c)
-	id, ok := parseIDParam(c, "id")
+	id, ok := parseUUIDParam(c, "id", models.ParseCategoryID)
 	if !ok {
 		return
 	}

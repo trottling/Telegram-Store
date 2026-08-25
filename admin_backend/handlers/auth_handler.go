@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/trottling/Telegram-Store/admin_backend/dto"
 	"github.com/trottling/Telegram-Store/admin_backend/middleware"
+	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 // sessionCookieMaxAge — 24ч, совпадает со сроком жизни самого JWT
@@ -86,9 +86,9 @@ func (h *Handlers) clearSessionCookie(c *gin.Context) {
 
 // adminIdentity — X-WEBAUTH-USER для Grafana не должен быть пустым: у
 // Telegram username опционален, TelegramID есть всегда.
-func adminIdentity(username string, telegramID int64) string {
+func adminIdentity(username string, telegramID models.TelegramID) string {
 	if username != "" {
 		return username
 	}
-	return strconv.FormatInt(telegramID, 10)
+	return telegramID.String()
 }

@@ -47,7 +47,7 @@ func (p *TinkoffProvider) newClient(cfg models.TinkoffSettings) *tinkoff.Client 
 	)
 }
 
-func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID int64, amount models.Money, description string) (string, string, error) {
+func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID models.TelegramID, amount models.Money, description string) (string, string, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", "", err
@@ -103,6 +103,6 @@ func tinkoffStatus(status string) domainpayment.PaymentStatus {
 }
 
 // orderID — уникален на каждый вызов, Tinkoff требует несовпадающий OrderId на каждый Init.
-func orderID(userID int64) string {
+func orderID(userID models.TelegramID) string {
 	return fmt.Sprintf("%d-%d", userID, time.Now().UnixNano())
 }

@@ -12,7 +12,7 @@ import (
 
 // ProfileHandler и ProfileCallbackHandler ведут на один и тот же экран профиля.
 func (h *Handlers) ProfileHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	h.sendProfile(ctx, b, update.Message.Chat.ID, false)
+	h.sendProfile(ctx, b, domain.TelegramID(update.Message.Chat.ID), false)
 }
 
 func (h *Handlers) ProfileCallbackHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -27,10 +27,10 @@ func (h *Handlers) ProfileCallbackHandler(ctx context.Context, b *bot.Bot, updat
 // карточка, но профиль перечитывается напрямую из Postgres, минуя кэш
 // (статистика покупок и так всегда считается мимо кэша, см. PurchaseSrv.GetUserStats).
 func (h *Handlers) ProfileRefreshHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	h.sendProfile(ctx, b, update.Message.Chat.ID, true)
+	h.sendProfile(ctx, b, domain.TelegramID(update.Message.Chat.ID), true)
 }
 
-func (h *Handlers) sendProfile(ctx context.Context, b *bot.Bot, chatID int64, bypassCache bool) {
+func (h *Handlers) sendProfile(ctx context.Context, b *bot.Bot, chatID domain.TelegramID, bypassCache bool) {
 	count, spent, err := h.purchaseService.GetUserStats(ctx, chatID)
 	if err != nil {
 		h.log.Errorf("sendProfile: failed to get user %d stats: %v", chatID, err)

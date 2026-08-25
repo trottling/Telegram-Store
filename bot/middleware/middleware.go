@@ -8,6 +8,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/trottling/Telegram-Store/bot/utils"
 	domainfsm "github.com/trottling/Telegram-Store/internal/domain/fsm"
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 	"go.uber.org/zap"
 
 	"github.com/trottling/Telegram-Store/internal/domain/service"
@@ -84,9 +85,9 @@ func classifyKind(update *models.Update) string {
 }
 
 // extractChatID достаёт chat ID из update; ok — false, если его нет ни в одном виде.
-func extractChatID(update *models.Update) (chatID int64, ok bool) {
+func extractChatID(update *models.Update) (chatID domainmodels.TelegramID, ok bool) {
 	if update.Message != nil {
-		return update.Message.Chat.ID, true
+		return domainmodels.TelegramID(update.Message.Chat.ID), true
 	}
 	return utils.CallbackChatID(update)
 }

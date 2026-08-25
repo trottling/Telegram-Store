@@ -56,7 +56,7 @@ func (m *Middlewares) FSM(next bot.HandlerFunc) bot.HandlerFunc {
 			return
 		}
 
-		chatID := update.Message.Chat.ID
+		chatID := domain.TelegramID(update.Message.Chat.ID)
 		text := update.Message.Text
 
 		st, err := m.stateStore.GetFSMState(ctx, chatID)
@@ -91,7 +91,7 @@ func (m *Middlewares) FSM(next bot.HandlerFunc) bot.HandlerFunc {
 
 // resolveLang читает язык из профиля пользователя; при ошибке — ru
 // (fail-safe, не должен блокировать сценарий FSM).
-func (m *Middlewares) resolveLang(ctx context.Context, chatID int64) string {
+func (m *Middlewares) resolveLang(ctx context.Context, chatID domain.TelegramID) string {
 	user, err := m.userService.GetProfile(ctx, chatID)
 	if err != nil {
 		return texts.LangRU
@@ -102,7 +102,7 @@ func (m *Middlewares) resolveLang(ctx context.Context, chatID int64) string {
 // send отправляет ответ и логирует ошибку — общий хвост для каждого шага FSM.
 // kb присваивается только если не nil: иначе типизированный nil в
 // интерфейсе ReplyMarkup не считается пустым, и Bot API получит "reply_markup": null.
-func (m *Middlewares) send(ctx context.Context, b *bot.Bot, chatID int64, text string, kb *models.InlineKeyboardMarkup) {
+func (m *Middlewares) send(ctx context.Context, b *bot.Bot, chatID domain.TelegramID, text string, kb *models.InlineKeyboardMarkup) {
 	params := &bot.SendMessageParams{
 		ChatID:    chatID,
 		Text:      text,
@@ -117,7 +117,7 @@ func (m *Middlewares) send(ctx context.Context, b *bot.Bot, chatID int64, text s
 }
 
 // handleBuyQuantity обрабатывает введённое вручную количество.
-func (m *Middlewares) handleBuyQuantity(ctx context.Context, b *bot.Bot, chatID int64, lang, text string, st *domainfsm.State) {
+func (m *Middlewares) handleBuyQuantity(ctx context.Context, b *bot.Bot, chatID domain.TelegramID, lang, text string, st *domainfsm.State) {
 	qty, err := strconv.Atoi(strings.TrimSpace(text))
 	if err != nil || qty <= 0 {
 		// Состояние не сбрасываем — даём попробовать ещё раз.
@@ -137,7 +137,7 @@ func (m *Middlewares) handleBuyQuantity(ctx context.Context, b *bot.Bot, chatID 
 
 // showBuyConfirmation дублирует handlers.Handlers.showBuyConfirmation —
 // пакеты Middlewares и Handlers связаны независимо, шарить смысла нет.
-func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID int64, lang string, messageID int, productID int64, qty int) {
+func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID domain.TelegramID, lang string, messageID int, productID domain.ProductID, qty int) {
 	// При ошибке отвечаем пользователю: он только что ввёл количество, и молчание
 	// в ответ выглядит как проглоченный ввод.
 	product, err := m.productService.GetByID(ctx, productID)
@@ -189,7 +189,7 @@ func (m *Middlewares) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatI
 
 // handleRefillAmount парсит сумму и создаёт счёт через replenishmentService
 // у мерчанта, выбранного на предыдущем шаге (st.Merchant).
-func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID int64, lang, text string, st *domainfsm.State) {
+func (m *Middlewares) handleRefillAmount(ctx context.Context, b *bot.Bot, chatID domain.TelegramID, lang, text string, st *domainfsm.State) {
 	normalized := strings.ReplaceAll(strings.TrimSpace(text), ",", ".")
 	amount, err := domain.NewMoney(normalized)
 	if err != nil || amount.IsZero() {

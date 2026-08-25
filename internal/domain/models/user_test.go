@@ -7,7 +7,7 @@ import (
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 )
 
-func newTestUser(id int64, role Role) *User {
+func newTestUser(id TelegramID, role Role) *User {
 	return HydrateUser(id, "user", Money{}, role, time.Now(), time.Now(), nil, true, "ru")
 }
 

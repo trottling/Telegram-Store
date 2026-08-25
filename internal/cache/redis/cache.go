@@ -75,7 +75,7 @@ func (c *Cache) delete(ctx context.Context, keys ...string) error {
 
 // пользователь
 
-func (c *Cache) GetUser(ctx context.Context, telegramID int64) (*models.User, error) {
+func (c *Cache) GetUser(ctx context.Context, telegramID models.TelegramID) (*models.User, error) {
 	var user models.User
 	if err := c.getJSON(ctx, userKey(telegramID), &user); err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (c *Cache) SetUser(ctx context.Context, user *models.User) error {
 	return c.setJSON(ctx, userKey(user.TelegramID), user, userTTL)
 }
 
-func (c *Cache) InvalidateUser(ctx context.Context, telegramID int64) error {
+func (c *Cache) InvalidateUser(ctx context.Context, telegramID models.TelegramID) error {
 	return c.delete(ctx, userKey(telegramID))
 }
 
@@ -109,7 +109,7 @@ func (c *Cache) InvalidateActiveProducts(ctx context.Context) error {
 	return c.delete(ctx, activeProductsKey())
 }
 
-func (c *Cache) GetProduct(ctx context.Context, productID int64) (*models.Product, error) {
+func (c *Cache) GetProduct(ctx context.Context, productID models.ProductID) (*models.Product, error) {
 	var product models.Product
 	if err := c.getJSON(ctx, productKey(productID), &product); err != nil {
 		return nil, err
@@ -121,11 +121,11 @@ func (c *Cache) SetProduct(ctx context.Context, product *models.Product) error {
 	return c.setJSON(ctx, productKey(product.ID), product, productTTL)
 }
 
-func (c *Cache) InvalidateProduct(ctx context.Context, productID int64) error {
+func (c *Cache) InvalidateProduct(ctx context.Context, productID models.ProductID) error {
 	return c.delete(ctx, productKey(productID))
 }
 
-func (c *Cache) GetProductAvailableCount(ctx context.Context, productID int64) (int, error) {
+func (c *Cache) GetProductAvailableCount(ctx context.Context, productID models.ProductID) (int, error) {
 	raw, err := c.client.Get(ctx, productCountKey(productID)).Result()
 	if errors.Is(err, redis.Nil) {
 		return 0, domaincache.ErrMiss
@@ -143,7 +143,7 @@ func (c *Cache) GetProductAvailableCount(ctx context.Context, productID int64) (
 	return count, nil
 }
 
-func (c *Cache) SetProductAvailableCount(ctx context.Context, productID int64, count int) error {
+func (c *Cache) SetProductAvailableCount(ctx context.Context, productID models.ProductID, count int) error {
 	if err := c.client.Set(ctx, productCountKey(productID), strconv.Itoa(count), productCountTTL).Err(); err != nil {
 		c.log.Warnw("cache: redis SET failed", "error", err, "product_id", productID)
 		return err
@@ -151,13 +151,13 @@ func (c *Cache) SetProductAvailableCount(ctx context.Context, productID int64, c
 	return nil
 }
 
-func (c *Cache) InvalidateProductAvailableCount(ctx context.Context, productID int64) error {
+func (c *Cache) InvalidateProductAvailableCount(ctx context.Context, productID models.ProductID) error {
 	return c.delete(ctx, productCountKey(productID))
 }
 
 // категории
 
-func (c *Cache) GetCategoryChildren(ctx context.Context, parentID *int64) ([]models.Category, error) {
+func (c *Cache) GetCategoryChildren(ctx context.Context, parentID *models.CategoryID) ([]models.Category, error) {
 	var categories []models.Category
 	if err := c.getJSON(ctx, categoryChildrenKey(parentID), &categories); err != nil {
 		return nil, err
@@ -165,11 +165,11 @@ func (c *Cache) GetCategoryChildren(ctx context.Context, parentID *int64) ([]mod
 	return categories, nil
 }
 
-func (c *Cache) SetCategoryChildren(ctx context.Context, parentID *int64, categories []models.Category) error {
+func (c *Cache) SetCategoryChildren(ctx context.Context, parentID *models.CategoryID, categories []models.Category) error {
 	return c.setJSON(ctx, categoryChildrenKey(parentID), categories, categoryChildrenTTL)
 }
 
-func (c *Cache) InvalidateCategoryChildren(ctx context.Context, parentID *int64) error {
+func (c *Cache) InvalidateCategoryChildren(ctx context.Context, parentID *models.CategoryID) error {
 	return c.delete(ctx, categoryChildrenKey(parentID))
 }
 
@@ -193,7 +193,7 @@ func (c *Cache) InvalidateSettings(ctx context.Context) error {
 
 // состояние FSM
 
-func (c *Cache) GetFSMState(ctx context.Context, telegramID int64) (*domainfsm.State, error) {
+func (c *Cache) GetFSMState(ctx context.Context, telegramID models.TelegramID) (*domainfsm.State, error) {
 	raw, err := c.client.Get(ctx, stateKey(telegramID)).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return nil, domainfsm.ErrNotFound
@@ -213,7 +213,7 @@ func (c *Cache) GetFSMState(ctx context.Context, telegramID int64) (*domainfsm.S
 
 // ConsumeFSMState — GETDEL, чтобы два параллельных тапа по одной кнопке не
 // прочитали одно состояние дважды (ср. ConsumeLoginCode).
-func (c *Cache) ConsumeFSMState(ctx context.Context, telegramID int64) (*domainfsm.State, error) {
+func (c *Cache) ConsumeFSMState(ctx context.Context, telegramID models.TelegramID) (*domainfsm.State, error) {
 	raw, err := c.client.GetDel(ctx, stateKey(telegramID)).Bytes()
 	if errors.Is(err, redis.Nil) {
 		return nil, domainfsm.ErrNotFound
@@ -231,7 +231,7 @@ func (c *Cache) ConsumeFSMState(ctx context.Context, telegramID int64) (*domainf
 	return &st, nil
 }
 
-func (c *Cache) SetFSMState(ctx context.Context, telegramID int64, st *domainfsm.State) error {
+func (c *Cache) SetFSMState(ctx context.Context, telegramID models.TelegramID, st *domainfsm.State) error {
 	raw, err := json.Marshal(st)
 	if err != nil {
 		c.log.Errorw("cache: failed to marshal fsm state", "error", err, "telegram_id", telegramID)
@@ -244,7 +244,7 @@ func (c *Cache) SetFSMState(ctx context.Context, telegramID int64, st *domainfsm
 	return nil
 }
 
-func (c *Cache) ClearFSMState(ctx context.Context, telegramID int64) error {
+func (c *Cache) ClearFSMState(ctx context.Context, telegramID models.TelegramID) error {
 	if err := c.client.Del(ctx, stateKey(telegramID)).Err(); err != nil {
 		c.log.Warnw("cache: redis DEL failed (fsm state)", "error", err, "telegram_id", telegramID)
 		return err
@@ -254,15 +254,15 @@ func (c *Cache) ClearFSMState(ctx context.Context, telegramID int64) error {
 
 // сессии веб-панели
 
-func (c *Cache) SetSession(ctx context.Context, sessionHash string, telegramID int64, ttl time.Duration) error {
-	if err := c.client.Set(ctx, adminSessionKey(sessionHash), strconv.FormatInt(telegramID, 10), ttl).Err(); err != nil {
+func (c *Cache) SetSession(ctx context.Context, sessionHash string, telegramID models.TelegramID, ttl time.Duration) error {
+	if err := c.client.Set(ctx, adminSessionKey(sessionHash), telegramID.String(), ttl).Err(); err != nil {
 		c.log.Warnw("cache: redis SET failed (admin session)", "error", err)
 		return err
 	}
 	return nil
 }
 
-func (c *Cache) GetSession(ctx context.Context, sessionHash string) (int64, error) {
+func (c *Cache) GetSession(ctx context.Context, sessionHash string) (models.TelegramID, error) {
 	raw, err := c.client.Get(ctx, adminSessionKey(sessionHash)).Result()
 	if errors.Is(err, redis.Nil) {
 		return 0, adminsession.ErrNotFound
@@ -276,7 +276,7 @@ func (c *Cache) GetSession(ctx context.Context, sessionHash string) (int64, erro
 		c.log.Warnw("cache: stored admin session value is not an int, treating as miss", "error", err)
 		return 0, adminsession.ErrNotFound
 	}
-	return telegramID, nil
+	return models.TelegramID(telegramID), nil
 }
 
 func (c *Cache) DeleteSession(ctx context.Context, sessionHash string) error {
@@ -306,7 +306,7 @@ func (c *Cache) IncrExchangeAttempts(ctx context.Context, key string, window tim
 // TryAcquire — SETNX атомарен: в окне TTL только первый вызов вернёт true,
 // остальные до истечения — false, без гонки между параллельными тапами
 // одной кнопки.
-func (c *Cache) TryAcquire(ctx context.Context, replenishmentID int64) (bool, error) {
+func (c *Cache) TryAcquire(ctx context.Context, replenishmentID models.ReplenishmentID) (bool, error) {
 	acquired, err := c.client.SetNX(ctx, replenishmentCheckCooldownKey(replenishmentID), 1, replenishmentCheckCooldownTTL).Result()
 	if err != nil {
 		c.log.Errorw("cache: redis SETNX failed (replenishment check cooldown)", "error", err, "replenishment_id", replenishmentID)

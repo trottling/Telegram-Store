@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"strconv"
 
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -46,12 +45,12 @@ func (s *ProductSrv) ListAvailable(ctx context.Context) ([]models.Product, error
 	return v.([]models.Product), nil
 }
 
-func (s *ProductSrv) GetByID(ctx context.Context, id int64) (*models.Product, error) {
+func (s *ProductSrv) GetByID(ctx context.Context, id models.ProductID) (*models.Product, error) {
 	if product, err := s.cache.GetProduct(ctx, id); err == nil {
 		return product, nil
 	}
 
-	v, err, _ := s.sf.Do("product:"+strconv.FormatInt(id, 10), func() (any, error) {
+	v, err, _ := s.sf.Do("product:"+id.String(), func() (any, error) {
 		product, err := s.productRepo.GetByID(ctx, id)
 		if err != nil {
 			return nil, err
@@ -65,12 +64,12 @@ func (s *ProductSrv) GetByID(ctx context.Context, id int64) (*models.Product, er
 	return v.(*models.Product), nil
 }
 
-func (s *ProductSrv) GetAvailableCount(ctx context.Context, productID int64) (int, error) {
+func (s *ProductSrv) GetAvailableCount(ctx context.Context, productID models.ProductID) (int, error) {
 	if count, err := s.cache.GetProductAvailableCount(ctx, productID); err == nil {
 		return count, nil
 	}
 
-	v, err, _ := s.sf.Do("count:"+strconv.FormatInt(productID, 10), func() (any, error) {
+	v, err, _ := s.sf.Do("count:"+productID.String(), func() (any, error) {
 		count, err := s.productRepo.CountAvailableItems(ctx, productID)
 		if err != nil {
 			return nil, err
@@ -85,10 +84,10 @@ func (s *ProductSrv) GetAvailableCount(ctx context.Context, productID int64) (in
 }
 
 // ListAllAdmin/CountAllAdmin намеренно мимо кэша.
-func (s *ProductSrv) ListAllAdmin(ctx context.Context, offset, limit int, categoryID *int64) ([]models.ProductAdminSummary, error) {
+func (s *ProductSrv) ListAllAdmin(ctx context.Context, offset, limit int, categoryID *models.CategoryID) ([]models.ProductAdminSummary, error) {
 	return s.productRepo.ListAll(ctx, offset, limit, categoryID)
 }
 
-func (s *ProductSrv) CountAllAdmin(ctx context.Context, categoryID *int64) (int64, error) {
+func (s *ProductSrv) CountAllAdmin(ctx context.Context, categoryID *models.CategoryID) (int64, error) {
 	return s.productRepo.CountAll(ctx, categoryID)
 }

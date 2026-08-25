@@ -31,7 +31,7 @@ func (h *Handlers) BuyHandler(ctx context.Context, b *bot.Bot, update *models.Up
 		return
 	}
 
-	productID, err := utils.ParseCallbackQuery(update.CallbackQuery.Data)
+	productID, err := utils.ParseProductCallback(update.CallbackQuery.Data)
 	if err != nil {
 		h.log.Errorf("BuyHandler: failed to parse buy callback: %v", err)
 		return
@@ -93,7 +93,7 @@ func (h *Handlers) BuyQtyHandler(ctx context.Context, b *bot.Bot, update *models
 
 // showBuyConfirmation — экран подтверждения покупки. Проверка остатка тут
 // нужна только для UX, реальную гарантию даёт транзакция в PurchaseService.Buy.
-func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID int64, lang string, messageID int, productID int64, qty int) {
+func (h *Handlers) showBuyConfirmation(ctx context.Context, b *bot.Bot, chatID domainmodels.TelegramID, lang string, messageID int, productID domainmodels.ProductID, qty int) {
 	product, err := h.productService.GetByID(ctx, productID)
 	if err != nil {
 		h.log.Errorf("showBuyConfirmation: failed to get product %d: %v", productID, err)

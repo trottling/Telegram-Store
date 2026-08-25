@@ -21,6 +21,7 @@ func NewReplenishmentRepo(db *gorm.DB, log *zap.SugaredLogger) *ReplenishmentRep
 }
 
 func (r *ReplenishmentRepo) Create(ctx context.Context, replenishment *models.Replenishment) error {
+	replenishment.ID = models.NewReplenishmentID()
 	if err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).Create(ctx, replenishment); err != nil {
 		r.log.Errorw("replenishment_repo: create failed", "error", err, "user_id", replenishment.UserID)
 		return err
@@ -42,7 +43,7 @@ func (r *ReplenishmentRepo) GetByMerchantInvoiceID(ctx context.Context, merchant
 	return &replenishment, nil
 }
 
-func (r *ReplenishmentRepo) GetByID(ctx context.Context, id int64) (*models.Replenishment, error) {
+func (r *ReplenishmentRepo) GetByID(ctx context.Context, id models.ReplenishmentID) (*models.Replenishment, error) {
 	replenishment, err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).
 		Where("id = ?", id).
 		First(ctx)
@@ -58,7 +59,7 @@ func (r *ReplenishmentRepo) GetByID(ctx context.Context, id int64) (*models.Repl
 
 // UpdateStatus — WHERE status = 'pending' защищает от повторной обработки
 // вебхука: второй вызов на уже обработанной строке changed=false, err=nil.
-func (r *ReplenishmentRepo) UpdateStatus(ctx context.Context, id int64, status models.ReplenishmentStatus, completedAt *time.Time) (bool, error) {
+func (r *ReplenishmentRepo) UpdateStatus(ctx context.Context, id models.ReplenishmentID, status models.ReplenishmentStatus, completedAt *time.Time) (bool, error) {
 	rows, err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).
 		Where("id = ? AND status = ?", id, models.ReplenishmentStatusPending).
 		Updates(ctx, models.Replenishment{Status: status, CompletedAt: completedAt})
@@ -69,7 +70,7 @@ func (r *ReplenishmentRepo) UpdateStatus(ctx context.Context, id int64, status m
 	return rows > 0, nil
 }
 
-func (r *ReplenishmentRepo) ListByUserID(ctx context.Context, userID int64, offset, limit int) ([]models.Replenishment, error) {
+func (r *ReplenishmentRepo) ListByUserID(ctx context.Context, userID models.TelegramID, offset, limit int) ([]models.Replenishment, error) {
 	replenishments, err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
@@ -82,7 +83,7 @@ func (r *ReplenishmentRepo) ListByUserID(ctx context.Context, userID int64, offs
 	return replenishments, err
 }
 
-func (r *ReplenishmentRepo) CountByUserID(ctx context.Context, userID int64) (int64, error) {
+func (r *ReplenishmentRepo) CountByUserID(ctx context.Context, userID models.TelegramID) (int64, error) {
 	count, err := gorm.G[models.Replenishment](dbFromCtx(ctx, r.db)).Where("user_id = ?", userID).Count(ctx, "*")
 	if err != nil {
 		r.log.Errorw("replenishment_repo: count by user id failed", "error", err, "user_id", userID)
@@ -91,7 +92,7 @@ func (r *ReplenishmentRepo) CountByUserID(ctx context.Context, userID int64) (in
 }
 
 // SumPaidByUserMerchant — сумма оплаченных пополнений (COALESCE — 0, если строк нет).
-func (r *ReplenishmentRepo) SumPaidByUserMerchant(ctx context.Context, userID int64, merchant models.Merchant) (models.Money, error) {
+func (r *ReplenishmentRepo) SumPaidByUserMerchant(ctx context.Context, userID models.TelegramID, merchant models.Merchant) (models.Money, error) {
 	var sum models.Money
 	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Replenishment{}).
 		Where("user_id = ? AND merchant = ? AND status = ?", userID, merchant, models.ReplenishmentStatusPaid).

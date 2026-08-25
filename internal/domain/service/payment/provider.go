@@ -16,6 +16,6 @@ const (
 )
 
 type PaymentProvider interface {
-	CreateInvoice(ctx context.Context, userID int64, amount models.Money, description string) (paymentURL, invoiceID string, err error)
+	CreateInvoice(ctx context.Context, userID models.TelegramID, amount models.Money, description string) (paymentURL, invoiceID string, err error)
 	CheckStatus(ctx context.Context, invoiceID string) (PaymentStatus, error)
 }

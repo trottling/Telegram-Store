@@ -4,11 +4,11 @@ import "time"
 
 // Category — узел дерева каталога произвольной глубины; ParentID == nil — корень.
 type Category struct {
-	ID          int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-	ParentID    *int64    `gorm:"index" json:"parent_id,omitempty"`
-	Name        string    `gorm:"size:255;not null" json:"name"`
-	Description string    `gorm:"type:text" json:"description,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          CategoryID  `gorm:"type:uuid;primaryKey" json:"id"`
+	ParentID    *CategoryID `gorm:"type:uuid;index" json:"parent_id,omitempty"`
+	Name        string      `gorm:"size:255;not null" json:"name"`
+	Description string      `gorm:"type:text" json:"description,omitempty"`
+	CreatedAt   time.Time   `json:"created_at"`
 	// HasStock — денормализованный агрегат: true, если у самой категории или
 	// у любого её потомка есть активный товар в наличии. Поддерживается
 	// репозиторием (RecomputeStock) на каждой операции, меняющей остаток или
