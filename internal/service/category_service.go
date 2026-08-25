@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"strconv"
 
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 type CategorySrv struct {
@@ -14,6 +16,10 @@ type CategorySrv struct {
 	productRepo  repository.ProductRepository
 	cache        domaincache.CategoryCache
 	log          *zap.SugaredLogger
+	// sf — см. комментарий у ProductSrv.sf; здесь защищает от громового стада
+	// на популярную категорию (её ListChildren зовётся на каждый заход в
+	// раздел каталога).
+	sf singleflight.Group
 }
 
 func NewCategorySrv(
@@ -31,13 +37,22 @@ func (s *CategorySrv) ListChildren(ctx context.Context, parentID *int64) ([]mode
 	}
 	s.log.Debugw("category_service: children cache miss", "parent_id", parentID)
 
-	children, err := s.categoryRepo.ListChildren(ctx, parentID)
+	key := "root"
+	if parentID != nil {
+		key = strconv.FormatInt(*parentID, 10)
+	}
+	v, err, _ := s.sf.Do(key, func() (any, error) {
+		children, err := s.categoryRepo.ListChildren(ctx, parentID)
+		if err != nil {
+			return nil, err
+		}
+		_ = s.cache.SetCategoryChildren(ctx, parentID, children)
+		return children, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	_ = s.cache.SetCategoryChildren(ctx, parentID, children)
-	return children, nil
+	return v.([]models.Category), nil
 }
 
 func (s *CategorySrv) GetByID(ctx context.Context, id int64) (*models.Category, error) {

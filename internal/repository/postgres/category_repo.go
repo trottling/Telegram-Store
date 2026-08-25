@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
@@ -65,44 +64,63 @@ func (r *CategoryRepo) Delete(ctx context.Context, id int64) error {
 }
 
 // ListChildren — прямые потомки parentID, у которых (или у кого-то в их
-// поддереве) есть товар в наличии. Рекурсивный CTE — единственный случай,
-// не укладывающийся в gorm.G[T].
+// поддереве) есть товар в наличии. Фильтр по HasStock — денормализованному
+// агрегату, который поддерживает RecomputeStock; сам ListChildren больше не
+// обходит поддерево рекурсивно на каждое чтение.
 func (r *CategoryRepo) ListChildren(ctx context.Context, parentID *int64) ([]models.Category, error) {
-	const query = `
-		WITH RECURSIVE subtree AS (
-			SELECT id, id AS branch_id FROM categories WHERE %s
-			UNION ALL
-			SELECT c.id, s.branch_id
-			FROM categories c
-			JOIN subtree s ON c.parent_id = s.id
-		)
-		SELECT DISTINCT c.*
-		FROM categories c
-		WHERE %s
-		  AND c.id IN (
-			SELECT s.branch_id
-			FROM subtree s
-			JOIN products p ON p.category_id = s.id
-			WHERE p.is_active = true
-			  AND EXISTS (SELECT 1 FROM product_items pi WHERE pi.product_id = p.id AND pi.is_sold = false)
-		  )
-		ORDER BY c.name`
-
 	var (
 		children []models.Category
 		err      error
 	)
 	if parentID == nil {
-		sql := fmt.Sprintf(query, "parent_id IS NULL", "c.parent_id IS NULL")
-		err = dbFromCtx(ctx, r.db).WithContext(ctx).Raw(sql).Scan(&children).Error
+		children, err = gorm.G[models.Category](dbFromCtx(ctx, r.db)).
+			Where("parent_id IS NULL AND has_stock = ?", true).
+			Order("name").
+			Find(ctx)
 	} else {
-		sql := fmt.Sprintf(query, "parent_id = ?", "c.parent_id = ?")
-		err = dbFromCtx(ctx, r.db).WithContext(ctx).Raw(sql, *parentID, *parentID).Scan(&children).Error
+		children, err = gorm.G[models.Category](dbFromCtx(ctx, r.db)).
+			Where("parent_id = ? AND has_stock = ?", *parentID, true).
+			Order("name").
+			Find(ctx)
 	}
 	if err != nil {
 		r.log.Errorw("category_repo: list children failed", "error", err, "parent_id", parentID)
 	}
 	return children, err
+}
+
+// recomputeStockSQL — агрегат снизу вверх: собственные товары категории
+// (активные, с непроданной единицей) ИЛИ уже пересчитанный HasStock у
+// прямого потомка. RETURNING отдаёт новое значение одним запросом, без
+// отдельного SELECT после UPDATE.
+const recomputeStockSQL = `
+	UPDATE categories SET has_stock = (
+		EXISTS (
+			SELECT 1 FROM products p
+			WHERE p.category_id = categories.id AND p.is_active = true
+			  AND EXISTS (SELECT 1 FROM product_items pi WHERE pi.product_id = p.id AND pi.is_sold = false)
+		)
+		OR EXISTS (SELECT 1 FROM categories child WHERE child.parent_id = categories.id AND child.has_stock = true)
+	)
+	WHERE id = ?
+	RETURNING has_stock`
+
+// RecomputeStock — см. доменный интерфейс.
+func (r *CategoryRepo) RecomputeStock(ctx context.Context, categoryID int64) (bool, error) {
+	db := dbFromCtx(ctx, r.db).WithContext(ctx)
+
+	var before bool
+	if err := db.Raw(`SELECT has_stock FROM categories WHERE id = ?`, categoryID).Scan(&before).Error; err != nil {
+		r.log.Errorw("category_repo: recompute stock read failed", "error", err, "category_id", categoryID)
+		return false, err
+	}
+
+	var after bool
+	if err := db.Raw(recomputeStockSQL, categoryID).Scan(&after).Error; err != nil {
+		r.log.Errorw("category_repo: recompute stock write failed", "error", err, "category_id", categoryID)
+		return false, err
+	}
+	return before != after, nil
 }
 
 // ListPath идёт по ParentID от id до корня и возвращает путь от корня.

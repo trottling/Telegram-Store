@@ -269,9 +269,11 @@ func (s *AdminSrv) UpdateProduct(ctx context.Context, adminID int64, productID i
 	// IsActive/смена категории влияют на остаток старой и новой категории вверх по дереву.
 	if oldCategoryID != nil {
 		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *oldCategoryID)
+		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *oldCategoryID)
 	}
 	if categoryID != nil && (oldCategoryID == nil || *categoryID != *oldCategoryID) {
 		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *categoryID)
+		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *categoryID)
 	}
 	return product, nil
 }
@@ -302,6 +304,7 @@ func (s *AdminSrv) DeleteProduct(ctx context.Context, adminID int64, productID i
 	_ = s.cache.InvalidateProductAvailableCount(ctx, productID)
 	if product.CategoryID != nil {
 		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
+		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *product.CategoryID)
 	}
 	return nil
 }
@@ -326,6 +329,7 @@ func (s *AdminSrv) AddProductItems(ctx context.Context, adminID int64, productID
 	_ = s.cache.InvalidateActiveProducts(ctx)
 	if product.CategoryID != nil {
 		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
+		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *product.CategoryID)
 	}
 	return nil
 }
@@ -379,6 +383,15 @@ func (s *AdminSrv) UpdateCategory(ctx context.Context, adminID int64, categoryID
 	s.logAction(ctx, adminID, "category_update", &category.ID, nil)
 	_ = s.cache.InvalidateCategoryChildren(ctx, oldParentID)
 	_ = s.cache.InvalidateCategoryChildren(ctx, parentID)
+	// Перенос между родителями не меняет HasStock самой категории, только то,
+	// чей агрегат её учитывает — пересчитываем у старого и нового родителя,
+	// не у categoryID.
+	if oldParentID != nil {
+		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *oldParentID)
+	}
+	if parentID != nil && (oldParentID == nil || *parentID != *oldParentID) {
+		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *parentID)
+	}
 	return category, nil
 }
 

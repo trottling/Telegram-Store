@@ -2,17 +2,24 @@ package service
 
 import (
 	"context"
+	"strconv"
 
 	domaincache "github.com/trottling/Telegram-Store/internal/domain/cache"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/repository"
 	"go.uber.org/zap"
+	"golang.org/x/sync/singleflight"
 )
 
 type ProductSrv struct {
 	productRepo repository.ProductRepository
 	cache       domaincache.ProductCache
 	log         *zap.SugaredLogger
+	// sf схлопывает параллельные промахи кэша на один и тот же ключ в один
+	// запрос к БД — иначе при истечении горячего ключа (популярный товар)
+	// все параллельные читатели идут в БД одновременно. Нулевое значение
+	// готово к использованию, отдельной инициализации не требует.
+	sf singleflight.Group
 }
 
 func NewProductSrv(productRepo repository.ProductRepository, cache domaincache.ProductCache, log *zap.SugaredLogger) *ProductSrv {
@@ -25,13 +32,18 @@ func (s *ProductSrv) ListAvailable(ctx context.Context) ([]models.Product, error
 	}
 	s.log.Debug("product_service: active products cache miss")
 
-	products, err := s.productRepo.ListActive(ctx)
+	v, err, _ := s.sf.Do("active", func() (any, error) {
+		products, err := s.productRepo.ListActive(ctx)
+		if err != nil {
+			return nil, err
+		}
+		_ = s.cache.SetActiveProducts(ctx, products)
+		return products, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	_ = s.cache.SetActiveProducts(ctx, products)
-	return products, nil
+	return v.([]models.Product), nil
 }
 
 func (s *ProductSrv) GetByID(ctx context.Context, id int64) (*models.Product, error) {
@@ -39,13 +51,18 @@ func (s *ProductSrv) GetByID(ctx context.Context, id int64) (*models.Product, er
 		return product, nil
 	}
 
-	product, err := s.productRepo.GetByID(ctx, id)
+	v, err, _ := s.sf.Do("product:"+strconv.FormatInt(id, 10), func() (any, error) {
+		product, err := s.productRepo.GetByID(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		_ = s.cache.SetProduct(ctx, product)
+		return product, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	_ = s.cache.SetProduct(ctx, product)
-	return product, nil
+	return v.(*models.Product), nil
 }
 
 func (s *ProductSrv) GetAvailableCount(ctx context.Context, productID int64) (int, error) {
@@ -53,13 +70,18 @@ func (s *ProductSrv) GetAvailableCount(ctx context.Context, productID int64) (in
 		return count, nil
 	}
 
-	count, err := s.productRepo.CountAvailableItems(ctx, productID)
+	v, err, _ := s.sf.Do("count:"+strconv.FormatInt(productID, 10), func() (any, error) {
+		count, err := s.productRepo.CountAvailableItems(ctx, productID)
+		if err != nil {
+			return nil, err
+		}
+		_ = s.cache.SetProductAvailableCount(ctx, productID, count)
+		return count, nil
+	})
 	if err != nil {
 		return 0, err
 	}
-
-	_ = s.cache.SetProductAvailableCount(ctx, productID, count)
-	return count, nil
+	return v.(int), nil
 }
 
 // ListAllAdmin/CountAllAdmin намеренно мимо кэша.

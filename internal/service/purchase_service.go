@@ -163,6 +163,7 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 	_ = s.cache.InvalidateActiveProducts(ctx)
 	if product.CategoryID != nil {
 		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
+		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *product.CategoryID)
 	}
 	if credit != nil {
 		logInvalidation(s.log, s.cache.InvalidateUser(ctx, credit.ReferrerID), "user", credit.ReferrerID)

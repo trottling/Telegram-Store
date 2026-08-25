@@ -45,3 +45,29 @@ func invalidateCategoryAncestorChain(ctx context.Context, categoryRepo repositor
 		_ = cache.InvalidateCategoryChildren(ctx, c.ParentID)
 	}
 }
+
+// recomputeCategoryStockChain пересчитывает HasStock от categoryID вверх до
+// корня, по одному уровню за раз — снизу вверх, как того требует агрегат.
+// Останавливается, как только значение на каком-то уровне не изменилось:
+// агрегат предка зависит только от этого значения, а не от остальных
+// параметров категории, так что выше по цепочке пересчитывать нечего.
+// Best-effort, как и инвалидация кэша: ошибка оставляет прежнее значение до
+// следующего события или до самолечащего пересчёта в cmd/migrate.
+func recomputeCategoryStockChain(ctx context.Context, categoryRepo repository.CategoryRepository, log *zap.SugaredLogger, categoryID int64) {
+	for {
+		changed, err := categoryRepo.RecomputeStock(ctx, categoryID)
+		if err != nil {
+			log.Warnw("service: category stock recompute failed", "error", err, "category_id", categoryID)
+			return
+		}
+		if !changed {
+			return
+		}
+
+		category, err := categoryRepo.GetByID(ctx, categoryID)
+		if err != nil || category.ParentID == nil {
+			return
+		}
+		categoryID = *category.ParentID
+	}
+}

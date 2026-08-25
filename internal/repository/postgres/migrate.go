@@ -33,6 +33,30 @@ func createPartialIndexes(db *gorm.DB) error {
 	return nil
 }
 
+// recomputeAllCategoryStock пересчитывает Category.HasStock для всех
+// категорий разом — тот же агрегат, что RecomputeStock держит по одной
+// категории на запись, но сразу по всему дереву снизу вверх одним запросом.
+// Нужен как бэкфилл при первом появлении колонки; безопасно гонять на каждый
+// деплой (таблица категорий маленькая) — заодно самолечит любое случайное
+// расхождение, если какой-то путь в коде забыл вызвать RecomputeStock.
+func recomputeAllCategoryStock(db *gorm.DB) error {
+	const query = `
+		WITH RECURSIVE subtree AS (
+			SELECT id, id AS branch_id FROM categories
+			UNION ALL
+			SELECT c.id, s.branch_id FROM categories c JOIN subtree s ON c.parent_id = s.id
+		),
+		stocked AS (
+			SELECT DISTINCT s.branch_id
+			FROM subtree s
+			JOIN products p ON p.category_id = s.id
+			WHERE p.is_active = true
+			  AND EXISTS (SELECT 1 FROM product_items pi WHERE pi.product_id = p.id AND pi.is_sold = false)
+		)
+		UPDATE categories SET has_stock = (id IN (SELECT branch_id FROM stocked))`
+	return db.Exec(query).Error
+}
+
 // refreshCollationVersions — постоянный шум в логах, а не признак реальной
 // проблемы: postgres:*-alpine собран на musl, а он вообще не версионирует
 // collation. Postgres видит расхождение с версией, записанной при создании
@@ -73,6 +97,11 @@ func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootA
 		return fmt.Errorf("create partial indexes: %w", err)
 	}
 	log.Info("postgres: partial indexes ensured")
+
+	if err := recomputeAllCategoryStock(db); err != nil {
+		return fmt.Errorf("recompute category stock: %w", err)
+	}
+	log.Info("postgres: category stock recomputed")
 
 	refreshCollationVersions(db, log)
 
