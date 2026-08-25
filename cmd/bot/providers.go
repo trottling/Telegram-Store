@@ -31,7 +31,7 @@ func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig         { retu
 // сборка map — не просто приведение типа, поэтому fx.Annotate тут не
 // подходит, нужна обычная функция. Колбэки CrystalPay/Tinkoff/Dummy указывают
 // на payments_backend (paymentsCfg.URL), не на admin_backend — вебхуки принимает он.
-func providePaymentProviders(settingsService service.SettingsService, paymentsCfg *config.PaymentsConfig, log *zap.SugaredLogger) map[domainmodels.Merchant]domainpayment.PaymentProvider {
+func providePaymentProviders(settingsService service.SettingsService, paymentsCfg *config.PaymentsConfig, log *zap.SugaredLogger) map[domainmodels.Merchant]domainpayment.Provider {
 	// Забытый PAYMENTS_BACKEND_URL иначе никак не заметить: счёт создастся,
 	// ссылка на оплату будет рабочей, деньги спишутся — а подтверждение не
 	// придёт, потому что мерчант стучится из интернета на localhost. Отличить
@@ -40,7 +40,7 @@ func providePaymentProviders(settingsService service.SettingsService, paymentsCf
 		log.Warnw("bot: payments callback URL is a loopback address, merchant webhooks will never arrive", "payments_backend_url", paymentsCfg.URL)
 	}
 
-	return map[domainmodels.Merchant]domainpayment.PaymentProvider{
+	return map[domainmodels.Merchant]domainpayment.Provider{
 		domainmodels.MerchantCrystalPay: payment.NewCrystalPayProvider(settingsService, paymentsCfg.URL),
 		domainmodels.MerchantYooKassa:   payment.NewYooKassaProvider(settingsService),
 		domainmodels.MerchantTinkoff:    payment.NewTinkoffProvider(settingsService, paymentsCfg.URL),

@@ -91,10 +91,13 @@ func TestCategoryAndSettingsRequestBinding(t *testing.T) {
 	if err := binding.Validator.ValidateStruct(&CreateCategoryRequest{}); err == nil {
 		t.Error("категория без имени принята, ожидался отказ")
 	}
-	if err := binding.Validator.ValidateStruct(&UpdateSettingsRequest{SupportUsername: "support"}); err != nil {
-		t.Errorf("настройки с support_username отвергнуты: %v", err)
+	if err := binding.Validator.ValidateStruct(&UpdateSettingsRequest{SupportUsername: "support", CatalogRefreshIntervalSeconds: 30}); err != nil {
+		t.Errorf("настройки с support_username и интервалом отвергнуты: %v", err)
 	}
 	if err := binding.Validator.ValidateStruct(&UpdateSettingsRequest{}); err == nil {
 		t.Error("настройки без support_username приняты, ожидался отказ")
+	}
+	if err := binding.Validator.ValidateStruct(&UpdateSettingsRequest{SupportUsername: "support"}); err == nil {
+		t.Error("настройки без catalog_refresh_interval_seconds приняты, ожидался отказ")
 	}
 }

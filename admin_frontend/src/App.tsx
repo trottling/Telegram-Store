@@ -5,6 +5,7 @@ import {AuthProvider} from './auth/AuthContext'
 import {RequireAuth} from './auth/RequireAuth'
 import {Layout} from './components/Layout'
 import {StartPage} from './pages/StartPage'
+import * as React from 'react'
 
 // Ленивая загрузка — каждая страница своим чанком.
 const CategoriesPage = lazy(() => import('./pages/CategoriesPage').then((m) => ({default: m.CategoriesPage})))

@@ -76,7 +76,7 @@ func (p *TinkoffProvider) CreateInvoice(ctx context.Context, userID models.Teleg
 	return resp.PaymentURL, resp.PaymentID, nil
 }
 
-func (p *TinkoffProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.PaymentStatus, error) {
+func (p *TinkoffProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.Status, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", err
@@ -91,14 +91,14 @@ func (p *TinkoffProvider) CheckStatus(ctx context.Context, invoiceID string) (do
 	return tinkoffStatus(resp.Status), nil
 }
 
-func tinkoffStatus(status string) domainpayment.PaymentStatus {
+func tinkoffStatus(status string) domainpayment.Status {
 	switch status {
 	case tinkoff.StatusConfirmed:
-		return domainpayment.PaymentStatusPaid
+		return domainpayment.StatusPaid
 	case tinkoff.StatusRejected, tinkoff.StatusAuthFail, tinkoff.StatusCanceled, tinkoff.StatusDeadlineExpired, tinkoff.StatusReversed:
-		return domainpayment.PaymentStatusFailed
+		return domainpayment.StatusFailed
 	default:
-		return domainpayment.PaymentStatusPending
+		return domainpayment.StatusPending
 	}
 }
 

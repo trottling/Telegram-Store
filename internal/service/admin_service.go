@@ -74,10 +74,6 @@ func (s *AdminSrv) logAction(ctx context.Context, adminID models.TelegramID, act
 	s.log.Infow("admin_service: action performed", "admin_id", adminID, "action", action, "target_id", *targetID)
 }
 
-// strPtr — targetID в logAction принимает *string; большинство вызовов
-// форматируют значение прямо на месте (targetTelegramID.String() и т.п.).
-func strPtr(s string) *string { return &s }
-
 func (s *AdminSrv) AddBalance(ctx context.Context, adminID, targetTelegramID models.TelegramID, amount decimal.Decimal) error {
 	if amount.IsZero() {
 		return domainerrors.ErrInvalidAmount
@@ -91,7 +87,7 @@ func (s *AdminSrv) AddBalance(ctx context.Context, adminID, targetTelegramID mod
 		return err
 	}
 
-	s.logAction(ctx, adminID, "balance_add", strPtr(targetTelegramID.String()), map[string]any{"amount": amount})
+	s.logAction(ctx, adminID, "balance_add", new(targetTelegramID.String()), map[string]any{"amount": amount})
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
@@ -116,7 +112,7 @@ func (s *AdminSrv) BanUser(ctx context.Context, adminID, targetTelegramID models
 		return err
 	}
 
-	s.logAction(ctx, adminID, "ban", strPtr(targetTelegramID.String()), nil)
+	s.logAction(ctx, adminID, "ban", new(targetTelegramID.String()), nil)
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
@@ -137,7 +133,7 @@ func (s *AdminSrv) UnbanUser(ctx context.Context, adminID, targetTelegramID mode
 		return err
 	}
 
-	s.logAction(ctx, adminID, "unban", strPtr(targetTelegramID.String()), nil)
+	s.logAction(ctx, adminID, "unban", new(targetTelegramID.String()), nil)
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
@@ -162,7 +158,7 @@ func (s *AdminSrv) MakeAdmin(ctx context.Context, adminID, targetTelegramID mode
 		return err
 	}
 
-	s.logAction(ctx, adminID, "make_admin", strPtr(targetTelegramID.String()), nil)
+	s.logAction(ctx, adminID, "make_admin", new(targetTelegramID.String()), nil)
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
@@ -186,7 +182,7 @@ func (s *AdminSrv) RevokeAdmin(ctx context.Context, adminID, targetTelegramID mo
 		return err
 	}
 
-	s.logAction(ctx, adminID, "revoke_admin", strPtr(targetTelegramID.String()), nil)
+	s.logAction(ctx, adminID, "revoke_admin", new(targetTelegramID.String()), nil)
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
@@ -212,7 +208,7 @@ func (s *AdminSrv) SetReferralsEnabled(ctx context.Context, adminID, targetTeleg
 	if enabled {
 		action = "referral_enable"
 	}
-	s.logAction(ctx, adminID, action, strPtr(targetTelegramID.String()), nil)
+	s.logAction(ctx, adminID, action, new(targetTelegramID.String()), nil)
 	logInvalidation(s.log, s.cache.InvalidateUser(ctx, targetTelegramID), "user", targetTelegramID)
 	return nil
 }
@@ -232,7 +228,7 @@ func (s *AdminSrv) CreateProduct(ctx context.Context, adminID models.TelegramID,
 		return nil, err
 	}
 
-	s.logAction(ctx, adminID, "product_create", strPtr(product.ID.String()), nil)
+	s.logAction(ctx, adminID, "product_create", new(product.ID.String()), nil)
 	_ = s.cache.InvalidateActiveProducts(ctx)
 	return product, nil
 }
@@ -251,7 +247,6 @@ func (s *AdminSrv) UpdateProduct(ctx context.Context, adminID models.TelegramID,
 	if err != nil {
 		return nil, err
 	}
-	oldCategoryID := product.CategoryID
 
 	product.CategoryID = categoryID
 	product.Name = name
@@ -262,25 +257,16 @@ func (s *AdminSrv) UpdateProduct(ctx context.Context, adminID models.TelegramID,
 		return nil, err
 	}
 
-	s.logAction(ctx, adminID, "product_update", strPtr(product.ID.String()), nil)
+	s.logAction(ctx, adminID, "product_update", new(product.ID.String()), nil)
 	_ = s.cache.InvalidateActiveProducts(ctx)
 	_ = s.cache.InvalidateProduct(ctx, productID)
-	// IsActive/смена категории влияют на остаток старой и новой категории вверх по дереву.
-	if oldCategoryID != nil {
-		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *oldCategoryID)
-		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *oldCategoryID)
-	}
-	if categoryID != nil && (oldCategoryID == nil || *categoryID != *oldCategoryID) {
-		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *categoryID)
-		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *categoryID)
-	}
 	return product, nil
 }
 
 func (s *AdminSrv) DeleteProduct(ctx context.Context, adminID models.TelegramID, productID models.ProductID) error {
-	// Получаем товар заранее, чтобы знать категорию для инвалидации кэша.
-	product, err := s.productRepo.GetByID(ctx, productID)
-	if err != nil {
+	// Проверяем существование заранее — Delete молча не сработает на 0 строк,
+	// а звать ErrProductNotFound снаружи нечем.
+	if _, err := s.productRepo.GetByID(ctx, productID); err != nil {
 		return err
 	}
 
@@ -297,14 +283,10 @@ func (s *AdminSrv) DeleteProduct(ctx context.Context, adminID models.TelegramID,
 		return err
 	}
 
-	s.logAction(ctx, adminID, "product_delete", strPtr(productID.String()), nil)
+	s.logAction(ctx, adminID, "product_delete", new(productID.String()), nil)
 	_ = s.cache.InvalidateActiveProducts(ctx)
 	_ = s.cache.InvalidateProduct(ctx, productID)
 	_ = s.cache.InvalidateProductAvailableCount(ctx, productID)
-	if product.CategoryID != nil {
-		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
-		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *product.CategoryID)
-	}
 	return nil
 }
 
@@ -313,23 +295,19 @@ func (s *AdminSrv) AddProductItems(ctx context.Context, adminID models.TelegramI
 		return domainerrors.ErrNoItemsProvided
 	}
 
-	product, err := s.productRepo.GetByID(ctx, productID)
-	if err != nil {
+	// Проверяем существование заранее — та же причина, что и в DeleteProduct.
+	if _, err := s.productRepo.GetByID(ctx, productID); err != nil {
 		return err
 	}
 
-	if err = s.productRepo.AddItems(ctx, productID, contents); err != nil {
+	if err := s.productRepo.AddItems(ctx, productID, contents); err != nil {
 		return err
 	}
 
-	s.logAction(ctx, adminID, "product_add_items", strPtr(productID.String()), map[string]any{"count": len(contents)})
+	s.logAction(ctx, adminID, "product_add_items", new(productID.String()), map[string]any{"count": len(contents)})
 	_ = s.cache.InvalidateProductAvailableCount(ctx, productID)
-	// Товар с новым остатком может снова попасть в листинг, категория тоже могла быть скрыта при нуле.
+	// Товар с новым остатком может снова попасть в листинг.
 	_ = s.cache.InvalidateActiveProducts(ctx)
-	if product.CategoryID != nil {
-		invalidateCategoryAncestorChain(ctx, s.categoryRepo, s.cache, *product.CategoryID)
-		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *product.CategoryID)
-	}
 	return nil
 }
 
@@ -348,8 +326,7 @@ func (s *AdminSrv) CreateCategory(ctx context.Context, adminID models.TelegramID
 		return nil, err
 	}
 
-	s.logAction(ctx, adminID, "category_create", strPtr(category.ID.String()), nil)
-	_ = s.cache.InvalidateCategoryChildren(ctx, parentID)
+	s.logAction(ctx, adminID, "category_create", new(category.ID.String()), nil)
 	return category, nil
 }
 
@@ -371,7 +348,6 @@ func (s *AdminSrv) UpdateCategory(ctx context.Context, adminID models.TelegramID
 		return nil, err
 	}
 
-	oldParentID := category.ParentID
 	category.Name = name
 	category.Description = description
 	category.ParentID = parentID
@@ -379,24 +355,13 @@ func (s *AdminSrv) UpdateCategory(ctx context.Context, adminID models.TelegramID
 		return nil, err
 	}
 
-	s.logAction(ctx, adminID, "category_update", strPtr(category.ID.String()), nil)
-	_ = s.cache.InvalidateCategoryChildren(ctx, oldParentID)
-	_ = s.cache.InvalidateCategoryChildren(ctx, parentID)
-	// Перенос между родителями не меняет HasStock самой категории, только то,
-	// чей агрегат её учитывает — пересчитываем у старого и нового родителя,
-	// не у categoryID.
-	if oldParentID != nil {
-		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *oldParentID)
-	}
-	if parentID != nil && (oldParentID == nil || *parentID != *oldParentID) {
-		recomputeCategoryStockChain(ctx, s.categoryRepo, s.log, *parentID)
-	}
+	s.logAction(ctx, adminID, "category_update", new(category.ID.String()), nil)
 	return category, nil
 }
 
 func (s *AdminSrv) DeleteCategory(ctx context.Context, adminID models.TelegramID, categoryID models.CategoryID) error {
-	category, err := s.categoryRepo.GetByID(ctx, categoryID)
-	if err != nil {
+	// Проверяем существование заранее — та же причина, что и в DeleteProduct.
+	if _, err := s.categoryRepo.GetByID(ctx, categoryID); err != nil {
 		return err
 	}
 
@@ -417,8 +382,7 @@ func (s *AdminSrv) DeleteCategory(ctx context.Context, adminID models.TelegramID
 		return err
 	}
 
-	s.logAction(ctx, adminID, "category_delete", strPtr(categoryID.String()), nil)
-	_ = s.cache.InvalidateCategoryChildren(ctx, category.ParentID)
+	s.logAction(ctx, adminID, "category_delete", new(categoryID.String()), nil)
 	return nil
 }
 
@@ -430,13 +394,18 @@ func (s *AdminSrv) UpdateSettings(ctx context.Context, adminID models.TelegramID
 	if settings.Referral.Percent < 0 || settings.Referral.Percent > 100 {
 		return nil, domainerrors.ErrInvalidSettingsInput
 	}
+	// Нижняя граница — не дать превратить фон в busy-loop; верхняя — чисто
+	// здравый смысл (лимит формальный, не эксплуатационный).
+	if settings.CatalogRefreshIntervalSeconds < 5 || settings.CatalogRefreshIntervalSeconds > 3600 {
+		return nil, domainerrors.ErrInvalidSettingsInput
+	}
 
 	settings.ID = models.SettingsID
 	if err := s.settingsRepo.Update(ctx, settings); err != nil {
 		return nil, err
 	}
 
-	s.logAction(ctx, adminID, "settings_update", strPtr(strconv.FormatInt(settings.ID, 10)), nil)
+	s.logAction(ctx, adminID, "settings_update", new(strconv.FormatInt(settings.ID, 10)), nil)
 	logInvalidation(s.log, s.settingsCache.InvalidateSettings(ctx), "settings", models.SettingsID)
 	return settings, nil
 }

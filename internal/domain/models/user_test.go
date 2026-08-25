@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ func newTestUser(id TelegramID, role Role) *User {
 
 func TestUser_Ban_Self(t *testing.T) {
 	u := newTestUser(1, RoleAdmin)
-	if err := u.Ban(u); err != domainerrors.ErrCannotBanSelf {
+	if err := u.Ban(u); !errors.Is(err, domainerrors.ErrCannotBanSelf) {
 		t.Fatalf("expected ErrCannotBanSelf, got %v", err)
 	}
 }
@@ -21,7 +22,7 @@ func TestUser_Ban_Self(t *testing.T) {
 func TestUser_Ban_RootAdmin(t *testing.T) {
 	target := newTestUser(1, RoleRootAdmin)
 	actor := newTestUser(2, RoleAdmin)
-	if err := target.Ban(actor); err != domainerrors.ErrCannotBanRootAdmin {
+	if err := target.Ban(actor); !errors.Is(err, domainerrors.ErrCannotBanRootAdmin) {
 		t.Fatalf("expected ErrCannotBanRootAdmin, got %v", err)
 	}
 }
@@ -62,7 +63,7 @@ func TestUser_Unban_AlwaysPlainUser(t *testing.T) {
 func TestUser_Promote_RequiresRootAdmin(t *testing.T) {
 	target := newTestUser(1, RoleUser)
 	actor := newTestUser(2, RoleAdmin)
-	if err := target.Promote(actor); err != domainerrors.ErrOnlyRootAdminCanPromote {
+	if err := target.Promote(actor); !errors.Is(err, domainerrors.ErrOnlyRootAdminCanPromote) {
 		t.Fatalf("expected ErrOnlyRootAdminCanPromote, got %v", err)
 	}
 }
@@ -70,7 +71,7 @@ func TestUser_Promote_RequiresRootAdmin(t *testing.T) {
 func TestUser_Promote_AlreadyAdmin(t *testing.T) {
 	target := newTestUser(1, RoleAdmin)
 	actor := newTestUser(2, RoleRootAdmin)
-	if err := target.Promote(actor); err != domainerrors.ErrAlreadyAdmin {
+	if err := target.Promote(actor); !errors.Is(err, domainerrors.ErrAlreadyAdmin) {
 		t.Fatalf("expected ErrAlreadyAdmin, got %v", err)
 	}
 }
@@ -88,7 +89,7 @@ func TestUser_Promote_Success(t *testing.T) {
 
 func TestUser_Demote_Self(t *testing.T) {
 	u := newTestUser(1, RoleAdmin)
-	if err := u.Demote(u); err != domainerrors.ErrCannotRevokeSelf {
+	if err := u.Demote(u); !errors.Is(err, domainerrors.ErrCannotRevokeSelf) {
 		t.Fatalf("expected ErrCannotRevokeSelf, got %v", err)
 	}
 }
@@ -96,7 +97,7 @@ func TestUser_Demote_Self(t *testing.T) {
 func TestUser_Demote_RootAdmin(t *testing.T) {
 	target := newTestUser(1, RoleRootAdmin)
 	actor := newTestUser(2, RoleRootAdmin)
-	if err := target.Demote(actor); err != domainerrors.ErrCannotRevokeRootAdmin {
+	if err := target.Demote(actor); !errors.Is(err, domainerrors.ErrCannotRevokeRootAdmin) {
 		t.Fatalf("expected ErrCannotRevokeRootAdmin, got %v", err)
 	}
 }
@@ -104,7 +105,7 @@ func TestUser_Demote_RootAdmin(t *testing.T) {
 func TestUser_Demote_NotAdmin(t *testing.T) {
 	target := newTestUser(1, RoleUser)
 	actor := newTestUser(2, RoleRootAdmin)
-	if err := target.Demote(actor); err != domainerrors.ErrNotAdmin {
+	if err := target.Demote(actor); !errors.Is(err, domainerrors.ErrNotAdmin) {
 		t.Fatalf("expected ErrNotAdmin, got %v", err)
 	}
 }
@@ -123,7 +124,7 @@ func TestUser_Demote_Success(t *testing.T) {
 func TestUser_Debit_Insufficient(t *testing.T) {
 	u := newTestUser(1, RoleUser)
 	amount, _ := NewMoney("50.00")
-	if err := u.Debit(amount); err != domainerrors.ErrNotEnoughBalance {
+	if err := u.Debit(amount); !errors.Is(err, domainerrors.ErrNotEnoughBalance) {
 		t.Fatalf("expected ErrNotEnoughBalance, got %v", err)
 	}
 }

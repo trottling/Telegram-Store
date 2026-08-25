@@ -27,7 +27,7 @@ func provideLoggerConfig(cfg *config.Config) *config.LoggerConfig     { return c
 // Tinkoff подписывает всё тело, YooKassa перезапрашивается своим SDK в
 // хендлере. URL берётся из конфига по единообразию: счетов этот бинарник не
 // создаёт, так что callback_url в нём не используется.
-func provideCrystalPayProvider(settingsService service.SettingsService, paymentsCfg *config.PaymentsConfig) domainpayment.PaymentProvider {
+func provideCrystalPayProvider(settingsService service.SettingsService, paymentsCfg *config.PaymentsConfig) domainpayment.Provider {
 	return payment.NewCrystalPayProvider(settingsService, paymentsCfg.URL)
 }
 

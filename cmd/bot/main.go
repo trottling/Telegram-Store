@@ -88,7 +88,7 @@ func main() {
 
 			bot.New,
 		),
-		fx.Invoke(runBot, RunMetricsServer, RunWebhookServer),
+		fx.Invoke(runBot, RunMetricsServer, RunWebhookServer, RunCatalogRefreshWorker),
 	)
 
 	// Ошибку сборки графа и упавшего Invoke (например, недоступный Postgres)

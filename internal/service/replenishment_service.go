@@ -20,7 +20,7 @@ type ReplenishmentSrv struct {
 	// входит, начисления с рефералов создаются напрямую, без CreateInvoice.
 	// В backend-процессе (вебхуки/листинг) может быть nil — CreateInvoice
 	// оттуда не вызывается.
-	providers  map[models.Merchant]payment.PaymentProvider
+	providers  map[models.Merchant]payment.Provider
 	transactor repository.Transactor
 	cache      domaincache.UserCache
 	// checkCooldown — минимальный интервал между CheckStatus по одному счёту
@@ -34,7 +34,7 @@ func NewReplenishmentSrv(
 	replenishmentRepo repository.ReplenishmentRepository,
 	userRepo repository.UserRepository,
 	transactor repository.Transactor,
-	providers map[models.Merchant]payment.PaymentProvider,
+	providers map[models.Merchant]payment.Provider,
 	cache domaincache.UserCache,
 	checkCooldown domaincache.ReplenishmentCheckCooldown,
 	log *zap.SugaredLogger,
@@ -128,7 +128,7 @@ func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID models.T
 	}
 
 	switch status {
-	case payment.PaymentStatusPaid:
+	case payment.StatusPaid:
 		// paidAmount — нулевое значение: CheckStatus большинства мерчантов
 		// сумму не возвращает; Confirm в этом случае зачисляет записанную
 		// сумму (см. её собственный doc-комментарий).
@@ -136,7 +136,7 @@ func (s *ReplenishmentSrv) CheckInvoice(ctx context.Context, telegramID models.T
 			return "", models.Money{}, err
 		}
 		return models.ReplenishmentStatusPaid, replenishment.Amount, nil
-	case payment.PaymentStatusFailed, payment.PaymentStatusCancelled:
+	case payment.StatusFailed, payment.StatusCancelled:
 		if err = s.Fail(ctx, replenishment.Merchant, replenishment.InvoiceID); err != nil {
 			return "", models.Money{}, err
 		}

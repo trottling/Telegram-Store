@@ -23,7 +23,7 @@ type Server struct {
 func New(
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
-	crystalPayProvider payment.PaymentProvider,
+	crystalPayProvider payment.Provider,
 	cfg *config.PaymentsConfig,
 	log *zap.SugaredLogger,
 ) *Server {

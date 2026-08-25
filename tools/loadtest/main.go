@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"sort"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -102,12 +102,11 @@ func main() {
 
 		productRepo := pgdb.NewProductRepo(db, log)
 		purchaseRepo := pgdb.NewPurchaseRepo(db, log)
-		categoryRepo := pgdb.NewCategoryRepo(db, log)
 		replenishmentRepo := pgdb.NewReplenishmentRepo(db, log)
 		settingsRepo := pgdb.NewSettingsRepo(db, log)
 		transactor := pgdb.NewGormTransactor(db, log)
 		settingsService := svc.NewSettingsSrv(settingsRepo, cache, log)
-		purchaseService := svc.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, replenishmentRepo, transactor, settingsService, cache, log)
+		purchaseService := svc.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, replenishmentRepo, transactor, settingsService, cache, log)
 
 		fmt.Printf("seeding product with %d stock items...\n", *stock)
 		productID := seedProduct(ctx, productRepo, *stock)
@@ -187,7 +186,7 @@ func runBuyLoad(ctx context.Context, db *gorm.DB, purchaseService *svc.PurchaseS
 	)
 
 	stopAt := time.Now().Add(duration)
-	for w := 0; w < concurrency; w++ {
+	for w := range concurrency {
 		wg.Add(1)
 		go func(seed int64) {
 			defer wg.Done()
@@ -282,7 +281,7 @@ func runScenario(name string, opLabels []string, concurrency int, duration time.
 	}()
 
 	stopAt := time.Now().Add(duration)
-	for w := 0; w < concurrency; w++ {
+	for w := range concurrency {
 		wg.Add(1)
 		go func(seed int64) {
 			defer wg.Done()
@@ -361,7 +360,7 @@ func printStats(label string, durs []time.Duration) {
 		fmt.Printf("%-12s no samples\n", label)
 		return
 	}
-	sort.Slice(durs, func(i, j int) bool { return durs[i] < durs[j] })
+	slices.Sort(durs)
 	p := func(pct float64) time.Duration { return durs[int(float64(len(durs)-1)*pct)] }
 	var sum time.Duration
 	for _, d := range durs {

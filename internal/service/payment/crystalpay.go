@@ -109,7 +109,7 @@ func (p *CrystalPayProvider) CreateInvoice(ctx context.Context, _ models.Telegra
 	return resp.URL, resp.ID, nil
 }
 
-func (p *CrystalPayProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.PaymentStatus, error) {
+func (p *CrystalPayProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.Status, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", err
@@ -130,14 +130,14 @@ func (p *CrystalPayProvider) CheckStatus(ctx context.Context, invoiceID string) 
 }
 
 // crystalPayStatus — payed/unavailable/failed финальны, остальные — в процессе.
-func crystalPayStatus(state string) domainpayment.PaymentStatus {
+func crystalPayStatus(state string) domainpayment.Status {
 	switch state {
 	case "payed":
-		return domainpayment.PaymentStatusPaid
+		return domainpayment.StatusPaid
 	case "failed", "unavailable":
-		return domainpayment.PaymentStatusFailed
+		return domainpayment.StatusFailed
 	default: // created, notpayed, processing, wrongamount
-		return domainpayment.PaymentStatusPending
+		return domainpayment.StatusPending
 	}
 }
 

@@ -2,13 +2,14 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 )
 
 func TestMoney_NewMoney_RejectsNegative(t *testing.T) {
-	if _, err := NewMoney("-1.00"); err != domainerrors.ErrNegativeAmount {
+	if _, err := NewMoney("-1.00"); !errors.Is(err, domainerrors.ErrNegativeAmount) {
 		t.Fatalf("expected ErrNegativeAmount, got %v", err)
 	}
 }
@@ -35,7 +36,7 @@ func TestMoney_Sub_NegativeResult(t *testing.T) {
 	a, _ := NewMoney("5.00")
 	b, _ := NewMoney("10.00")
 
-	if _, err := a.Sub(b); err != domainerrors.ErrNotEnoughBalance {
+	if _, err := a.Sub(b); !errors.Is(err, domainerrors.ErrNotEnoughBalance) {
 		t.Fatalf("expected ErrNotEnoughBalance, got %v", err)
 	}
 }

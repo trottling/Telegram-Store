@@ -421,7 +421,7 @@ func validatePort(key string, port int) error {
 // не совпадёт никогда: панель молча упрётся в CORS, притом что переменная
 // выглядит правильно. Ловим здесь, а не по жалобе в консоли браузера.
 func validateOriginList(key, raw string) error {
-	for _, origin := range strings.Split(raw, ",") {
+	for origin := range strings.SplitSeq(raw, ",") {
 		origin = strings.TrimSpace(origin)
 		if origin == "" {
 			continue
@@ -446,7 +446,7 @@ func validateOriginList(key, raw string) error {
 // записать в лог, и сервис продолжает работать с недостоверным ClientIP —
 // то есть с обходимым лимитом попыток входа. Падать сразу честнее.
 func validateProxyList(key, raw string) error {
-	for _, entry := range strings.Split(raw, ",") {
+	for entry := range strings.SplitSeq(raw, ",") {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
