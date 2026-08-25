@@ -17,10 +17,13 @@ type ProductRepository interface {
 
 	// единицы товара
 	AddItems(ctx context.Context, productID int64, contents []string) error
-	// ReserveItem забирает одну непроданную единицу и сразу помечает её
-	// проданной. Только внутри транзакции: иначе единица спишется даже тогда,
-	// когда покупка в итоге не состоится.
-	ReserveItem(ctx context.Context, productID int64) (*models.ProductItem, error)
+	// ReserveItems забирает до count непроданных единиц и сразу помечает их
+	// проданными — одним запросом, не count отдельными. Только внутри
+	// транзакции: иначе единицы спишутся даже тогда, когда покупка в итоге не
+	// состоится. Если в наличии меньше count — возвращает сколько реально
+	// нашлось (может быть меньше count или 0), не ошибку: решать, считать ли
+	// это нехваткой стока, дело вызывающего (PurchaseSrv.Buy).
+	ReserveItems(ctx context.Context, productID int64, count int) ([]models.ProductItem, error)
 	CountAvailableItems(ctx context.Context, productID int64) (int, error)
 
 	// ListAll/CountAll — админ-листинг: все товары, включая неактивные и распроданные.

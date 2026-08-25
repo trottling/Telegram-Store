@@ -19,6 +19,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -30,9 +31,11 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	rdb "github.com/trottling/Telegram-Store/internal/cache/redis"
 	"github.com/trottling/Telegram-Store/internal/config"
+	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	domainservice "github.com/trottling/Telegram-Store/internal/domain/service"
 	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
@@ -44,10 +47,12 @@ import (
 const loadtestUserBase = 900_000_000_000
 
 func main() {
-	scenario := flag.String("scenario", "banprofile", "сценарий: banprofile | cacheban")
+	scenario := flag.String("scenario", "banprofile", "сценарий: banprofile | cacheban | buyload")
 	users := flag.Int("users", 500, "число засеянных синтетических пользователей")
 	concurrency := flag.Int("concurrency", 15, "число одновременных воркеров (см. maxConcurrentUpdates)")
 	duration := flag.Duration("duration", 20*time.Second, "длительность прогона")
+	stock := flag.Int("stock", 2000, "buyload: сток товара, шт.")
+	maxQty := flag.Int("max-qty", 5, "buyload: максимальное количество за один Buy()")
 	pgHost := flag.String("pg-host", "localhost", "")
 	pgPort := flag.Int("pg-port", 5432, "")
 	pgUser := flag.String("pg-user", "shop_user", "")
@@ -81,28 +86,153 @@ func main() {
 	userRepo := pgdb.NewUserRepo(db, log)
 	userService := svc.NewUserSrv(userRepo, cache, log)
 
-	fmt.Printf("seeding %d synthetic users...\n", *users)
-	seedUsers(ctx, userRepo, *users)
-
 	switch *scenario {
 	case "banprofile":
+		fmt.Printf("seeding %d synthetic users...\n", *users)
+		seedUsers(ctx, userRepo, *users, 0)
 		runBanProfile(ctx, userService, *users, *concurrency, *duration)
 	case "cacheban":
+		fmt.Printf("seeding %d synthetic users...\n", *users)
+		seedUsers(ctx, userRepo, *users, 0)
 		runCacheBanProfile(ctx, userService, *users, *concurrency, *duration)
+	case "buyload":
+		fmt.Printf("seeding %d synthetic users with balance...\n", *users)
+		seedUsers(ctx, userRepo, *users, 1_000_000)
+
+		productRepo := pgdb.NewProductRepo(db, log)
+		purchaseRepo := pgdb.NewPurchaseRepo(db, log)
+		categoryRepo := pgdb.NewCategoryRepo(db, log)
+		replenishmentRepo := pgdb.NewReplenishmentRepo(db, log)
+		settingsRepo := pgdb.NewSettingsRepo(db, log)
+		transactor := pgdb.NewGormTransactor(db, log)
+		settingsService := svc.NewSettingsSrv(settingsRepo, cache, log)
+		purchaseService := svc.NewPurchaseSrv(userRepo, productRepo, purchaseRepo, categoryRepo, replenishmentRepo, transactor, settingsService, cache, log)
+
+		fmt.Printf("seeding product with %d stock items...\n", *stock)
+		productID := seedProduct(ctx, productRepo, *stock)
+
+		runBuyLoad(ctx, db, purchaseService, productID, *stock, *users, *concurrency, *maxQty, *duration)
 	default:
 		fatalf("unknown scenario %q", *scenario)
 	}
 }
 
-func seedUsers(ctx context.Context, userRepo *pgdb.UserRepo, n int) {
+// seedUsers создаёт n синтетических пользователей; topUp>0 — добавляет эту
+// сумму на баланс каждого (для buyload, где реально списывается).
+// UpdateBalance — это "+= delta", а не "=", так что на уже существующем с
+// прошлого прогона юзере баланс просто продолжит расти — для одноразового
+// локального прогона это не проблема, а не баг: он не должен стать
+// ограничителем сам по себе.
+func seedUsers(ctx context.Context, userRepo *pgdb.UserRepo, n int, topUp float64) {
 	for i := range n {
 		id := int64(loadtestUserBase + i)
 		user := &models.User{TelegramID: id, Username: fmt.Sprintf("loadtest_%d", i), Language: "ru"}
-		if err := userRepo.Create(ctx, user); err != nil {
-			// Уже существует с прошлого прогона — не ошибка, просто продолжаем.
-			continue
+		// Ошибка тут обычно значит "уже существует с прошлого прогона" — не
+		// повод останавливаться, баланс всё равно доливаем ниже.
+		_ = userRepo.Create(ctx, user)
+		if topUp > 0 {
+			_ = userRepo.UpdateBalance(ctx, id, topUp)
 		}
 	}
+}
+
+// seedProduct создаёт новый товар с stock непроданными единицами — каждый
+// прогон buyload заводит свой, старые от прошлых прогонов не мешают
+// (у каждого свой product_id, посчитать проданное можно только по нему).
+func seedProduct(ctx context.Context, productRepo *pgdb.ProductRepo, stock int) int64 {
+	product := &models.Product{Name: fmt.Sprintf("loadtest-product-%d", time.Now().UnixNano()), Price: 10.00, IsActive: true}
+	if err := productRepo.Create(ctx, product); err != nil {
+		fatalf("seed product: %v", err)
+	}
+
+	// Чанками — AddItems кладёт весь срез в один INSERT (CreateInBatches с
+	// batchSize=len), а Postgres ограничивает extended-протокол 65535
+	// параметрами на запрос; при stock в сотни тысяч это иначе бьётся о лимит
+	// на первом же вызове.
+	const seedChunk = 5000
+	for start := 0; start < stock; start += seedChunk {
+		end := min(start+seedChunk, stock)
+		contents := make([]string, end-start)
+		for i := range contents {
+			contents[i] = fmt.Sprintf("item-%d", start+i)
+		}
+		if err := productRepo.AddItems(ctx, product.ID, contents); err != nil {
+			fatalf("seed stock: %v", err)
+		}
+	}
+	return product.ID
+}
+
+// runBuyLoad — Tier 2: concurrency воркеров одновременно покупают один и тот
+// же товар случайными партиями (1..maxQty), пока не кончится duration или
+// сток. Проверяет не только скорость, но и то, что ReserveItems (батчем,
+// FOR UPDATE SKIP LOCKED) не даёт переспродать сток при реальной конкуренции —
+// это и есть тот инвариант, ради которого вообще нужен настоящий Postgres,
+// а не фейковый репозиторий в unit-тесте.
+func runBuyLoad(ctx context.Context, db *gorm.DB, purchaseService *svc.PurchaseSrv, productID int64, stock, userCount, concurrency, maxQty int, duration time.Duration) {
+	fmt.Printf("scenario=buyload concurrency=%d duration=%s stock=%d max_qty=%d\n\n", concurrency, duration, stock, maxQty)
+
+	var (
+		wg         sync.WaitGroup
+		soldByUs   atomic.Int64 // сумма quantity успешных Buy() — наш собственный счёт
+		outOfStock atomic.Int64
+		otherErr   atomic.Int64
+		durs       []time.Duration
+		mu         sync.Mutex
+	)
+
+	stopAt := time.Now().Add(duration)
+	for w := 0; w < concurrency; w++ {
+		wg.Add(1)
+		go func(seed int64) {
+			defer wg.Done()
+			rnd := rand.New(rand.NewSource(seed))
+			for time.Now().Before(stopAt) {
+				userID := int64(loadtestUserBase + rnd.Intn(userCount))
+				qty := 1 + rnd.Intn(maxQty)
+
+				start := time.Now()
+				purchases, _, err := purchaseService.Buy(ctx, userID, productID, qty)
+				elapsed := time.Since(start)
+
+				mu.Lock()
+				durs = append(durs, elapsed)
+				mu.Unlock()
+
+				switch {
+				case err == nil:
+					soldByUs.Add(int64(len(purchases)))
+				case errors.Is(err, domainerrors.ErrProductOutOfStock):
+					outOfStock.Add(1)
+				default:
+					otherErr.Add(1)
+				}
+			}
+		}(int64(w))
+	}
+	wg.Wait()
+
+	// Источник истины — сама база: сколько единиц этого товара реально
+	// помечено проданными, независимо от того, что насчитал сам харнесс.
+	var actuallySold int64
+	if err := db.WithContext(ctx).Table("product_items").
+		Where("product_id = ? AND is_sold = ?", productID, true).
+		Count(&actuallySold).Error; err != nil {
+		fatalf("verify sold count: %v", err)
+	}
+
+	elapsedSec := duration.Seconds()
+	fmt.Printf("buys ok: sold=%d (our count) out_of_stock=%d other_errors=%d\n", soldByUs.Load(), outOfStock.Load(), otherErr.Load())
+	fmt.Printf("verify: product_items.is_sold=true in DB = %d (stock was %d)\n", actuallySold, stock)
+	if actuallySold != soldByUs.Load() {
+		fmt.Printf("MISMATCH: harness counted %d sold, DB shows %d — overselling or lost purchase!\n", soldByUs.Load(), actuallySold)
+	} else if actuallySold > int64(stock) {
+		fmt.Printf("OVERSOLD: %d sold against a stock of %d!\n", actuallySold, stock)
+	} else {
+		fmt.Printf("OK: no overselling, harness count matches DB exactly.\n")
+	}
+	printStats("Buy", durs)
+	fmt.Printf("\n%.0f buy calls/sec, %.0f items/sec\n", float64(len(durs))/elapsedSec, float64(soldByUs.Load())/elapsedSec)
 }
 
 // opResult — одна замеренная операция: что именно (IsBanned/GetProfile) и

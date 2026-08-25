@@ -7,7 +7,9 @@ import (
 )
 
 type PurchaseRepository interface {
-	Create(ctx context.Context, purchase *models.Purchase) error
+	// CreateBatch вставляет все строки одной покупки (см. PurchaseSrv.Buy)
+	// одним запросом, не по одной строке за round-trip.
+	CreateBatch(ctx context.Context, purchases []models.Purchase) error
 	UpdateStatus(ctx context.Context, purchaseID int64, status models.PurchaseStatus) error
 	GetByID(ctx context.Context, id int64) (*models.Purchase, error)
 	// GetByBatchID — все строки одного Buy(), в рамках userID.

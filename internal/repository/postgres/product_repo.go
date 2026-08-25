@@ -124,37 +124,33 @@ func (r *ProductRepo) AddItems(ctx context.Context, productID int64, contents []
 // Это второй в репозитории случай .Raw() (первый — рекурсивный CTE в
 // category_repo): ни gorm.G[T], ни chainable-билдер не выражают
 // UPDATE ... WHERE id = (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING.
-const reserveItemSQL = `
+const reserveItemsSQL = `
 UPDATE product_items
 SET is_sold = true, sold_at = ?
-WHERE id = (
+WHERE id IN (
 	SELECT id FROM product_items
 	WHERE product_id = ? AND is_sold = false
 	ORDER BY id
-	LIMIT 1
+	LIMIT ?
 	FOR UPDATE SKIP LOCKED
 )
 RETURNING *`
 
-// ReserveItem резервирует единицу товара и помечает её проданной — вызывать
-// только внутри Transactor.WithinTransaction: без охватывающей транзакции
-// единица окажется списанной даже при неудачной покупке.
-func (r *ProductRepo) ReserveItem(ctx context.Context, productID int64) (*models.ProductItem, error) {
-	var item models.ProductItem
+// ReserveItems резервирует до count единиц товара одним запросом и помечает
+// их проданными — вызывать только внутри Transactor.WithinTransaction: без
+// охватывающей транзакции единицы окажутся списанными даже при неудачной
+// покупке. LIMIT/SKIP LOCKED те же, что и раньше у поштучного ReserveItem —
+// просто на весь запрошенный count сразу, не по одной единице за round-trip.
+func (r *ProductRepo) ReserveItems(ctx context.Context, productID int64, count int) ([]models.ProductItem, error) {
+	var items []models.ProductItem
 
-	result := dbFromCtx(ctx, r.db).WithContext(ctx).
-		Raw(reserveItemSQL, time.Now(), productID).
-		Scan(&item)
-	if result.Error != nil {
-		r.log.Errorw("product_repo: reserve item failed", "error", result.Error, "product_id", productID)
-		return nil, result.Error
+	if err := dbFromCtx(ctx, r.db).WithContext(ctx).
+		Raw(reserveItemsSQL, time.Now(), productID, count).
+		Scan(&items).Error; err != nil {
+		r.log.Errorw("product_repo: reserve items failed", "error", err, "product_id", productID, "count", count)
+		return nil, err
 	}
-	// Подзапрос ничего не нашёл — свободных единиц не осталось. Raw+Scan не
-	// возвращает ErrRecordNotFound, поэтому смотрим на RowsAffected.
-	if result.RowsAffected == 0 {
-		return nil, domainerrors.ErrProductOutOfStock
-	}
-	return &item, nil
+	return items, nil
 }
 
 func (r *ProductRepo) CountAvailableItems(ctx context.Context, productID int64) (int, error) {

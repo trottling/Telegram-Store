@@ -99,27 +99,40 @@ func (s *PurchaseSrv) Buy(ctx context.Context, telegramID, productID int64, coun
 		}
 		totalPrice = product.Price * float64(count)
 
-		for range count {
-			item, itemErr := s.productRepo.ReserveItem(ctx, productID)
-			if itemErr != nil {
-				return itemErr
-			}
+		// Один запрос на весь count вместо count отдельных: ReserveItems сам
+		// резервирует и помечает проданными до count единиц атомарно (тот же
+		// FOR UPDATE SKIP LOCKED, что и раньше у поштучного ReserveItem —
+		// см. её doc-комментарий). Меньше items, чем count, — стока не
+		// хватило; ошибку не возвращаем нарочно (это не ошибка запроса), а
+		// проверяем длину сами, чтобы отличить от продукта без единиц вовсе.
+		items, itemsErr := s.productRepo.ReserveItems(ctx, productID, count)
+		if itemsErr != nil {
+			return itemsErr
+		}
+		if len(items) < count {
+			return domainerrors.ErrProductOutOfStock
+		}
 
-			now := time.Now()
-			p := &models.Purchase{
+		now := time.Now()
+		rows := make([]models.Purchase, count)
+		for i := range items {
+			rows[i] = models.Purchase{
 				UserID:      telegramID,
 				ProductID:   productID,
-				ItemID:      &item.ID,
+				ItemID:      &items[i].ID,
 				BatchID:     batchID,
 				Amount:      product.Price,
 				Status:      models.PurchaseStatusCompleted,
 				CompletedAt: &now,
 			}
-			if createErr := s.purchaseRepo.Create(ctx, p); createErr != nil {
-				return createErr
-			}
+		}
+		if createErr := s.purchaseRepo.CreateBatch(ctx, rows); createErr != nil {
+			return createErr
+		}
 
-			p.Item = item
+		for i := range rows {
+			p := &rows[i]
+			p.Item = &items[i]
 			p.Product = *product
 			purchases = append(purchases, p)
 		}

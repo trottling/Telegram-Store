@@ -19,9 +19,12 @@ func NewPurchaseRepo(db *gorm.DB, log *zap.SugaredLogger) *PurchaseRepo {
 	return &PurchaseRepo{db: db, log: log}
 }
 
-func (r *PurchaseRepo) Create(ctx context.Context, purchase *models.Purchase) error {
-	if err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).Create(ctx, purchase); err != nil {
-		r.log.Errorw("purchase_repo: create failed", "error", err, "user_id", purchase.UserID, "product_id", purchase.ProductID)
+// CreateBatch — один INSERT на весь батч вместо одного на строку. batchSize
+// равен len(purchases): count ограничен MaxBuyQuantity (20), так что это
+// всегда один запрос, а не несколько сработавших подряд.
+func (r *PurchaseRepo) CreateBatch(ctx context.Context, purchases []models.Purchase) error {
+	if err := gorm.G[models.Purchase](dbFromCtx(ctx, r.db)).CreateInBatches(ctx, &purchases, len(purchases)); err != nil {
+		r.log.Errorw("purchase_repo: create batch failed", "error", err, "count", len(purchases))
 		return err
 	}
 	return nil
