@@ -25,12 +25,13 @@ func (h *Handlers) UpdateSettings(c *gin.Context) {
 		return
 	}
 	settings, err := h.adminService.UpdateSettings(c.Request.Context(), admin.TelegramID, &domainmodels.Settings{
-		SupportUsername: req.SupportUsername,
-		CrystalPay:      req.CrystalPay,
-		YooKassa:        req.YooKassa,
-		Tinkoff:         req.Tinkoff,
-		Dummy:           req.Dummy,
-		Referral:        req.Referral,
+		SupportUsername:               req.SupportUsername,
+		CatalogRefreshIntervalSeconds: req.CatalogRefreshIntervalSeconds,
+		CrystalPay:                    req.CrystalPay,
+		YooKassa:                      req.YooKassa,
+		Tinkoff:                       req.Tinkoff,
+		Dummy:                         req.Dummy,
+		Referral:                      req.Referral,
 	})
 	if err != nil {
 		h.writeError(c, err)

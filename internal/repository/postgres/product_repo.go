@@ -100,6 +100,21 @@ func (r *ProductRepo) ListActiveByCategory(ctx context.Context, categoryID *mode
 	return products, err
 }
 
+// ListStockedCategoryIDs — DISTINCT category_id тех товаров, что уже
+// отбирает inStockClause. Только листовой уровень — видимость поддерева
+// строит в памяти CategorySrv.RefreshCatalogSnapshot, не SQL.
+func (r *ProductRepo) ListStockedCategoryIDs(ctx context.Context) ([]models.CategoryID, error) {
+	var ids []models.CategoryID
+	err := dbFromCtx(ctx, r.db).WithContext(ctx).Model(&models.Product{}).
+		Distinct("category_id").
+		Where("is_active = ? AND category_id IS NOT NULL AND "+inStockClause, true).
+		Pluck("category_id", &ids).Error
+	if err != nil {
+		r.log.Errorw("product_repo: list stocked category ids failed", "error", err)
+	}
+	return ids, err
+}
+
 func (r *ProductRepo) AddItems(ctx context.Context, productID models.ProductID, contents []string) error {
 	if len(contents) == 0 {
 		return nil
@@ -122,9 +137,8 @@ func (r *ProductRepo) AddItems(ctx context.Context, productID models.ProductID, 
 // строку, а не ждёт её. Раздельные SELECT и UPDATE давали три запроса на
 // единицу (до 60 на покупку) внутри транзакции, удерживающей локи.
 //
-// Это второй в репозитории случай .Raw() (первый — рекурсивный CTE в
-// category_repo): ни gorm.G[T], ни chainable-билдер не выражают
-// UPDATE ... WHERE id = (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING.
+// Единственный .Raw() в репозитории: ни gorm.G[T], ни chainable-билдер не
+// выражают UPDATE ... WHERE id = (SELECT ... FOR UPDATE SKIP LOCKED) RETURNING.
 const reserveItemsSQL = `
 UPDATE product_items
 SET is_sold = true, sold_at = ?

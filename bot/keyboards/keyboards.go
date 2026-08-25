@@ -1,6 +1,7 @@
 package keyboards
 
 import (
+	"sort"
 	"strconv"
 	"strings"
 
@@ -184,6 +185,10 @@ func BuildCatalogNavKb(lang string, children []domain.Category, products []domai
 		}
 	}
 
+	sort.Slice(children, func(i, j int) bool {
+		return children[i].Name < children[j].Name
+	})
+
 	for _, c := range children {
 		currentRow = append(currentRow, models.InlineKeyboardButton{
 			Text:         c.Name,
@@ -194,6 +199,10 @@ func BuildCatalogNavKb(lang string, children []domain.Category, products []domai
 		}
 	}
 	flush()
+
+	sort.Slice(products, func(i, j int) bool {
+		return products[i].Name < products[j].Name
+	})
 
 	for _, p := range products {
 		currentRow = append(currentRow, models.InlineKeyboardButton{

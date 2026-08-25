@@ -53,6 +53,12 @@ type DummySettings struct {
 type Settings struct {
 	ID              int64  `gorm:"primaryKey" json:"id"`
 	SupportUsername string `gorm:"size:64" json:"support_username"`
+	// CatalogRefreshIntervalSeconds — как часто фоновый воркер (см.
+	// cmd/bot's catalog worker) пересчитывает видимость каталога и публикует
+	// её в Redis; CategorySrv.ListChildren в промежутке отдаёт то, что
+	// воркер положил в прошлый раз. Читается заново на каждом цикле воркера,
+	// так что смена значения в панели подхватывается без рестарта бота.
+	CatalogRefreshIntervalSeconds int `gorm:"not null;default:30" json:"catalog_refresh_interval_seconds"`
 
 	CrystalPay CrystalPaySettings `gorm:"embedded;embeddedPrefix:crystalpay_" json:"crystalpay"`
 	YooKassa   YooKassaSettings   `gorm:"embedded;embeddedPrefix:yookassa_" json:"yookassa"`
