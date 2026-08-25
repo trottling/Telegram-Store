@@ -55,7 +55,7 @@ func (p *YooKassaProvider) CreateInvoice(ctx context.Context, _ models.TelegramI
 	return link, pay.ID, nil
 }
 
-func (p *YooKassaProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.PaymentStatus, error) {
+func (p *YooKassaProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.Status, error) {
 	settings, err := p.settingsService.Get(ctx)
 	if err != nil {
 		return "", err
@@ -70,13 +70,13 @@ func (p *YooKassaProvider) CheckStatus(ctx context.Context, invoiceID string) (d
 	return yooKassaStatus(pay.Status), nil
 }
 
-func yooKassaStatus(status yoopayment.Status) domainpayment.PaymentStatus {
+func yooKassaStatus(status yoopayment.Status) domainpayment.Status {
 	switch status {
 	case yoopayment.Succeeded:
-		return domainpayment.PaymentStatusPaid
+		return domainpayment.StatusPaid
 	case yoopayment.Canceled:
-		return domainpayment.PaymentStatusFailed
+		return domainpayment.StatusFailed
 	default: // pending, waiting_for_capture
-		return domainpayment.PaymentStatusPending
+		return domainpayment.StatusPending
 	}
 }

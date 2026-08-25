@@ -19,6 +19,6 @@ func (StubProvider) CreateInvoice(ctx context.Context, userID models.TelegramID,
 	return "", "", errors.New("payment provider is not implemented yet")
 }
 
-func (StubProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.PaymentStatus, error) {
+func (StubProvider) CheckStatus(ctx context.Context, invoiceID string) (domainpayment.Status, error) {
 	return "", errors.New("payment provider is not implemented yet")
 }

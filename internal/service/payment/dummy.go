@@ -106,6 +106,6 @@ func (p *DummyProvider) confirmAfterDelay(invoiceID string) {
 // подтверждение приходит только через confirmAfterDelay -> self-webhook.
 // Всегда отвечает Pending: кнопка «Проверить оплату» в боте не должна уметь
 // досрочно завершить оплату раньше таймера, иначе тестовая задержка теряет смысл.
-func (p *DummyProvider) CheckStatus(context.Context, string) (domainpayment.PaymentStatus, error) {
-	return domainpayment.PaymentStatusPending, nil
+func (p *DummyProvider) CheckStatus(context.Context, string) (domainpayment.Status, error) {
+	return domainpayment.StatusPending, nil
 }

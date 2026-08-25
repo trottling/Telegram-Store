@@ -6,16 +6,16 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
-type PaymentStatus string
+type Status string
 
 const (
-	PaymentStatusPending   PaymentStatus = "pending"
-	PaymentStatusPaid      PaymentStatus = "paid"
-	PaymentStatusFailed    PaymentStatus = "failed"
-	PaymentStatusCancelled PaymentStatus = "cancelled"
+	StatusPending   Status = "pending"
+	StatusPaid      Status = "paid"
+	StatusFailed    Status = "failed"
+	StatusCancelled Status = "cancelled"
 )
 
-type PaymentProvider interface {
+type Provider interface {
 	CreateInvoice(ctx context.Context, userID models.TelegramID, amount models.Money, description string) (paymentURL, invoiceID string, err error)
-	CheckStatus(ctx context.Context, invoiceID string) (PaymentStatus, error)
+	CheckStatus(ctx context.Context, invoiceID string) (Status, error)
 }

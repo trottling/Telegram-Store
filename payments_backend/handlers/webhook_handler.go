@@ -85,10 +85,10 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 	}
 
 	switch status {
-	case payment.PaymentStatusPaid:
+	case payment.StatusPaid:
 		// CheckStatus суммы не возвращает — сверять нечего.
 		err = h.replenishmentService.Confirm(c.Request.Context(), models.MerchantCrystalPay, payload.ID, models.Money{})
-	case payment.PaymentStatusFailed:
+	case payment.StatusFailed:
 		err = h.replenishmentService.Fail(c.Request.Context(), models.MerchantCrystalPay, payload.ID)
 	}
 	if !h.replenishmentOK(models.MerchantCrystalPay, payload.ID, err) {

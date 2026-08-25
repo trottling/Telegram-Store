@@ -17,7 +17,7 @@ type Handlers struct {
 	// Провайдер именно этого мерчанта, а не map — у двух других статус
 	// проверять не нужно (Tinkoff подписывает всё тело, YooKassa
 	// перезапрашивается своим SDK прямо в хендлере).
-	crystalPayProvider payment.PaymentProvider
+	crystalPayProvider payment.Provider
 
 	log *zap.SugaredLogger
 }
@@ -25,7 +25,7 @@ type Handlers struct {
 func New(
 	settingsService service.SettingsService,
 	replenishmentService service.ReplenishmentService,
-	crystalPayProvider payment.PaymentProvider,
+	crystalPayProvider payment.Provider,
 	log *zap.SugaredLogger,
 ) *Handlers {
 	return &Handlers{
