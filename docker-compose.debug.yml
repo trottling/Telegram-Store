@@ -194,16 +194,15 @@ services:
     networks:
       - debug-network
 
-  promtail:
-    image: grafana/promtail:3.6.11
-    container_name: telegram-store-promtail
-    command: ["-config.file=/etc/promtail/config.yml", "-config.expand-env=true"]
+  vector:
+    image: timberio/vector:0.46.1-alpine
+    container_name: telegram-store-vector
     environment:
-      PROMTAIL_LOG_LEVEL: ${PROMTAIL_LOG_LEVEL:-warn}
+      VECTOR_LOG: ${VECTOR_LOG_LEVEL:-warn}
+    command: ["--config-yaml", "/etc/vector/vector.yaml"]
     volumes:
-      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./monitoring/vector/vector.yaml:/etc/vector/vector.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     depends_on:
       - loki
     networks:

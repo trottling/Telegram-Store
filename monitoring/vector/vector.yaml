@@ -1,0 +1,22 @@
+# docker_logs сам находит и стримит логи всех контейнеров через Docker API
+# (тот же docker.sock, что раньше монтировал Promtail) — ни один существующий
+# сервис не нужно трогать, чтобы его логи попали в Loki. В отличие от
+# Promtail, файловый /var/lib/docker/containers тут не нужен вовсе — читает
+# через Docker Engine API, не с диска.
+sources:
+  docker:
+    type: docker_logs
+
+sinks:
+  loki:
+    type: loki
+    inputs: ["docker"]
+    endpoint: "http://loki:3100"
+    encoding:
+      codec: text
+    # container_name у docker_logs уже без ведущего "/" (Vector сам его
+    # обрезает, в отличие от сырого Docker API, откуда его приходилось резать
+    # у Promtail через relabel_configs).
+    labels:
+      container: "{{ container_name }}"
+      stream: "{{ stream }}"

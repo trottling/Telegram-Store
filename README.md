@@ -33,7 +33,7 @@
 | Хранение данных              | PostgreSQL через [GORM](https://gorm.io)                                                                                                                                          |
 | Кэш / состояние              | Redis (read-through кэш, состояние FSM, сессии админов)                                                                                                                           |
 | UI панели                    | React, Vite, TypeScript, [Ant Design](https://ant.design)                                                                                                                         |
-| Логи и метрики               | [Prometheus](https://prometheus.io) + [Loki](https://grafana.com/oss/loki/)/[Promtail](https://grafana.com/docs/loki/latest/send-data/promtail/) + [Grafana](https://grafana.com) |
+| Логи и метрики               | [Prometheus](https://prometheus.io) + [Loki](https://grafana.com/oss/loki/)/[Vector](https://vector.dev) + [Grafana](https://grafana.com) |
 | TLS / прод-деплой            | [Caddy](https://caddyserver.com) (авто-TLS), ежедневный `pg_dump` + [rclone](https://rclone.org) в S3                                                                             |
 
 Архитектура — hexagonal/ports-and-adapters: четыре независимых Go-бинарника (`bot`, `admin_backend`, `payments_backend`, `migrate`) вокруг общих Postgres и Redis
@@ -74,7 +74,7 @@ docker compose up -d
 
 Требует, чтобы образы в GHCR были публичными (Settings пакета на GitHub), либо `docker login ghcr.io` на сервере с токеном, у которого есть `read:packages`. Если репозиторий — не `github.com/trottling/Telegram-Store` (форк), добавьте в `.env` строку `IMAGE_REGISTRY=ghcr.io/<ваш-аккаунт>` (в `.env.example` её нет — по умолчанию образы берутся из оригинального репозитория).
 
-Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin-backend`, `payments-backend`, одноразовый `admin-frontend` (копирует собранную статику панели в volume и завершается — `Exited(0)` в `docker ps` здесь норма, не ошибка), `caddy` (TLS-терминатор и сервер этой статики — постоянного контейнера под панель больше нет), `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`) и стек наблюдаемости — `prometheus`/`loki`/`promtail`/`grafana` (конфиги — в `monitoring/`).
+Это поднимет по порядку: Postgres, Redis, одноразовый контейнер `migrate` (схема + бутстрап root-admin), затем `bot`, `admin-backend`, `payments-backend`, одноразовый `admin-frontend` (копирует собранную статику панели в volume и завершается — `Exited(0)` в `docker ps` здесь норма, не ошибка), `caddy` (TLS-терминатор и сервер этой статики — постоянного контейнера под панель больше нет), `backup` (ежедневный `pg_dump`, опционально в S3 — см. `backup/`) и стек наблюдаемости — `prometheus`/`loki`/`vector`/`grafana` (конфиги — в `monitoring/`).
 
 После запуска:
 
@@ -133,6 +133,6 @@ payments_backend/       хендлеры, роутинг вебхуков пла
 internal/               доменные интерфейсы + их реализации (hexagonal/ports-and-adapters)
 admin_frontend/         React-панель админа (отдельный npm-проект)
 backup/                 контейнер ежедневного pg_dump + выгрузки в S3 (rclone)
-monitoring/             конфиги Prometheus/Loki/Promtail/Grafana (логи и метрики)
+monitoring/             конфиги Prometheus/Loki/Vector/Grafana (логи и метрики)
 Caddyfile               конфиг TLS-терминатора (docker-compose.yml, сервис caddy)
 ```

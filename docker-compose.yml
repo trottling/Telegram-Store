@@ -326,21 +326,22 @@ services:
     <<: *default-logging
 
   # Пересылает логи всех контейнеров в Loki — находит их сам через Docker
-  # socket (docker_sd_configs), ни один существующий сервис трогать не нужно.
-  # ro-монт /var/lib/docker/containers — там json-file уже пишет NDJSON
-  # каждого контейнера (см. x-logging выше).
-  promtail:
-    image: grafana/promtail:3.6.11
-    container_name: telegram-store-promtail
-    # -config.expand-env=true — чтобы ${PROMTAIL_LOG_LEVEL} в смонтированном
-    # конфиге подставил сам Promtail (тот же приём, что у loki выше).
-    command: ["-config.file=/etc/promtail/config.yml", "-config.expand-env=true"]
+  # Engine API (тот же docker.sock, что раньше монтировал Promtail), ни один
+  # существующий сервис трогать не нужно. В отличие от Promtail, читает через
+  # API, а не с диска — /var/lib/docker/containers монтировать не нужно.
+  # Сам себя из сбора логов исключает (self-container detection).
+  vector:
+    image: timberio/vector:0.57.0-alpine
+    container_name: telegram-store-vector
     environment:
-      PROMTAIL_LOG_LEVEL: ${PROMTAIL_LOG_LEVEL:-warn}
+      # По умолчанию info — и тогда в лог попадает каждое обработанное
+      # событие. warn (VECTOR_LOG_LEVEL) оставляет то, что реально стоит
+      # увидеть — VECTOR_LOG это родное имя переменной у самого Vector.
+      VECTOR_LOG: ${VECTOR_LOG_LEVEL:-warn}
+    command: ["--config-yaml", "/etc/vector/vector.yaml"]
     volumes:
-      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./monitoring/vector/vector.yaml:/etc/vector/vector.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     depends_on:
       - loki
     networks:
@@ -392,7 +393,7 @@ services:
 
 networks:
   # db+redis видны только bot/admin-backend/payments-backend/migrate/backup/
-  # prometheus/loki/promtail/grafana, без выхода наружу
+  # prometheus/loki/vector/grafana, без выхода наружу
   backend-network:
     driver: bridge
     internal: true
