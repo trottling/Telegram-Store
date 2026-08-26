@@ -25,7 +25,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trottling/Telegram-Store/internal/config"
-	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/logger"
 	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
 )
@@ -45,7 +44,7 @@ func runMigrate(cfg *config.Config, log *zap.SugaredLogger, db *gorm.DB) error {
 	ctx, cancel := context.WithTimeout(context.Background(), migrateTimeout)
 	defer cancel()
 
-	if err := pgdb.AutoMigrate(ctx, db, log, domainmodels.TelegramID(cfg.Telegram.RootAdminID)); err != nil {
+	if err := pgdb.AutoMigrate(ctx, db, log, cfg.Telegram.RootAdminID, cfg.Telegram.RootAdminUsername); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	log.Info("migrate: done")

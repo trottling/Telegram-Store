@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	domainmodels "github.com/trottling/Telegram-Store/internal/domain/models"
 )
 
 const (
@@ -41,8 +43,9 @@ type LoggersConfig struct {
 }
 
 type TelegramConfig struct {
-	Token       string
-	RootAdminID int64
+	Token             string
+	RootAdminID       domainmodels.TelegramID
+	RootAdminUsername string
 }
 
 // BotWebhookConfig — вебхуки Telegram вместо long polling. URL пуст — бот
@@ -134,6 +137,10 @@ func New() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid TELEGRAM_ROOT_ADMIN_ID: %w", err)
 	}
+	rootAdminUsername := os.Getenv("TELEGRAM_ROOT_ADMIN_USERNAME")
+	if rootAdminUsername == "" || len(rootAdminUsername) < 3 || len(rootAdminUsername) > 40 || strings.HasPrefix(rootAdminUsername, "@") {
+		return nil, fmt.Errorf("invalid TELEGRAM_ROOT_ADMIN_USERNAME")
+	}
 
 	pgHost := getEnv("POSTGRES_HOST", "localhost")
 	pgPort, err := getEnvInt("POSTGRES_PORT", 5432)
@@ -200,8 +207,9 @@ func New() (*Config, error) {
 
 	cfg := &Config{
 		Telegram: &TelegramConfig{
-			Token:       botToken,
-			RootAdminID: rootAdminID,
+			Token:             botToken,
+			RootAdminID:       domainmodels.TelegramID(rootAdminID),
+			RootAdminUsername: rootAdminUsername,
 		},
 
 		Postgres: &PostgresConfig{

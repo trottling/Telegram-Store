@@ -55,7 +55,7 @@ func refreshCollationVersions(db *gorm.DB, log *zap.SugaredLogger) {
 
 // AutoMigrate — единственная точка входа для cmd/migrate: схема (DDL), бутстрап root-admin + дефолтных настроек.
 // cmd/migrate/main.go - тонкая обвязка
-func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootAdminID models.TelegramID) error {
+func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootAdminID models.TelegramID, rootAdminUsername string) error {
 	if err := db.AutoMigrate(
 		&userRecord{},
 		&models.Category{},
@@ -78,7 +78,7 @@ func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootA
 	refreshCollationVersions(db, log)
 
 	userRepo := NewUserRepo(db, log)
-	if err := userRepo.EnsureRootAdminExists(ctx, rootAdminID); err != nil {
+	if err := userRepo.EnsureRootAdminExists(ctx, rootAdminID, rootAdminUsername); err != nil {
 		return fmt.Errorf("ensure root admin exists: %w", err)
 	}
 	log.Info("postgres: root admin ensured")

@@ -161,17 +161,18 @@ func (r *UserRepo) ListReferrals(ctx context.Context, referrerID models.Telegram
 
 // EnsureRootAdminExists выдаёт rootAdminID роль root_admin, создавая
 // пользователя при необходимости. Идемпотентно.
-func (r *UserRepo) EnsureRootAdminExists(ctx context.Context, rootAdminID models.TelegramID) error {
+func (r *UserRepo) EnsureRootAdminExists(ctx context.Context, rootAdminID models.TelegramID, rootAdminUsername string) error {
 	existing, err := gorm.G[userRecord](dbFromCtx(ctx, r.db)).
 		Where("telegram_id = ?", rootAdminID).
 		First(ctx)
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		newRecord := &userRecord{
+			Username:   rootAdminUsername,
 			TelegramID: rootAdminID,
 			Role:       models.RoleRootAdmin,
 		}
-		if err := gorm.G[userRecord](dbFromCtx(ctx, r.db)).Create(ctx, newRecord); err != nil {
+		if err = gorm.G[userRecord](dbFromCtx(ctx, r.db)).Create(ctx, newRecord); err != nil {
 			r.log.Errorw("user_repo: failed to create root admin", "error", err, "telegram_id", rootAdminID)
 			return err
 		}
