@@ -142,6 +142,7 @@ export interface ReferralSettings {
 export interface Settings {
     id: number
     support_username: string
+    catalog_refresh_interval_seconds: number
     crystalpay: CrystalPaySettings
     yookassa: YooKassaSettings
     tinkoff: TinkoffSettings

@@ -52,6 +52,14 @@ export function SettingsPage() {
                     >
                         <Input placeholder="@username"/>
                     </Form.Item>
+                    <Form.Item
+                        name="catalog_refresh_interval_seconds"
+                        label="Интервал обновления каталога, сек"
+                        tooltip="Как часто фоновый воркер бота пересчитывает видимость категорий/товаров (наличие остатка). Применяется без перезапуска бота — подхватывается на следующем цикле воркера."
+                        rules={[{required: true, type: 'number', min: 5, max: 3600, message: 'От 5 до 3600'}]}
+                    >
+                        <InputNumber min={5} max={3600} style={{width: 160}}/>
+                    </Form.Item>
                 </Card>
 
                 <Card title="Реферальная программа" style={{marginBottom: 16}}>
