@@ -119,7 +119,7 @@ func (r *fakeUserRepo) CountReferrals(context.Context, models.TelegramID) (int64
 func (r *fakeUserRepo) ListReferrals(context.Context, models.TelegramID, int, int) ([]models.User, error) {
 	panic("не используется")
 }
-func (r *fakeUserRepo) EnsureRootAdminExists(context.Context, models.TelegramID) error {
+func (r *fakeUserRepo) EnsureRootAdminExists(context.Context, models.TelegramID, string) error {
 	panic("не используется")
 }
 

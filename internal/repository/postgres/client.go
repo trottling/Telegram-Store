@@ -56,7 +56,14 @@ func NewClient(cfg *config.PostgresConfig, log *zap.SugaredLogger) (*gorm.DB, er
 		Colorful:      false,
 	})
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: gormLog})
+	// SkipDefaultTransaction: GORM иначе оборачивает любую запись (даже
+	// однострочный Create/Update/Delete) в отдельную транзакцию — лишний
+	// round-trip там, где атомарность и так не нужна (один statement в
+	// Postgres атомарен сам по себе). Там, где реально нужна атомарность
+	// нескольких запросов (ReserveItems+CreateBatch, Replenishment.Confirm),
+	// код уже явно оборачивает их в Transactor.WithinTransaction — эта опция
+	// его не отключает и не касается.
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{Logger: gormLog, SkipDefaultTransaction: true})
 	if err != nil {
 		return nil, err
 	}

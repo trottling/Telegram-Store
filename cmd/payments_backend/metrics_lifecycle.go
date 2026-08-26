@@ -8,6 +8,8 @@ import (
 
 	"go.uber.org/fx"
 	"go.uber.org/zap"
+
+	"github.com/trottling/Telegram-Store/internal/metrics/dbstats"
 )
 
 // metricsShutdownTimeout — этот сервер не трогает Redis/вебхуки, поэтому не
@@ -15,8 +17,9 @@ import (
 const metricsShutdownTimeout = 5 * time.Second
 
 // RunMetricsServer регистрирует старт/стоп /metrics-сервера в fx.Lifecycle,
-// тем же паттерном, что и cmd/bot/metrics_lifecycle.go.
-func RunMetricsServer(lc fx.Lifecycle, srv *http.Server, log *zap.SugaredLogger) {
+// тем же паттерном, что и cmd/bot/metrics_lifecycle.go. _ *dbstats.Collector
+// форсирует его сборку — см. cmd/bot/metrics_lifecycle.go.
+func RunMetricsServer(lc fx.Lifecycle, srv *http.Server, _ *dbstats.Collector, log *zap.SugaredLogger) {
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			go func() {

@@ -74,7 +74,7 @@ func main() {
 	if err != nil {
 		fatalf("postgres: %v", err)
 	}
-	if err = pgdb.AutoMigrate(ctx, db, log, 1); err != nil {
+	if err = pgdb.AutoMigrate(ctx, db, log, 1, "loadtest-root"); err != nil {
 		fatalf("automigrate: %v", err)
 	}
 

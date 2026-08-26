@@ -26,6 +26,9 @@ type UserRepository interface {
 	ListReferrals(ctx context.Context, referrerID models.TelegramID, offset, limit int) ([]models.User, error)
 
 	// EnsureRootAdminExists выдаёт rootAdminID роль root_admin, создавая
-	// пользователя при необходимости. Идемпотентно, вызывается из cmd/migrate.
-	EnsureRootAdminExists(ctx context.Context, rootAdminID models.TelegramID) error
+	// пользователя при необходимости (с именем rootAdminUsername — Telegram
+	// не отдаёт его без взаимодействия пользователя с ботом, а до первого
+	// /start строки может не быть вовсе). Идемпотентно, вызывается из
+	// cmd/migrate; уже существующему пользователю имя не перезаписывает.
+	EnsureRootAdminExists(ctx context.Context, rootAdminID models.TelegramID, rootAdminUsername string) error
 }

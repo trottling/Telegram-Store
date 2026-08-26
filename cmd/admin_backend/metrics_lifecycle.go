@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	adminmetrics "github.com/trottling/Telegram-Store/internal/metrics/admin"
+	"github.com/trottling/Telegram-Store/internal/metrics/dbstats"
 )
 
 // metricsShutdownTimeout — этот сервер не трогает Redis/сессии, поэтому не
@@ -17,13 +18,13 @@ import (
 const metricsShutdownTimeout = 5 * time.Second
 
 // RunMetricsServer регистрирует старт/стоп /metrics-сервера в fx.Lifecycle,
-// тем же паттерном, что и cmd/bot/metrics_lifecycle.go. Параметр collector не
-// используется в теле напрямую — он тут ради самого факта присутствия в
-// сигнатуре: fx строит его только если что-то требует его как зависимость, а
-// NewAnalyticsCollector регистрирует себя в Prometheus прямо в конструкторе
-// (см. internal/metrics/admin/collector.go), поэтому важно лишь, чтобы fx его
-// вообще построил.
-func RunMetricsServer(lc fx.Lifecycle, srv *http.Server, _ *adminmetrics.AnalyticsCollector, log *zap.SugaredLogger) {
+// тем же паттерном, что и cmd/bot/metrics_lifecycle.go. Параметры-коллекторы
+// не используются в теле напрямую — они тут ради самого факта присутствия в
+// сигнатуре: fx строит их только если что-то требует их как зависимость, а
+// оба регистрируются в Prometheus прямо в своих конструкторах (см.
+// internal/metrics/admin/collector.go, internal/metrics/dbstats), поэтому
+// важно лишь, чтобы fx их вообще построил.
+func RunMetricsServer(lc fx.Lifecycle, srv *http.Server, _ *adminmetrics.AnalyticsCollector, _ *dbstats.Collector, log *zap.SugaredLogger) {
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			go func() {

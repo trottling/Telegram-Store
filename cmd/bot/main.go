@@ -32,6 +32,7 @@ import (
 	"github.com/trottling/Telegram-Store/internal/domain/service"
 	"github.com/trottling/Telegram-Store/internal/logger"
 	botmetrics "github.com/trottling/Telegram-Store/internal/metrics/bot"
+	"github.com/trottling/Telegram-Store/internal/metrics/dbstats"
 	pgdb "github.com/trottling/Telegram-Store/internal/repository/postgres"
 	svc "github.com/trottling/Telegram-Store/internal/service"
 )
@@ -70,6 +71,7 @@ func main() {
 			),
 
 			pgdb.NewClient,
+			dbstats.New,
 			fx.Annotate(pgdb.NewUserRepo, fx.As(new(repository.UserRepository))),
 			fx.Annotate(pgdb.NewProductRepo, fx.As(new(repository.ProductRepository))),
 			fx.Annotate(pgdb.NewPurchaseRepo, fx.As(new(repository.PurchaseRepository))),

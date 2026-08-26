@@ -89,6 +89,29 @@
       "targets": [
         { "expr": "{container=~\"telegram-store-(bot|admin-backend|payments-backend)\"}", "refId": "A" }
       ]
+    },
+    {
+      "id": 8,
+      "title": "DB connections in use / idle, by process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "targets": [
+        { "expr": "db_connections_in_use{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}} in use", "refId": "A" },
+        { "expr": "db_connections_idle{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}} idle", "refId": "B" },
+        { "expr": "db_max_open_connections{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}} max", "refId": "C" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "DB connection pool wait count, by process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "description": "Растёт только когда все MaxOpenConns заняты и запрос ждёт свободное соединение — сигнал, что dbMaxOpenConns (internal/repository/postgres/client.go) стал тесен для текущей нагрузки.",
+      "targets": [
+        { "expr": "sum by (job) (rate(db_wait_count_total{job=~\"bot|admin-backend|payments-backend\"}[5m]))", "legendFormat": "{{job}}", "refId": "A" }
+      ]
     }
   ]
 }
