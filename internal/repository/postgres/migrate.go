@@ -9,31 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// partialIndexes — то, что не выражается тегами GORM.
-//
-// Непроданных единиц у товара всегда мало, а проданные копятся и не удаляются.
-// Обычный индекс по product_id со временем заставляет пробегать все проданные
-// строки, чтобы отфильтровать их по is_sold; частичный содержит только
-// непроданные и остаётся маленьким независимо от оборота. Задействован в самых
-// горячих местах: ReserveItem (денежный путь под локами), проверка наличия в
-// листинге товаров, ListStockedCategoryIDs (см. CategorySrv.RefreshCatalogSnapshot),
-// счётчик на карточке.
-//
-// IF NOT EXISTS — cmd/migrate прогоняется на каждый деплой.
-var partialIndexes = []string{
-	`CREATE INDEX IF NOT EXISTS idx_product_items_unsold
-	 ON product_items (product_id) WHERE is_sold = false`,
-}
-
-func createPartialIndexes(db *gorm.DB) error {
-	for _, stmt := range partialIndexes {
-		if err := db.Exec(stmt).Error; err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // refreshCollationVersions — постоянный шум в логах, а не признак реальной
 // проблемы: postgres:*-alpine собран на musl, а он вообще не версионирует
 // collation. Postgres видит расхождение с версией, записанной при создании
@@ -48,7 +23,9 @@ func createPartialIndexes(db *gorm.DB) error {
 // быть суперпользователем — обновлять системный каталог pg_database тогда
 // нечем, но это не должно останавливать реальную схему.
 func refreshCollationVersions(db *gorm.DB, log *zap.SugaredLogger) {
-	if err := db.Exec(`UPDATE pg_database SET datcollversion = NULL WHERE datcollversion IS NOT NULL`).Error; err != nil {
+	if err := db.Table("pg_database").
+		Where("datcollversion IS NOT NULL").
+		Update("datcollversion", gorm.Expr("NULL")).Error; err != nil {
 		log.Warnw("postgres: failed to clear stale collation versions, the warning will keep appearing in logs", "error", err)
 	}
 }
@@ -70,11 +47,6 @@ func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootA
 	}
 	log.Info("postgres: schema migrated")
 
-	if err := createPartialIndexes(db); err != nil {
-		return fmt.Errorf("create partial indexes: %w", err)
-	}
-	log.Info("postgres: partial indexes ensured")
-
 	refreshCollationVersions(db, log)
 
 	userRepo := NewUserRepo(db, log)
@@ -84,7 +56,7 @@ func AutoMigrate(ctx context.Context, db *gorm.DB, log *zap.SugaredLogger, rootA
 	log.Info("postgres: root admin ensured")
 
 	settingsRepo := NewSettingsRepo(db, log)
-	if err := settingsRepo.EnsureExists(ctx, &models.Settings{SupportUsername: "@#####"}); err != nil {
+	if err := settingsRepo.EnsureExists(ctx, &models.Settings{SupportUsername: "@#####", CatalogRefreshIntervalSeconds: 30}); err != nil {
 		return fmt.Errorf("ensure settings exist: %w", err)
 	}
 	log.Info("postgres: settings ensured")

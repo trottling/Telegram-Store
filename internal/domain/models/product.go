@@ -17,7 +17,7 @@ type Product struct {
 
 type ProductItem struct {
 	ID        ProductItemID `gorm:"type:uuid;primaryKey" json:"id"`
-	ProductID ProductID     `gorm:"type:uuid;index;not null" json:"product_id"`
+	ProductID ProductID     `gorm:"type:uuid;index:idx_product_items_unsold,where:is_sold = false;not null" json:"product_id"`
 	Content   string        `gorm:"type:text;not null" json:"-"` // сам товар (ключ, ссылка)
 	IsSold    bool          `gorm:"default:false;not null" json:"is_sold"`
 	SoldAt    *time.Time    `json:"sold_at,omitempty"`
