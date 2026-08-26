@@ -3,25 +3,61 @@
   "uid": "business-overview",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "time": { "from": "now-24h", "to": "now" },
   "refresh": "30s",
   "panels": [
+    { "id": 200, "title": "Live throughput", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+    {
+      "id": 18,
+      "title": "Purchases per hour, by outcome",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "targets": [
+        { "expr": "sum by (status) (rate(bot_purchases_total[1h]))", "legendFormat": "{{status}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 19,
+      "title": "Revenue per hour",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "targets": [
+        { "expr": "rate(bot_purchase_amount_total[1h])", "refId": "A" }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "Units sold per hour",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "targets": [
+        { "expr": "rate(bot_purchase_units_total[1h])", "refId": "A" }
+      ]
+    },
+
+    { "id": 201, "title": "Purchases & referrals", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
     {
       "id": 1,
       "title": "Purchases, by outcome",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 10 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "sum by (status) (bot_purchases_total)", "legendFormat": "{{status}}", "refId": "A" }]
     },
     {
       "id": 2,
-      "title": "Revenue (counter, since start)",
+      "title": "Revenue since bot restart (counter)",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 10 },
+      "description": "In-memory счётчик bot'а — обнуляется на каждом рестарте процесса, в отличие от «Total revenue (all time)» ниже (живой SUM из Postgres, действительно all-time). Смотреть здесь на форму/тренд, а не на абсолютное число.",
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "bot_purchase_amount_total", "refId": "A" }]
     },
     {
@@ -29,7 +65,8 @@
       "title": "Referral credits paid",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 10 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "bot_referral_credits_total", "refId": "A" }]
     },
     {
@@ -37,15 +74,18 @@
       "title": "Referral credit amount",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 10 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "bot_referral_credit_amount_total", "refId": "A" }]
     },
+
+    { "id": 202, "title": "Replenishments", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 } },
     {
       "id": 5,
       "title": "Replenishments per hour, by merchant and outcome",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
       "targets": [
         { "expr": "sum by (merchant, status) (rate(replenishments_total[1h]))", "legendFormat": "{{merchant}}/{{status}}", "refId": "A" }
       ]
@@ -55,17 +95,19 @@
       "title": "Replenishment amount, by merchant",
       "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
       "targets": [
         { "expr": "sum by (merchant) (replenishment_amount_total)", "legendFormat": "{{merchant}}", "refId": "A" }
       ]
     },
+
+    { "id": 203, "title": "Users & admin", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 } },
     {
       "id": 7,
       "title": "New users per hour, by source",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
       "targets": [
         { "expr": "sum by (source) (rate(bot_users_registered_total[1h]))", "legendFormat": "{{source}}", "refId": "A" }
       ]
@@ -75,17 +117,20 @@
       "title": "Admin actions, by action",
       "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
       "targets": [
         { "expr": "sum by (action) (admin_actions_total)", "legendFormat": "{{action}}", "refId": "A" }
       ]
     },
+
+    { "id": 204, "title": "Snapshot totals (Postgres, all-time)", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 } },
     {
       "id": 9,
       "title": "Total revenue (all time)",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 22 },
+      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 35 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "shop_total_revenue", "refId": "A" }]
     },
     {
@@ -93,7 +138,8 @@
       "title": "Total purchases",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 22 },
+      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 35 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "shop_total_purchases", "refId": "A" }]
     },
     {
@@ -101,7 +147,8 @@
       "title": "Total users",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 22 },
+      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 35 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "shop_total_users", "refId": "A" }]
     },
     {
@@ -109,7 +156,8 @@
       "title": "Banned users",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 22 },
+      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 35 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "shop_banned_users", "refId": "A" }]
     },
     {
@@ -117,7 +165,8 @@
       "title": "Admin users",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 22 },
+      "gridPos": { "h": 6, "w": 4, "x": 16, "y": 35 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "shop_admin_users", "refId": "A" }]
     },
     {
@@ -125,15 +174,19 @@
       "title": "Total balance on user accounts",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 22 },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 35 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "shop_total_balance", "refId": "A" }]
     },
+
+    { "id": 205, "title": "Catalog", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 41 } },
     {
       "id": 15,
       "title": "Available stock",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 28 },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 42 },
+      "options": { "graphMode": "area", "colorMode": "value", "justifyMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "expr": "shop_available_stock_total", "refId": "A" }]
     },
     {
@@ -141,7 +194,7 @@
       "title": "Top 10 products by revenue",
       "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 28 },
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 42 },
       "targets": [
         { "expr": "shop_top_products_revenue", "legendFormat": "{{product_name}}", "refId": "A" }
       ]
@@ -151,9 +204,29 @@
       "title": "Top 10 categories by revenue",
       "type": "bargauge",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 28 },
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 42 },
       "targets": [
         { "expr": "shop_top_categories_revenue", "legendFormat": "{{category_name}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Top 10 products by units sold",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 50 },
+      "targets": [
+        { "expr": "shop_top_products_units_sold", "legendFormat": "{{product_name}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Top 10 categories by units sold",
+      "type": "bargauge",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 50 },
+      "targets": [
+        { "expr": "shop_top_categories_units_sold", "legendFormat": "{{category_name}}", "refId": "A" }
       ]
     }
   ]

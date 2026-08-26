@@ -18,15 +18,17 @@ type AnalyticsCollector struct {
 	svc service.AnalyticsService
 	log *zap.SugaredLogger
 
-	totalRevenue   *prometheus.Desc
-	totalPurchases *prometheus.Desc
-	totalUsers     *prometheus.Desc
-	bannedUsers    *prometheus.Desc
-	adminUsers     *prometheus.Desc
-	totalBalance   *prometheus.Desc
-	availableStock *prometheus.Desc
-	topProduct     *prometheus.Desc
-	topCategory    *prometheus.Desc
+	totalRevenue     *prometheus.Desc
+	totalPurchases   *prometheus.Desc
+	totalUsers       *prometheus.Desc
+	bannedUsers      *prometheus.Desc
+	adminUsers       *prometheus.Desc
+	totalBalance     *prometheus.Desc
+	availableStock   *prometheus.Desc
+	topProduct       *prometheus.Desc
+	topCategory      *prometheus.Desc
+	topProductUnits  *prometheus.Desc
+	topCategoryUnits *prometheus.Desc
 }
 
 // NewAnalyticsCollector сразу регистрирует себя в дефолтном registry (том же,
@@ -37,15 +39,17 @@ func NewAnalyticsCollector(svc service.AnalyticsService, log *zap.SugaredLogger)
 		svc: svc,
 		log: log,
 
-		totalRevenue:   prometheus.NewDesc("shop_total_revenue", "Total revenue from completed purchases.", nil, nil),
-		totalPurchases: prometheus.NewDesc("shop_total_purchases", "Total number of completed purchases.", nil, nil),
-		totalUsers:     prometheus.NewDesc("shop_total_users", "Total number of registered users.", nil, nil),
-		bannedUsers:    prometheus.NewDesc("shop_banned_users", "Total number of banned users.", nil, nil),
-		adminUsers:     prometheus.NewDesc("shop_admin_users", "Total number of admin/root admin users.", nil, nil),
-		totalBalance:   prometheus.NewDesc("shop_total_balance", "Sum of all user balances.", nil, nil),
-		availableStock: prometheus.NewDesc("shop_available_stock_total", "Total number of unsold product items.", nil, nil),
-		topProduct:     prometheus.NewDesc("shop_top_products_revenue", "Revenue of top products by revenue.", []string{"product_name"}, nil),
-		topCategory:    prometheus.NewDesc("shop_top_categories_revenue", "Revenue of top categories by revenue.", []string{"category_name"}, nil),
+		totalRevenue:     prometheus.NewDesc("shop_total_revenue", "Total revenue from completed purchases.", nil, nil),
+		totalPurchases:   prometheus.NewDesc("shop_total_purchases", "Total number of completed purchases.", nil, nil),
+		totalUsers:       prometheus.NewDesc("shop_total_users", "Total number of registered users.", nil, nil),
+		bannedUsers:      prometheus.NewDesc("shop_banned_users", "Total number of banned users.", nil, nil),
+		adminUsers:       prometheus.NewDesc("shop_admin_users", "Total number of admin/root admin users.", nil, nil),
+		totalBalance:     prometheus.NewDesc("shop_total_balance", "Sum of all user balances.", nil, nil),
+		availableStock:   prometheus.NewDesc("shop_available_stock_total", "Total number of unsold product items.", nil, nil),
+		topProduct:       prometheus.NewDesc("shop_top_products_revenue", "Revenue of top products by revenue.", []string{"product_name"}, nil),
+		topCategory:      prometheus.NewDesc("shop_top_categories_revenue", "Revenue of top categories by revenue.", []string{"category_name"}, nil),
+		topProductUnits:  prometheus.NewDesc("shop_top_products_units_sold", "Units sold of top products by revenue.", []string{"product_name"}, nil),
+		topCategoryUnits: prometheus.NewDesc("shop_top_categories_units_sold", "Units sold of top categories by revenue.", []string{"category_name"}, nil),
 	}
 	prometheus.MustRegister(c)
 	return c
@@ -61,6 +65,8 @@ func (c *AnalyticsCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.availableStock
 	ch <- c.topProduct
 	ch <- c.topCategory
+	ch <- c.topProductUnits
+	ch <- c.topCategoryUnits
 }
 
 // Collect выполняется на каждый Prometheus-скрейп — гоняет агрегаты в
@@ -81,8 +87,10 @@ func (c *AnalyticsCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.availableStock, prometheus.GaugeValue, float64(snap.AvailableStock))
 	for _, p := range snap.TopProducts {
 		ch <- prometheus.MustNewConstMetric(c.topProduct, prometheus.GaugeValue, p.Revenue.Float64(), p.Name)
+		ch <- prometheus.MustNewConstMetric(c.topProductUnits, prometheus.GaugeValue, float64(p.UnitsSold), p.Name)
 	}
 	for _, cat := range snap.TopCategories {
 		ch <- prometheus.MustNewConstMetric(c.topCategory, prometheus.GaugeValue, cat.Revenue.Float64(), cat.Name)
+		ch <- prometheus.MustNewConstMetric(c.topCategoryUnits, prometheus.GaugeValue, float64(cat.UnitsSold), cat.Name)
 	}
 }

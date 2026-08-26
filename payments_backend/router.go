@@ -13,7 +13,10 @@ import (
 func newRouter(h *handlers.Handlers) http.Handler {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	// Recovery снаружи Detach, чтобы накрывать и панику после отцепления ctx.
+	// Metrics снаружи Recovery, чтобы её defer видел итоговый статус (в т.ч.
+	// 500 после восстановленной паники), а Recovery — снаружи Detach, чтобы
+	// накрывать и панику после отцепления ctx.
+	r.Use(middleware.Metrics())
 	r.Use(gin.Recovery())
 	r.Use(middleware.Detach())
 

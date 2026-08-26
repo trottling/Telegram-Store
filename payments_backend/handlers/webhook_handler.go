@@ -19,6 +19,7 @@ import (
 	domainerrors "github.com/trottling/Telegram-Store/internal/domain/errors"
 	"github.com/trottling/Telegram-Store/internal/domain/models"
 	"github.com/trottling/Telegram-Store/internal/domain/service/payment"
+	paymentsmetrics "github.com/trottling/Telegram-Store/internal/metrics/payments"
 )
 
 // replenishmentOK — можно ли отвечать мерчанту успехом. Тело успешного ответа
@@ -73,6 +74,7 @@ func (h *Handlers) CrystalPayWebhook(c *gin.Context) {
 	expected := hex.EncodeToString(sum[:])
 	if !hmac.Equal([]byte(expected), []byte(payload.Signature)) {
 		h.log.Warn("handlers: crystalpay webhook signature mismatch")
+		paymentsmetrics.WebhookSignatureInvalidTotal.WithLabelValues(string(models.MerchantCrystalPay)).Inc()
 		c.Status(http.StatusForbidden)
 		return
 	}
@@ -113,6 +115,7 @@ func (h *Handlers) TinkoffWebhook(c *gin.Context) {
 	notification, err := client.ParseNotification(c.Request.Body)
 	if err != nil {
 		h.log.Warnw("handlers: tinkoff webhook verification failed", "error", err)
+		paymentsmetrics.WebhookSignatureInvalidTotal.WithLabelValues(string(models.MerchantTinkoff)).Inc()
 		c.Status(http.StatusForbidden)
 		return
 	}

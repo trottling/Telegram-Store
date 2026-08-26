@@ -3,17 +3,18 @@
   "uid": "technical-overview",
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "time": { "from": "now-6h", "to": "now" },
   "refresh": "30s",
   "panels": [
+    { "id": 100, "title": "Bot", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
     {
       "id": 1,
       "title": "Updates per second, by kind",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
       "targets": [
         { "expr": "sum by (kind) (rate(bot_updates_total[5m]))", "legendFormat": "{{kind}}", "refId": "A" }
       ]
@@ -23,18 +24,58 @@
       "title": "Update handling duration, p95",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
       "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
       "targets": [
         { "expr": "histogram_quantile(0.95, sum by (le, kind) (rate(bot_update_duration_seconds_bucket[5m])))", "legendFormat": "{{kind}}", "refId": "A" }
       ]
     },
+
+    { "id": 101, "title": "HTTP APIs — admin-backend, payments-backend", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
+    {
+      "id": 10,
+      "title": "HTTP requests per second, by process and status",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "description": "admin-backend и payments-backend — разные метрики (admin_http_requests_total / payments_http_requests_total): internal/service импортирует оба пакета сразу для AdminSrv/ReplenishmentSrv, общее имя паникует на MustRegister в любом из трёх бинарников.",
+      "targets": [
+        { "expr": "sum by (status) (rate(admin_http_requests_total[5m]))", "legendFormat": "admin-backend {{status}}", "refId": "A" },
+        { "expr": "sum by (status) (rate(payments_http_requests_total[5m]))", "legendFormat": "payments-backend {{status}}", "refId": "B" }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "HTTP request duration, p95, by process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(admin_http_request_duration_seconds_bucket[5m])))", "legendFormat": "admin-backend", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(payments_http_request_duration_seconds_bucket[5m])))", "legendFormat": "payments-backend", "refId": "B" }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Payment webhook signature failures, by merchant",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 18 },
+      "description": "Только crystalpay/tinkoff — ЮKassa уведомления не подписывает (см. payments_backend/handlers.YooKassaWebhook), считать там нечего. Устойчивый ненулевой поток — либо у мерчанта поменялись креды/секрет, либо кто-то долбит вебхук-эндпоинт наугад.",
+      "targets": [
+        { "expr": "sum by (merchant) (rate(payments_webhook_signature_invalid_total[5m]))", "legendFormat": "{{merchant}}", "refId": "A" }
+      ]
+    },
+
+    { "id": 102, "title": "Process", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 } },
     {
       "id": 3,
-      "title": "Panics recovered",
+      "title": "Panics recovered (selected time range)",
       "type": "stat",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 25 },
+      "description": "increase() по выбранному диапазону, не bot_panics_total целиком — тот счётчик копится с момента старта процесса и никогда не падает обратно к 0 без рестарта, так что голый sum() красил бы панель в красный навсегда после одной-единственной паники за всё время аптайма.",
       "fieldConfig": {
         "defaults": {
           "thresholds": {
@@ -47,14 +88,22 @@
         },
         "overrides": []
       },
-      "targets": [{ "expr": "sum(bot_panics_total)", "refId": "A" }]
+      "targets": [{ "expr": "sum(increase(bot_panics_total[$__range]))", "refId": "A" }]
     },
     {
       "id": 4,
       "title": "Goroutines, by process",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 9, "x": 6, "y": 8 },
+      "gridPos": { "h": 6, "w": 9, "x": 6, "y": 25 },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bot" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#5794F2" } }] },
+          { "matcher": { "id": "byName", "options": "admin-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }] },
+          { "matcher": { "id": "byName", "options": "payments-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#FF9830" } }] }
+        ]
+      },
       "targets": [
         { "expr": "go_goroutines{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}}", "refId": "A" }
       ]
@@ -64,38 +113,64 @@
       "title": "Resident memory, by process",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 9, "x": 15, "y": 8 },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 9, "x": 15, "y": 25 },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bot" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#5794F2" } }] },
+          { "matcher": { "id": "byName", "options": "admin-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }] },
+          { "matcher": { "id": "byName", "options": "payments-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#FF9830" } }] }
+        ]
+      },
       "targets": [
         { "expr": "process_resident_memory_bytes{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}}", "refId": "A" }
       ]
     },
     {
-      "id": 6,
-      "title": "Prometheus scrape targets, by health",
-      "type": "stat",
+      "id": 13,
+      "title": "CPU usage, by process",
+      "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 14 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "description": "Деплой целится в 1 CPU/2 GB VPS (см. CLAUDE.md) — сумма трёх процессов, устойчиво подбирающаяся к 1.0, means упереться в CPU раньше, чем в память.",
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bot" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#5794F2" } }] },
+          { "matcher": { "id": "byName", "options": "admin-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }] },
+          { "matcher": { "id": "byName", "options": "payments-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#FF9830" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "up", "legendFormat": "{{job}}", "refId": "A" }
+        { "expr": "rate(process_cpu_seconds_total{job=~\"bot|admin-backend|payments-backend\"}[5m])", "legendFormat": "{{job}}", "refId": "A" }
       ]
     },
     {
-      "id": 7,
-      "title": "Application logs",
-      "type": "logs",
-      "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 20 },
+      "id": 14,
+      "title": "GC time spent, by process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "bot" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#5794F2" } }] },
+          { "matcher": { "id": "byName", "options": "admin-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#73BF69" } }] },
+          { "matcher": { "id": "byName", "options": "payments-backend" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#FF9830" } }] }
+        ]
+      },
       "targets": [
-        { "expr": "{container=~\"telegram-store-(bot|admin-backend|payments-backend)\"}", "refId": "A" }
+        { "expr": "rate(go_gc_duration_seconds_sum{job=~\"bot|admin-backend|payments-backend\"}[5m])", "legendFormat": "{{job}}", "refId": "A" }
       ]
     },
+
+    { "id": 103, "title": "Database", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 } },
     {
       "id": 8,
       "title": "DB connections in use / idle, by process",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
       "targets": [
         { "expr": "db_connections_in_use{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}} in use", "refId": "A" },
         { "expr": "db_connections_idle{job=~\"bot|admin-backend|payments-backend\"}", "legendFormat": "{{job}} idle", "refId": "B" },
@@ -107,10 +182,59 @@
       "title": "DB connection pool wait count, by process",
       "type": "timeseries",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
       "description": "Растёт только когда все MaxOpenConns заняты и запрос ждёт свободное соединение — сигнал, что dbMaxOpenConns (internal/repository/postgres/client.go) стал тесен для текущей нагрузки.",
       "targets": [
         { "expr": "sum by (job) (rate(db_wait_count_total{job=~\"bot|admin-backend|payments-backend\"}[5m]))", "legendFormat": "{{job}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 15,
+      "title": "DB connection wait duration, by process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "description": "Суммарное время, проведённое в ожидании свободного соединения — та же история, что и wait count слева, но в секундах, а не количестве. Ноль почти всегда — норма.",
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum by (job) (rate(db_wait_duration_seconds_total{job=~\"bot|admin-backend|payments-backend\"}[5m]))", "legendFormat": "{{job}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 16,
+      "title": "DB connections closed, by reason and process",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "description": "Частое закрытие по idle-time/lifetime — не проблема сама по себе, но устойчивый рост говорит, что dbConnMaxLifetime/dbConnMaxIdleTime (client.go) короче, чем реальный ритм трафика, и пул постоянно пересоздаёт соединения.",
+      "targets": [
+        { "expr": "sum by (job) (rate(db_max_idle_closed_total{job=~\"bot|admin-backend|payments-backend\"}[5m]))", "legendFormat": "{{job}} idle-limit", "refId": "A" },
+        { "expr": "sum by (job) (rate(db_max_idle_time_closed_total{job=~\"bot|admin-backend|payments-backend\"}[5m]))", "legendFormat": "{{job}} idle-time", "refId": "B" },
+        { "expr": "sum by (job) (rate(db_max_lifetime_closed_total{job=~\"bot|admin-backend|payments-backend\"}[5m]))", "legendFormat": "{{job}} lifetime", "refId": "C" }
+      ]
+    },
+
+    { "id": 104, "title": "Infra", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 56 } },
+    {
+      "id": 6,
+      "title": "Prometheus scrape targets, by health",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 57 },
+      "targets": [
+        { "expr": "up", "legendFormat": "{{job}}", "refId": "A" }
+      ]
+    },
+
+    { "id": 105, "title": "Logs", "type": "row", "collapsed": false, "panels": [], "gridPos": { "h": 1, "w": 24, "x": 0, "y": 63 } },
+    {
+      "id": 7,
+      "title": "Application logs",
+      "type": "logs",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 64 },
+      "targets": [
+        { "expr": "{container=~\"telegram-store-(bot|admin-backend|payments-backend)\"}", "refId": "A" }
       ]
     }
   ]

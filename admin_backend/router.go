@@ -26,6 +26,7 @@ func newRouter(h *handlers.Handlers, adminAuthService service.AdminAuthService, 
 		log.Errorw("admin_backend: invalid trusted proxies, per-IP limits are not reliable", "error", err, "trusted_proxies", trustedProxies)
 	}
 
+	r.Use(middleware.Metrics())
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS(corsOrigin, log))
 
